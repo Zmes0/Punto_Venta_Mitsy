@@ -10,7 +10,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 from datetime import datetime
 from config import BUSINESS_INFO, TICKET_CONFIG
-from utils import format_currency, get_current_datetime
+from utils import format_currency
+from datetime import datetime
 
 class TicketGenerator:
     def __init__(self):
@@ -160,7 +161,7 @@ class TicketGenerator:
             # Precio unitario (línea adicional más pequeña)
             c.setFont("Helvetica", 6)
             c.drawString(self.margin + 10 * mm, self.current_y, 
-                        f"  @{format_currency(producto['precio'])} c/u")
+                        f"  {format_currency(producto['precio'])} c/u")
             c.setFont("Helvetica", 8)
             self.current_y -= 3 * mm
         

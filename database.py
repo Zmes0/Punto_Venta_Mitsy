@@ -20,6 +20,10 @@ class Database:
         self.create_tables()
         self.init_config()
     
+    def _get_current_datetime(self):
+        """Obtiene la fecha y hora actual en formato del sistema"""
+        return datetime.now().strftime('%d/%m/%Y %H:%M:%S')    
+    
     def connect(self):
         """Establece conexión con la base de datos"""
         self.conn = sqlite3.connect(self.db_path)

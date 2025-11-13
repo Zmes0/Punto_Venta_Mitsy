@@ -1,12 +1,13 @@
 """
 Módulo de Punto de Venta para Mitsy's POS
 """
+from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import os
 from config import COLORS, FONTS, MESAS
-from utils import format_currency, parse_currency
+from utils import format_currency, parse_currency, get_current_datetime
 from database import db
 from tickets import ticket_generator
 
@@ -1129,7 +1130,7 @@ class CobrarVentaWindow:
             # Generar ticket
             venta_data = {
                 'numero_venta': numero_venta,
-                'fecha': db.get_current_datetime(),
+                'fecha': datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
                 'productos': self.productos,
                 'subtotal': self.subtotal,
                 'propina': propina,
