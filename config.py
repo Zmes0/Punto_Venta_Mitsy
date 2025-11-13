@@ -32,7 +32,7 @@ FONTS = {
 
 # Configuración de ventanas
 WINDOW_CONFIG = {
-    'splash_duration': 2500,  # ms
+    'splash_duration': 3000,  # ms
     'min_width': 800,
     'min_height': 600
 }

@@ -75,8 +75,8 @@ class TicketGenerator:
         """Estima la altura necesaria para el ticket"""
         height = 30 * mm  # Header
         height += len(venta_data['productos']) * 6 * mm  # Productos
-        height += 25 * mm  # Totales
-        height += 15 * mm  # Footer
+        height += 30 * mm  # Totales
+        height += 55 * mm  # Footer
         return height
     
     def _draw_header(self, c, venta_data):
