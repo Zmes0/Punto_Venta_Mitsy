@@ -1,13 +1,12 @@
 """
 Módulo de Punto de Venta para Mitsy's POS
 """
-from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import os
 from config import COLORS, FONTS, MESAS
-from utils import format_currency, parse_currency, get_current_datetime
+from utils import format_currency, parse_currency
 from database import db
 from tickets import ticket_generator
 
@@ -17,7 +16,7 @@ class PuntoVentaWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Punto de Venta - Mitsy's POS")
-        self.window.geometry("800x600")
+        self.window.geometry("700x650")  # MÁS ALTO para nuevos controles
         self.window.configure(bg=COLORS['bg_primary'])
         
         # Centrar ventana
@@ -36,8 +35,8 @@ class PuntoVentaWindow:
     def center_window(self):
         """Centra la ventana en la pantalla"""
         self.window.update_idletasks()
-        width = 800
-        height = 600
+        width = 1050
+        height = 750
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")
@@ -51,7 +50,35 @@ class PuntoVentaWindow:
         title_label = tk.Label(main_frame, text="Punto de Venta", 
                               font=FONTS['title'], bg=COLORS['bg_primary'],
                               fg=COLORS['text_primary'])
-        title_label.pack(pady=(0, 30))
+        title_label.pack(pady=(0, 20))
+        
+        # Frame para controles superiores
+        controls_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
+                                 relief=tk.RAISED, borderwidth=2)
+        controls_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
+        
+        # Interruptor de impresión automática
+        print_frame = tk.Frame(controls_frame, bg=COLORS['bg_secondary'])
+        print_frame.pack(side=tk.LEFT, padx=15, pady=10)
+        
+        tk.Label(print_frame, text="Imprimir tickets automáticamente:", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.auto_print_var = tk.BooleanVar(value=db.get_auto_print())
+        self.auto_print_var.trace('w', self.toggle_auto_print)
+        
+        tk.Radiobutton(print_frame, text="Sí", variable=self.auto_print_var,
+                      value=True, font=FONTS['normal'],
+                      bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(print_frame, text="No", variable=self.auto_print_var,
+                      value=False, font=FONTS['normal'],
+                      bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=5)
+        
+        # Botón imprimir último ticket
+        tk.Button(controls_frame, text="🖨 Imprimir Último Ticket", 
+                 command=self.imprimir_ultimo_ticket,
+                 font=FONTS['button'], bg=COLORS['accent'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.RIGHT, padx=15, pady=10)
         
         # Frame para mesas (grid 3x3)
         mesas_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
@@ -102,6 +129,28 @@ class PuntoVentaWindow:
                           relief=tk.RAISED, borderwidth=2, padx=30, pady=10)
             btn.pack(side=tk.LEFT, padx=10)
     
+    def toggle_auto_print(self, *args):
+        """Activa/desactiva la impresión automática"""
+        activo = self.auto_print_var.get()
+        db.set_auto_print(activo)
+    
+    def imprimir_ultimo_ticket(self):
+        """Imprime el último ticket generado"""
+        last_ticket = db.get_last_ticket_path()
+        
+        if not last_ticket or not os.path.exists(last_ticket):
+            messagebox.showwarning("Sin Ticket", 
+                                  "No hay ningún ticket disponible para imprimir.")
+            return
+        
+        try:
+            if ticket_generator.print_ticket(last_ticket):
+                messagebox.showinfo("Éxito", "Ticket enviado a impresora")
+            else:
+                messagebox.showerror("Error", "No se pudo imprimir el ticket")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al imprimir: {str(e)}")
+    
     def open_mesa(self, mesa):
         """Abre la ventana de venta para una mesa"""
         VentaMesaWindow(self.window, mesa, callback=self.refresh_mesas)
@@ -124,8 +173,7 @@ class PuntoVentaWindow:
         self.window.destroy()
         if self.on_close_callback:
             self.on_close_callback()
-
-
+           
 class VentaMesaWindow:
     def __init__(self, parent, mesa, callback=None):
         self.mesa = mesa
@@ -438,14 +486,13 @@ class VentaMesaWindow:
         
         if self.callback:
             self.callback()
-            
 class AgregarProductosWindow:
     def __init__(self, parent, callback=None):
         self.callback = callback
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Agregar Productos")
-        self.dialog.geometry("1100x700")  # MÁS ANCHO para 4-5 productos por fila
+        self.dialog.geometry("1100x700")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -467,7 +514,7 @@ class AgregarProductosWindow:
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 1100  # AUMENTADO
+        width = 1100
         height = 700
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
@@ -544,7 +591,7 @@ class AgregarProductosWindow:
         try:
             self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         except:
-            pass  # Si el canvas ya no existe, ignorar
+            pass
     
     def load_productos(self):
         """Carga los productos en la galería"""
@@ -554,7 +601,7 @@ class AgregarProductosWindow:
         
         productos = db.get_productos()
         
-        # Crear grid de productos (4 columnas para pantallas normales)
+        # Crear grid de productos (4 columnas)
         row = 0
         col = 0
         
@@ -562,7 +609,7 @@ class AgregarProductosWindow:
             self.create_producto_card(producto, row, col)
             
             col += 1
-            if col > 6:  # 4 COLUMNAS (0, 1, 2, 3)
+            if col > 6:  # 7 COLUMNAS
                 col = 0
                 row += 1
     
@@ -570,11 +617,11 @@ class AgregarProductosWindow:
         """Crea una tarjeta de producto"""
         card = tk.Frame(self.scrollable_frame, bg=COLORS['bg_secondary'],
                        relief=tk.RAISED, borderwidth=2)
-        card.grid(row=row, column=col, padx=12, pady=12, sticky='nsew')  # PADDING REDUCIDO
+        card.grid(row=row, column=col, padx=12, pady=12, sticky='nsew')
         
-        # Imagen (MÁS PEQUEÑA)
+        # Imagen
         img_frame = tk.Frame(card, bg=COLORS['bg_secondary'], 
-                            width=120, height=120)  # REDUCIDO de 150 a 120
+                            width=120, height=120)
         img_frame.pack(pady=8)
         img_frame.pack_propagate(False)
         
@@ -589,10 +636,9 @@ class AgregarProductosWindow:
                 photo = self.create_placeholder_image()
             
             img_label = tk.Label(img_frame, image=photo, bg=COLORS['bg_secondary'])
-            img_label.image = photo  # Mantener referencia
+            img_label.image = photo
             img_label.pack(expand=True)
         except:
-            # Si falla, usar placeholder
             photo = self.create_placeholder_image()
             img_label = tk.Label(img_frame, image=photo, bg=COLORS['bg_secondary'])
             img_label.image = photo
@@ -626,13 +672,11 @@ class AgregarProductosWindow:
     
     def create_placeholder_image(self):
         """Crea una imagen placeholder"""
-        img = Image.new('RGB', (110, 110), color=COLORS['table_header'])  # REDUCIDO
+        img = Image.new('RGB', (110, 110), color=COLORS['table_header'])
         
-        # Dibujar un icono simple
         from PIL import ImageDraw
         draw = ImageDraw.Draw(img)
         
-        # Dibujar rectángulo y texto
         draw.rectangle([15, 15, 95, 95], outline='gray', width=2)
         draw.text((35, 45), "Sin", fill='gray')
         draw.text((25, 60), "Imagen", fill='gray')
@@ -661,7 +705,7 @@ class AgregarProductosWindow:
             self.create_producto_card(producto, row, col)
             
             col += 1
-            if col > 3:  # 4 COLUMNAS
+            if col > 3:
                 col = 0
                 row += 1
     
@@ -682,6 +726,7 @@ class AgregarProductosWindow:
             pass
         self.dialog.destroy()
 
+
 class CantidadProductoDialog:
     def __init__(self, parent, producto, callback=None):
         self.producto = producto
@@ -689,7 +734,7 @@ class CantidadProductoDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Ingresa la cantidad")
-        self.dialog.geometry("400x300")
+        self.dialog.geometry("500x400")  # MÁS ANCHO para teclado
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -702,13 +747,15 @@ class CantidadProductoDialog:
         # Centrar ventana
         self.center_dialog()
         
+        self.teclado_visible = False
+        
         self.setup_ui()
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 400
-        height = 300
+        width = 500
+        height = 400
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -720,33 +767,52 @@ class CantidadProductoDialog:
         
         # Título
         tk.Label(main_frame, text="Ingresa la cantidad del producto", 
-                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(pady=(0, 20))
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(pady=(0, 15))
         
         # Producto
         tk.Label(main_frame, text=f"Producto: {self.producto['nombre']}", 
-                font=FONTS['normal'], bg=COLORS['bg_primary']).pack(pady=10)
+                font=FONTS['normal'], bg=COLORS['bg_primary']).pack(pady=8)
         
         tk.Label(main_frame, text=f"Precio: {format_currency(self.producto['precio_unitario'])}", 
                 font=FONTS['normal'], bg=COLORS['bg_primary'],
-                fg=COLORS['accent']).pack(pady=(0, 20))
+                fg=COLORS['accent']).pack(pady=(0, 15))
         
-        # Cantidad
-        tk.Label(main_frame, text="Cantidad:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        # Frame para cantidad y botón teclado
+        cantidad_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        cantidad_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(cantidad_frame, text="Cantidad:", font=FONTS['normal'],
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
         
         self.cantidad_var = tk.StringVar(value="1")
-        cantidad_entry = tk.Entry(main_frame, textvariable=self.cantidad_var, 
-                                 font=FONTS['normal'], justify='center')
-        cantidad_entry.pack(fill=tk.X, pady=(0, 20))
-        cantidad_entry.focus()
-        cantidad_entry.select_range(0, tk.END)
+        self.cantidad_entry = tk.Entry(cantidad_frame, textvariable=self.cantidad_var, 
+                                      font=FONTS['normal'], justify='center', width=15)
+        self.cantidad_entry.pack(side=tk.LEFT, padx=(0, 10))
+        self.cantidad_entry.focus()
+        
+        # Seleccionar todo al hacer clic
+        self.cantidad_entry.bind('<Button-1>', lambda e: self.cantidad_entry.select_range(0, tk.END))
+        self.cantidad_entry.bind('<FocusIn>', lambda e: self.cantidad_entry.select_range(0, tk.END))
+        
+        # Botón para mostrar/ocultar teclado
+        self.btn_teclado = tk.Button(cantidad_frame, text="🔢", 
+                                     command=self.toggle_teclado,
+                                     font=('Segoe UI', 14), bg=COLORS['button_bg'],
+                                     relief=tk.RAISED, borderwidth=2, width=3)
+        self.btn_teclado.pack(side=tk.LEFT)
+        
+        # Frame para teclado numérico (oculto por defecto)
+        self.teclado_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
+                                     relief=tk.RAISED, borderwidth=2)
+        
+        self.create_numpad()
         
         # Bind Enter para aceptar
-        cantidad_entry.bind('<Return>', lambda e: self.accept())
+        self.cantidad_entry.bind('<Return>', lambda e: self.accept())
         
         # Botones
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack()
+        button_frame.pack(side=tk.BOTTOM, pady=(15, 0))
         
         tk.Button(button_frame, text="Aceptar", command=self.accept,
                  font=FONTS['button'], bg=COLORS['success'], fg='white',
@@ -755,6 +821,60 @@ class CantidadProductoDialog:
         tk.Button(button_frame, text="Regresar", command=self.dialog.destroy,
                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+    
+    def create_numpad(self):
+        """Crea el teclado numérico"""
+        buttons = [
+            ['7', '8', '9'],
+            ['4', '5', '6'],
+            ['1', '2', '3'],
+            ['.', '0', '⌫']
+        ]
+        
+        for row_idx, row in enumerate(buttons):
+            row_frame = tk.Frame(self.teclado_frame, bg=COLORS['bg_secondary'])
+            row_frame.pack(pady=5)
+            
+            for btn_text in row:
+                if btn_text == '⌫':
+                    cmd = self.numpad_backspace
+                else:
+                    cmd = lambda t=btn_text: self.numpad_click(t)
+                
+                btn = tk.Button(row_frame, text=btn_text, command=cmd,
+                              font=('Segoe UI', 16, 'bold'), width=4, height=2,
+                              bg=COLORS['button_bg'], relief=tk.RAISED,
+                              borderwidth=2, cursor='hand2')
+                btn.pack(side=tk.LEFT, padx=5)
+    
+    def toggle_teclado(self):
+        """Muestra/oculta el teclado numérico"""
+        if self.teclado_visible:
+            self.teclado_frame.pack_forget()
+            self.dialog.geometry("500x400")
+            self.teclado_visible = False
+        else:
+            self.teclado_frame.pack(pady=10)
+            self.dialog.geometry("500x600")  # MÁS ALTO
+            self.center_dialog()
+            self.teclado_visible = True
+    
+    def numpad_click(self, digit):
+        """Maneja el clic en el teclado numérico"""
+        current = self.cantidad_var.get()
+        if current == "0" or current == "1":
+            self.cantidad_var.set(digit)
+        else:
+            self.cantidad_var.set(current + digit)
+        self.cantidad_entry.icursor(tk.END)
+    
+    def numpad_backspace(self):
+        """Borra el último dígito"""
+        current = self.cantidad_var.get()
+        if len(current) > 0:
+            self.cantidad_var.set(current[:-1])
+        if self.cantidad_var.get() == "":
+            self.cantidad_var.set("0")
     
     def accept(self):
         """Acepta y retorna la cantidad"""
@@ -779,8 +899,6 @@ class CantidadProductoDialog:
             
         except ValueError:
             messagebox.showerror("Error", "La cantidad debe ser un número válido")
-
-
 class EditarCantidadDialog:
     def __init__(self, parent, producto, callback=None):
         self.producto = producto
@@ -824,13 +942,17 @@ class EditarCantidadDialog:
                 bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
         
         self.cantidad_var = tk.StringVar(value=str(self.producto['cantidad']))
-        cantidad_entry = tk.Entry(main_frame, textvariable=self.cantidad_var, 
-                                 font=FONTS['normal'])
-        cantidad_entry.pack(fill=tk.X, pady=(0, 20))
-        cantidad_entry.focus()
-        cantidad_entry.select_range(0, tk.END)
+        self.cantidad_entry = tk.Entry(main_frame, textvariable=self.cantidad_var, 
+                                      font=FONTS['normal'])
+        self.cantidad_entry.pack(fill=tk.X, pady=(0, 20))
+        self.cantidad_entry.focus()
         
-        cantidad_entry.bind('<Return>', lambda e: self.accept())
+        # Seleccionar todo al hacer clic o al recibir foco
+        self.cantidad_entry.bind('<Button-1>', lambda e: self.cantidad_entry.select_range(0, tk.END))
+        self.cantidad_entry.bind('<FocusIn>', lambda e: self.cantidad_entry.select_range(0, tk.END))
+        self.cantidad_entry.select_range(0, tk.END)
+        
+        self.cantidad_entry.bind('<Return>', lambda e: self.accept())
         
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         button_frame.pack()
@@ -907,13 +1029,17 @@ class EditarPrecioDialog:
                 bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
         
         self.precio_var = tk.StringVar(value=str(self.producto['precio']))
-        precio_entry = tk.Entry(main_frame, textvariable=self.precio_var, 
-                               font=FONTS['normal'])
-        precio_entry.pack(fill=tk.X, pady=(0, 20))
-        precio_entry.focus()
-        precio_entry.select_range(0, tk.END)
+        self.precio_entry = tk.Entry(main_frame, textvariable=self.precio_var, 
+                                     font=FONTS['normal'])
+        self.precio_entry.pack(fill=tk.X, pady=(0, 20))
+        self.precio_entry.focus()
         
-        precio_entry.bind('<Return>', lambda e: self.accept())
+        # Seleccionar todo al hacer clic o al recibir foco
+        self.precio_entry.bind('<Button-1>', lambda e: self.precio_entry.select_range(0, tk.END))
+        self.precio_entry.bind('<FocusIn>', lambda e: self.precio_entry.select_range(0, tk.END))
+        self.precio_entry.select_range(0, tk.END)
+        
+        self.precio_entry.bind('<Return>', lambda e: self.accept())
         
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         button_frame.pack()
@@ -945,7 +1071,8 @@ class EditarPrecioDialog:
             
         except ValueError:
             messagebox.showerror("Error", "El precio debe ser un número válido")
-            
+
+
 class CobrarVentaWindow:
     def __init__(self, parent, productos, total, mesa, callback=None):
         self.productos = productos
@@ -955,7 +1082,7 @@ class CobrarVentaWindow:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Cobrar Venta")
-        self.dialog.geometry("500x600")
+        self.dialog.geometry("600x650")  # MÁS ALTO para teclado
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -968,13 +1095,15 @@ class CobrarVentaWindow:
         # Centrar ventana
         self.center_dialog()
         
+        self.teclado_visible = False
+        
         self.setup_ui()
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 500
-        height = 600
+        width = 600
+        height = 650
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -988,9 +1117,29 @@ class CobrarVentaWindow:
         tk.Label(main_frame, text="Cobrar Venta", font=FONTS['title'],
                 bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 20))
         
+        # Propina con botón de teclado
+        propina_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        propina_frame.pack(fill=tk.X, pady=8)
+        
+        tk.Label(propina_frame, text="Propina:", font=FONTS['normal'],
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT)
+        
+        self.propina_var = tk.StringVar(value="0")
+        self.propina_var.trace('w', lambda *args: self.calculate_total())
+        self.propina_entry = tk.Entry(propina_frame, textvariable=self.propina_var,
+                                      font=FONTS['normal'], width=12, justify='right')
+        self.propina_entry.pack(side=tk.RIGHT, padx=(0, 5))
+        
+        # Dinero recibido con botón de teclado
+        recibido_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        recibido_frame.pack(fill=tk.X, pady=8)
+        
+        tk.Label(recibido_frame, text="Dinero recibido:", font=FONTS['normal'],
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT)
+        
         # Subtotal
         subtotal_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        subtotal_frame.pack(fill=tk.X, pady=10)
+        subtotal_frame.pack(fill=tk.X, pady=8)
         
         tk.Label(subtotal_frame, text="Subtotal:", font=FONTS['heading'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT)
@@ -999,49 +1148,55 @@ class CobrarVentaWindow:
                 font=FONTS['heading'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(side=tk.RIGHT)
         
-        # Propina
-        propina_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        propina_frame.pack(fill=tk.X, pady=10)
         
-        tk.Label(propina_frame, text="Propina:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT)
-        
-        self.propina_var = tk.StringVar(value="0")
-        self.propina_var.trace('w', lambda *args: self.calculate_total())
-        propina_entry = tk.Entry(propina_frame, textvariable=self.propina_var,
-                                font=FONTS['normal'], width=15, justify='right')
-        propina_entry.pack(side=tk.RIGHT)
+        # Seleccionar todo al hacer clic
+        self.propina_entry.bind('<Button-1>', lambda e: self.propina_entry.select_range(0, tk.END))
         
         # Total a pagar
         total_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
                               relief=tk.RAISED, borderwidth=2)
-        total_frame.pack(fill=tk.X, pady=20, padx=10)
+        total_frame.pack(fill=tk.X, pady=15, padx=10)
         
         tk.Label(total_frame, text="Total a pagar:", font=FONTS['heading'],
-                bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=10, pady=15)
+                bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=10, pady=12)
         
         self.total_var = tk.StringVar(value=format_currency(self.subtotal))
         tk.Label(total_frame, textvariable=self.total_var, 
                 font=('Segoe UI', 20, 'bold'), bg=COLORS['bg_secondary'],
-                fg=COLORS['accent']).pack(side=tk.RIGHT, padx=10, pady=15)
+                fg=COLORS['accent']).pack(side=tk.RIGHT, padx=10, pady=12)
         
-        # Dinero recibido
-        recibido_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        recibido_frame.pack(fill=tk.X, pady=10)
-        
-        tk.Label(recibido_frame, text="Dinero recibido:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT)
         
         self.recibido_var = tk.StringVar(value="0")
         self.recibido_var.trace('w', lambda *args: self.calculate_cambio())
-        recibido_entry = tk.Entry(recibido_frame, textvariable=self.recibido_var,
-                                 font=FONTS['normal'], width=15, justify='right')
-        recibido_entry.pack(side=tk.RIGHT)
-        recibido_entry.focus()
+        self.recibido_entry = tk.Entry(recibido_frame, textvariable=self.recibido_var,
+                                       font=FONTS['normal'], width=12, justify='right')
+        self.recibido_entry.pack(side=tk.RIGHT, padx=(0, 5))
+        
+        # Seleccionar todo y dar foco
+        self.recibido_entry.focus()
+        self.recibido_entry.select_range(0, tk.END)
+        self.recibido_entry.bind('<Button-1>', lambda e: self.recibido_entry.select_range(0, tk.END))
+        self.recibido_entry.bind('<FocusIn>', lambda e: self.recibido_entry.select_range(0, tk.END))
+        
+        # Botón teclado numérico
+        btn_teclado_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        btn_teclado_frame.pack(fill=tk.X, pady=5)
+        
+        self.btn_teclado = tk.Button(btn_teclado_frame, text="🔢 Mostrar Teclado", 
+                                     command=self.toggle_teclado,
+                                     font=FONTS['normal'], bg=COLORS['button_bg'],
+                                     relief=tk.RAISED, borderwidth=2, padx=15, pady=5)
+        self.btn_teclado.pack()
+        
+        # Frame para teclado numérico (oculto por defecto)
+        self.teclado_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
+                                     relief=tk.RAISED, borderwidth=2)
+        
+        self.create_numpad()
         
         # Cambio
         cambio_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        cambio_frame.pack(fill=tk.X, pady=10)
+        cambio_frame.pack(fill=tk.X, pady=8)
         
         tk.Label(cambio_frame, text="Cambio:", font=FONTS['heading'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT)
@@ -1052,11 +1207,11 @@ class CobrarVentaWindow:
                 fg=COLORS['success']).pack(side=tk.RIGHT)
         
         # Separador
-        tk.Frame(main_frame, bg=COLORS['border'], height=2).pack(fill=tk.X, pady=20)
+        tk.Frame(main_frame, bg=COLORS['border'], height=2).pack(fill=tk.X, pady=15)
         
         # Método de pago
         tk.Label(main_frame, text="Método de pago:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=10)
+                bg=COLORS['bg_primary']).pack(anchor='w', pady=8)
         
         metodo_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         metodo_frame.pack(anchor='w')
@@ -1072,7 +1227,7 @@ class CobrarVentaWindow:
         
         # Botones
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(pady=30)
+        button_frame.pack(side=tk.BOTTOM, pady=(20, 0))
         
         tk.Button(button_frame, text="Finalizar Venta", command=self.finalizar_venta,
                  font=FONTS['button'], bg=COLORS['success'], fg='white',
@@ -1081,6 +1236,80 @@ class CobrarVentaWindow:
         tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=30, pady=12).pack(side=tk.LEFT, padx=10)
+    
+    def create_numpad(self):
+        """Crea el teclado numérico"""
+        buttons = [
+            ['7', '8', '9'],
+            ['4', '5', '6'],
+            ['1', '2', '3'],
+            ['.', '0', '⌫']
+        ]
+        
+        for row_idx, row in enumerate(buttons):
+            row_frame = tk.Frame(self.teclado_frame, bg=COLORS['bg_secondary'])
+            row_frame.pack(pady=5)
+            
+            for btn_text in row:
+                if btn_text == '⌫':
+                    cmd = self.numpad_backspace
+                else:
+                    cmd = lambda t=btn_text: self.numpad_click(t)
+                
+                btn = tk.Button(row_frame, text=btn_text, command=cmd,
+                              font=('Segoe UI', 16, 'bold'), width=4, height=2,
+                              bg=COLORS['button_bg'], relief=tk.RAISED,
+                              borderwidth=2, cursor='hand2')
+                btn.pack(side=tk.LEFT, padx=5)
+    
+    def toggle_teclado(self):
+        """Muestra/oculta el teclado numérico"""
+        if self.teclado_visible:
+            self.teclado_frame.pack_forget()
+            self.dialog.geometry("600x650")
+            self.btn_teclado.config(text="🔢 Mostrar Teclado")
+            self.teclado_visible = False
+        else:
+            self.teclado_frame.pack(before=self.dialog.winfo_children()[0].winfo_children()[-3], pady=10)
+            self.dialog.geometry("600x900")
+            self.btn_teclado.config(text="🔢 Ocultar Teclado")
+            self.center_dialog()
+            self.teclado_visible = True
+    
+    def numpad_click(self, digit):
+        """Maneja el clic en el teclado numérico"""
+        # Obtener el widget que tiene el foco
+        focused = self.dialog.focus_get()
+        
+        if focused == self.recibido_entry:
+            current = self.recibido_var.get()
+            if current == "0":
+                self.recibido_var.set(digit)
+            else:
+                self.recibido_var.set(current + digit)
+        elif focused == self.propina_entry:
+            current = self.propina_var.get()
+            if current == "0":
+                self.propina_var.set(digit)
+            else:
+                self.propina_var.set(current + digit)
+    
+    def numpad_backspace(self):
+        """Borra el último dígito"""
+        focused = self.dialog.focus_get()
+        
+        if focused == self.recibido_entry:
+            current = self.recibido_var.get()
+            if len(current) > 0:
+                self.recibido_var.set(current[:-1])
+            if self.recibido_var.get() == "":
+                self.recibido_var.set("0")
+        elif focused == self.propina_entry:
+            current = self.propina_var.get()
+            if len(current) > 0:
+                self.propina_var.set(current[:-1])
+            if self.propina_var.get() == "":
+                self.propina_var.set("0")
     
     def calculate_total(self):
         """Calcula el total con propina"""
@@ -1128,6 +1357,7 @@ class CobrarVentaWindow:
                                              self.mesa, propina)
             
             # Generar ticket
+            from datetime import datetime
             venta_data = {
                 'numero_venta': numero_venta,
                 'fecha': datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
@@ -1145,9 +1375,11 @@ class CobrarVentaWindow:
                 # Generar PDF
                 ticket_path = ticket_generator.generate_ticket_pdf(venta_data)
                 
-                # Preguntar si desea imprimir
-                if messagebox.askyesno("Ticket Generado", 
-                                      f"Ticket guardado en:\n{ticket_path}\n\n¿Desea imprimir el ticket?"):
+                # Guardar ruta del último ticket
+                db.set_last_ticket_path(ticket_path)
+                
+                # Imprimir automáticamente si está activado
+                if db.get_auto_print():
                     ticket_generator.print_ticket(ticket_path)
                 
             except Exception as e:
@@ -1169,8 +1401,6 @@ class CobrarVentaWindow:
             messagebox.showerror("Error", "Valores inválidos. Verifica propina y dinero recibido.")
         except Exception as e:
             messagebox.showerror("Error", f"Error al finalizar venta: {str(e)}")
-
-
 class FinalizarDiaWindow:
     def __init__(self, parent, callback=None):
         self.callback = callback
@@ -1271,8 +1501,12 @@ class FinalizarDiaWindow:
                 font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
         
         self.egresos_var = tk.StringVar(value="0")
-        tk.Entry(egresos_frame, textvariable=self.egresos_var, 
-                font=FONTS['normal'], width=15, justify='right').pack(side=tk.LEFT)
+        egresos_entry = tk.Entry(egresos_frame, textvariable=self.egresos_var, 
+                                font=FONTS['normal'], width=15, justify='right')
+        egresos_entry.pack(side=tk.LEFT)
+        
+        # Seleccionar todo al hacer clic
+        egresos_entry.bind('<Button-1>', lambda e: egresos_entry.select_range(0, tk.END))
         
         # Total contado
         total_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
@@ -1312,6 +1546,9 @@ class FinalizarDiaWindow:
         entry = tk.Entry(row_frame, textvariable=cantidad_var, 
                         font=FONTS['normal'], width=10, justify='center')
         entry.pack(side=tk.LEFT, padx=5)
+        
+        # Seleccionar todo al hacer clic
+        entry.bind('<Button-1>', lambda e, ent=entry: ent.select_range(0, tk.END))
         
         key = f"{tipo}_{denominacion}"
         self.denominaciones_cantidad[key] = {
@@ -1368,17 +1605,27 @@ class FinalizarDiaWindow:
             from datetime import datetime
             fecha_hoy = datetime.now().strftime('%d/%m/%Y')
             
-            # Calcular ventas del día (solo efectivo)
+            # Calcular INGRESO TOTAL (ventas brutas, sin descontar costos)
             db.cursor.execute('''
-                SELECT SUM(total) as total_ventas
+                SELECT SUM(total) as ingreso_total
+                FROM ventas
+                WHERE fecha LIKE ?
+            ''', (f'{fecha_hoy}%',))
+            
+            result = db.cursor.fetchone()
+            ingreso_total = result['ingreso_total'] if result['ingreso_total'] else 0
+            
+            # Calcular ventas en efectivo (para corte esperado)
+            db.cursor.execute('''
+                SELECT SUM(total) as total_ventas_efectivo
                 FROM ventas
                 WHERE fecha LIKE ? AND metodo_pago = 'Efectivo'
             ''', (f'{fecha_hoy}%',))
             
             result = db.cursor.fetchone()
-            total_ventas = result['total_ventas'] if result['total_ventas'] else 0
+            total_ventas_efectivo = result['total_ventas_efectivo'] if result['total_ventas_efectivo'] else 0
             
-            # Calcular ganancias
+            # Calcular ganancias netas (ventas - costos)
             db.cursor.execute('''
                 SELECT SUM(v.total) - SUM(p.costo * v.cantidad) as ganancias
                 FROM ventas v
@@ -1389,31 +1636,43 @@ class FinalizarDiaWindow:
             result = db.cursor.fetchone()
             ganancias = result['ganancias'] if result['ganancias'] else 0
             
-            corte_esperado = dinero_inicial + total_ventas - egresos
+            corte_esperado = dinero_inicial + total_ventas_efectivo - egresos
             diferencia = corte_final - corte_esperado
             
             if abs(diferencia) < 0.01:
-                estado = 'Cuadrado'
+                estado = '✓ Cuadrado'
             elif diferencia > 0:
-                estado = 'Sobrante'
+                estado = '⬆ Sobrante'
             else:
-                estado = 'Faltante'
+                estado = '⬇ Faltante'
             
-            # Mostrar resumen
+            # Mostrar resumen MEJORADO
             resumen = f"""
-CORTE DE CAJA #{numero_corte}
+╔══════════════════════════════════════╗
+         CORTE DE CAJA #{numero_corte}
+╚══════════════════════════════════════╝
 
-Dinero inicial: {format_currency(dinero_inicial)}
-Ventas (efectivo): {format_currency(total_ventas)}
-Egresos/Retiros: {format_currency(egresos)}
+Dinero inicial:          {format_currency(dinero_inicial)}
 
-Corte esperado: {format_currency(corte_esperado)}
-Corte final (contado): {format_currency(corte_final)}
+────────────────────────────────────────
+MOVIMIENTOS DEL DÍA:
+────────────────────────────────────────
+Ingreso Total (Ventas):  {format_currency(ingreso_total)}
+Egresos/Retiros:         {format_currency(egresos)}
 
-Diferencia: {format_currency(abs(diferencia))}
-Estado: {estado}
+────────────────────────────────────────
+RESULTADO DEL CORTE:
+────────────────────────────────────────
+Corte esperado:          {format_currency(corte_esperado)}
+Corte final (contado):   {format_currency(corte_final)}
 
-Ganancias del día: {format_currency(ganancias)}
+Diferencia:              {format_currency(abs(diferencia))}
+Estado:                  {estado}
+
+────────────────────────────────────────
+RENTABILIDAD:
+────────────────────────────────────────
+Ganancias Netas:         {format_currency(ganancias)}
             """
             
             messagebox.showinfo("Corte de Caja Completado", resumen)
@@ -1425,3 +1684,4 @@ Ganancias del día: {format_currency(ganancias)}
             
         except Exception as e:
             messagebox.showerror("Error", f"Error al finalizar día: {str(e)}")
+                        

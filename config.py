@@ -72,3 +72,9 @@ TICKET_CONFIG = {
     'font_size_small': 7,
     'line_spacing': 1.2
 }
+
+# Configuración de impresión automática
+PRINT_CONFIG = {
+    'auto_print': False,  # Por defecto NO imprimir automáticamente
+    'last_ticket_path': None  # Ruta del último ticket generado
+}

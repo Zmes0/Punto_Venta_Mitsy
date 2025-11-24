@@ -755,5 +755,23 @@ class Database:
         
         return numero_corte
 
+    # ==================== CONFIGURACIÓN DE IMPRESIÓN ====================
+    
+    def get_auto_print(self) -> bool:
+        """Obtiene si la impresión automática está activada"""
+        valor = self.get_config('auto_print_tickets')
+        return valor == '1' if valor else False
+    
+    def set_auto_print(self, activo: bool):
+        """Establece si la impresión automática está activada"""
+        self.set_config('auto_print_tickets', '1' if activo else '0')
+    
+    def get_last_ticket_path(self) -> Optional[str]:
+        """Obtiene la ruta del último ticket generado"""
+        return self.get_config('last_ticket_path')
+    
+    def set_last_ticket_path(self, path: str):
+        """Guarda la ruta del último ticket generado"""
+        self.set_config('last_ticket_path', path)
 # Instancia global de la base de datos
 db = Database()

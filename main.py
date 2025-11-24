@@ -177,11 +177,15 @@ class MitsysPOS:
     
     def open_historial(self):
         """Abre el módulo de historial de ventas"""
-        messagebox.showinfo("Próximamente", "Módulo de Historial de Ventas en PARTE 3")
+        self.root.withdraw()
+        from historial_ventas import HistorialVentasWindow
+        HistorialVentasWindow(self.root, on_close=self.on_module_close)
     
     def open_cortes(self):
         """Abre el módulo de cortes"""
-        messagebox.showinfo("Próximamente", "Módulo de Cortes en PARTE 3")
+        self.root.withdraw()
+        from historial_cortes import CortesWindow
+        CortesWindow(self.root, on_close=self.on_module_close)
     
     def on_module_close(self):
         """Callback cuando se cierra un módulo - vuelve a mostrar el menú"""
