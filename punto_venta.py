@@ -734,11 +734,11 @@ class CantidadProductoDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Ingresa la cantidad")
-        self.dialog.geometry("500x400")  # MÁS ANCHO para teclado
+        self.dialog.geometry("650x600")  # MODIFICACIÓN: Nuevo tamaño
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        
+
         # Forzar al frente
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
@@ -747,15 +747,15 @@ class CantidadProductoDialog:
         # Centrar ventana
         self.center_dialog()
         
-        self.teclado_visible = False
+        self.first_numpad_click = True
         
         self.setup_ui()
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 500
-        height = 400
+        width = 650  # MODIFICACIÓN: Ancho actualizado
+        height = 600 # MODIFICACIÓN: Altura actualizada
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -765,62 +765,76 @@ class CantidadProductoDialog:
         main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Título
-        tk.Label(main_frame, text="Ingresa la cantidad del producto", 
-                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(pady=(0, 15))
-        
-        # Producto
-        tk.Label(main_frame, text=f"Producto: {self.producto['nombre']}", 
-                font=FONTS['normal'], bg=COLORS['bg_primary']).pack(pady=8)
-        
-        tk.Label(main_frame, text=f"Precio: {format_currency(self.producto['precio_unitario'])}", 
-                font=FONTS['normal'], bg=COLORS['bg_primary'],
-                fg=COLORS['accent']).pack(pady=(0, 15))
-        
-        # Frame para cantidad y botón teclado
-        cantidad_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        cantidad_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        tk.Label(cantidad_frame, text="Cantidad:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
-        
+        # --- INICIO DE MODIFICACIÓN ---
+        # Frame superior para las dos columnas principales
+        top_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        top_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Columna izquierda (Imagen y nombre)
+        left_frame = tk.Frame(top_frame, bg=COLORS['bg_primary'])
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+
+        tk.Label(left_frame, text=self.producto['nombre'], font=FONTS['subtitle'],
+                 bg=COLORS['bg_primary'], wraplength=300).pack(pady=(10, 15))
+
+        # Imagen del producto
+        img_frame = tk.Frame(left_frame, bg=COLORS['bg_secondary'], relief=tk.SUNKEN, borderwidth=2)
+        img_frame.pack(fill=tk.BOTH, expand=True)
+
+        try:
+            if self.producto['imagen'] and os.path.exists(self.producto['imagen']):
+                img = Image.open(self.producto['imagen'])
+            else:
+                img = Image.open('images/placeholder.png')
+            
+            img = img.resize((250, 250), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(img)
+            
+            img_label = tk.Label(img_frame, image=photo, bg=COLORS['bg_secondary'])
+            img_label.image = photo
+            img_label.pack(expand=True, padx=10, pady=10)
+        except Exception:
+            tk.Label(img_frame, text="Imagen no disponible", font=FONTS['normal'], 
+                     bg=COLORS['bg_secondary']).pack(expand=True)
+
+        # Columna derecha (Teclado numérico)
+        self.teclado_frame = tk.Frame(top_frame, bg=COLORS['bg_secondary'],
+                                     relief=tk.RAISED, borderwidth=2)
+        self.teclado_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        self.create_numpad()
+
+        # Frame inferior para controles
+        bottom_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        bottom_frame.pack(fill=tk.X, pady=(20, 0))
+
+        # Campo de cantidad
+        cantidad_frame = tk.Frame(bottom_frame, bg=COLORS['bg_primary'])
+        cantidad_frame.pack(side=tk.LEFT, expand=True, fill=tk.X)
+
+        tk.Label(cantidad_frame, text="Cantidad:", font=FONTS['heading'],
+                 bg=COLORS['bg_primary']).pack(pady=(0, 5))
+
         self.cantidad_var = tk.StringVar(value="1")
         self.cantidad_entry = tk.Entry(cantidad_frame, textvariable=self.cantidad_var, 
-                                      font=FONTS['normal'], justify='center', width=15)
-        self.cantidad_entry.pack(side=tk.LEFT, padx=(0, 10))
+                                      font=('Segoe UI', 24, 'bold'), justify='center', width=10)
+        self.cantidad_entry.pack(pady=(0, 10), ipady=10)
         self.cantidad_entry.focus()
-        
-        # Seleccionar todo al hacer clic
         self.cantidad_entry.bind('<Button-1>', lambda e: self.cantidad_entry.select_range(0, tk.END))
         self.cantidad_entry.bind('<FocusIn>', lambda e: self.cantidad_entry.select_range(0, tk.END))
-        
-        # Botón para mostrar/ocultar teclado
-        self.btn_teclado = tk.Button(cantidad_frame, text="🔢", 
-                                     command=self.toggle_teclado,
-                                     font=('Segoe UI', 14), bg=COLORS['button_bg'],
-                                     relief=tk.RAISED, borderwidth=2, width=3)
-        self.btn_teclado.pack(side=tk.LEFT)
-        
-        # Frame para teclado numérico (oculto por defecto)
-        self.teclado_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
-                                     relief=tk.RAISED, borderwidth=2)
-        
-        self.create_numpad()
-        
-        # Bind Enter para aceptar
         self.cantidad_entry.bind('<Return>', lambda e: self.accept())
-        
-        # Botones
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(side=tk.BOTTOM, pady=(15, 0))
-        
+
+        # Botones de acción
+        button_frame = tk.Frame(bottom_frame, bg=COLORS['bg_primary'])
+        button_frame.pack(side=tk.RIGHT, expand=True, fill=tk.X)
+
         tk.Button(button_frame, text="Aceptar", command=self.accept,
                  font=FONTS['button'], bg=COLORS['success'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=5)
         
         tk.Button(button_frame, text="Regresar", command=self.dialog.destroy,
                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=5)
+        # --- FIN DE MODIFICACIÓN ---
     
     def create_numpad(self):
         """Crea el teclado numérico"""
@@ -828,45 +842,36 @@ class CantidadProductoDialog:
             ['7', '8', '9'],
             ['4', '5', '6'],
             ['1', '2', '3'],
-            ['.', '0', '⌫']
+            ['.', '0', 'X'] # MODIFICACIÓN: Se cambia '⌫' por 'X' para simetría.
         ]
         
         for row_idx, row in enumerate(buttons):
-            row_frame = tk.Frame(self.teclado_frame, bg=COLORS['bg_secondary'])
-            row_frame.pack(pady=5)
+            self.teclado_frame.grid_rowconfigure(row_idx, weight=1)
             
-            for btn_text in row:
-                if btn_text == '⌫':
+            for col_idx, btn_text in enumerate(row):
+                self.teclado_frame.grid_columnconfigure(col_idx, weight=1)
+
+                if btn_text == 'X': # MODIFICACIÓN: Se actualiza la condición.
                     cmd = self.numpad_backspace
                 else:
                     cmd = lambda t=btn_text: self.numpad_click(t)
                 
-                btn = tk.Button(row_frame, text=btn_text, command=cmd,
-                              font=('Segoe UI', 16, 'bold'), width=4, height=2,
+                btn = tk.Button(self.teclado_frame, text=btn_text, command=cmd,
+                              font=('Segoe UI', 22, 'bold'),
                               bg=COLORS['button_bg'], relief=tk.RAISED,
                               borderwidth=2, cursor='hand2')
-                btn.pack(side=tk.LEFT, padx=5)
-    
-    def toggle_teclado(self):
-        """Muestra/oculta el teclado numérico"""
-        if self.teclado_visible:
-            self.teclado_frame.pack_forget()
-            self.dialog.geometry("500x400")
-            self.teclado_visible = False
-        else:
-            self.teclado_frame.pack(pady=10)
-            self.dialog.geometry("500x600")  # MÁS ALTO
-            self.center_dialog()
-            self.teclado_visible = True
+                btn.grid(row=row_idx, column=col_idx, sticky='nsew', padx=5, pady=5)
     
     def numpad_click(self, digit):
         """Maneja el clic en el teclado numérico"""
         current = self.cantidad_var.get()
-        if current == "0" or current == "1":
+        if self.first_numpad_click:
             self.cantidad_var.set(digit)
+            self.first_numpad_click = False
         else:
             self.cantidad_var.set(current + digit)
         self.cantidad_entry.icursor(tk.END)
+        self.cantidad_entry.focus_set()
     
     def numpad_backspace(self):
         """Borra el último dígito"""
@@ -875,6 +880,7 @@ class CantidadProductoDialog:
             self.cantidad_var.set(current[:-1])
         if self.cantidad_var.get() == "":
             self.cantidad_var.set("0")
+        self.first_numpad_click = False
     
     def accept(self):
         """Acepta y retorna la cantidad"""
@@ -1082,7 +1088,7 @@ class CobrarVentaWindow:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Cobrar Venta")
-        self.dialog.geometry("600x650")  # MÁS ALTO para teclado
+        self.dialog.geometry("750x650")  # MODIFICACIÓN: Ancho fijo para incluir teclado
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -1095,15 +1101,13 @@ class CobrarVentaWindow:
         # Centrar ventana
         self.center_dialog()
         
-        self.teclado_visible = False
-        
         self.setup_ui()
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 600
-        height = 650
+        width = 750 # MODIFICACIÓN: Ancho fijo
+        height = self.dialog.winfo_height()
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -1113,12 +1117,21 @@ class CobrarVentaWindow:
         main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
         
+        # --- INICIO DE MODIFICACIÓN ---
+        # Frame contenedor para las dos columnas
+        content_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Columna izquierda para los controles de cobro
+        left_frame = tk.Frame(content_frame, bg=COLORS['bg_primary'])
+        left_frame.pack(side=tk.LEFT, fill=tk.Y)
+
         # Título
-        tk.Label(main_frame, text="Cobrar Venta", font=FONTS['title'],
+        tk.Label(left_frame, text="Cobrar Venta", font=FONTS['title'],
                 bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 20))
         
         # Propina con botón de teclado
-        propina_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        propina_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         propina_frame.pack(fill=tk.X, pady=8)
         
         tk.Label(propina_frame, text="Propina:", font=FONTS['normal'],
@@ -1126,19 +1139,19 @@ class CobrarVentaWindow:
         
         self.propina_var = tk.StringVar(value="0")
         self.propina_var.trace('w', lambda *args: self.calculate_total())
-        self.propina_entry = tk.Entry(propina_frame, textvariable=self.propina_var,
-                                      font=FONTS['normal'], width=12, justify='right')
-        self.propina_entry.pack(side=tk.RIGHT, padx=(0, 5))
+        self.propina_entry = tk.Entry(propina_frame, textvariable=self.propina_var, 
+                                      font=FONTS['normal'], width=15, justify='right')
+        self.propina_entry.pack(side=tk.RIGHT)
         
         # Dinero recibido con botón de teclado
-        recibido_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        recibido_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         recibido_frame.pack(fill=tk.X, pady=8)
         
         tk.Label(recibido_frame, text="Dinero recibido:", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT)
         
         # Subtotal
-        subtotal_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        subtotal_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         subtotal_frame.pack(fill=tk.X, pady=8)
         
         tk.Label(subtotal_frame, text="Subtotal:", font=FONTS['heading'],
@@ -1153,7 +1166,7 @@ class CobrarVentaWindow:
         self.propina_entry.bind('<Button-1>', lambda e: self.propina_entry.select_range(0, tk.END))
         
         # Total a pagar
-        total_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
+        total_frame = tk.Frame(left_frame, bg=COLORS['bg_secondary'],
                               relief=tk.RAISED, borderwidth=2)
         total_frame.pack(fill=tk.X, pady=15, padx=10)
         
@@ -1168,9 +1181,9 @@ class CobrarVentaWindow:
         
         self.recibido_var = tk.StringVar(value="0")
         self.recibido_var.trace('w', lambda *args: self.calculate_cambio())
-        self.recibido_entry = tk.Entry(recibido_frame, textvariable=self.recibido_var,
-                                       font=FONTS['normal'], width=12, justify='right')
-        self.recibido_entry.pack(side=tk.RIGHT, padx=(0, 5))
+        self.recibido_entry = tk.Entry(recibido_frame, textvariable=self.recibido_var, 
+                                       font=FONTS['normal'], width=15, justify='right')
+        self.recibido_entry.pack(side=tk.RIGHT)
         
         # Seleccionar todo y dar foco
         self.recibido_entry.focus()
@@ -1178,24 +1191,17 @@ class CobrarVentaWindow:
         self.recibido_entry.bind('<Button-1>', lambda e: self.recibido_entry.select_range(0, tk.END))
         self.recibido_entry.bind('<FocusIn>', lambda e: self.recibido_entry.select_range(0, tk.END))
         
-        # Botón teclado numérico
-        btn_teclado_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        btn_teclado_frame.pack(fill=tk.X, pady=5)
-        
-        self.btn_teclado = tk.Button(btn_teclado_frame, text="🔢 Mostrar Teclado", 
-                                     command=self.toggle_teclado,
-                                     font=FONTS['normal'], bg=COLORS['button_bg'],
-                                     relief=tk.RAISED, borderwidth=2, padx=15, pady=5)
-        self.btn_teclado.pack()
-        
-        # Frame para teclado numérico (oculto por defecto)
-        self.teclado_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
+        # Columna derecha para teclado numérico
+        self.teclado_frame = tk.Frame(content_frame, bg=COLORS['bg_secondary'],
                                      relief=tk.RAISED, borderwidth=2)
+        # Se empaqueta para que esté siempre visible
+        self.teclado_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(20, 0))
         
         self.create_numpad()
+        # --- FIN DE MODIFICACIÓN ---
         
         # Cambio
-        cambio_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        cambio_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         cambio_frame.pack(fill=tk.X, pady=8)
         
         tk.Label(cambio_frame, text="Cambio:", font=FONTS['heading'],
@@ -1207,13 +1213,13 @@ class CobrarVentaWindow:
                 fg=COLORS['success']).pack(side=tk.RIGHT)
         
         # Separador
-        tk.Frame(main_frame, bg=COLORS['border'], height=2).pack(fill=tk.X, pady=15)
+        tk.Frame(left_frame, bg=COLORS['border'], height=2).pack(fill=tk.X, pady=15)
         
         # Método de pago
-        tk.Label(main_frame, text="Método de pago:", font=FONTS['normal'],
+        tk.Label(left_frame, text="Método de pago:", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(anchor='w', pady=8)
         
-        metodo_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        metodo_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         metodo_frame.pack(anchor='w')
         
         self.metodo_var = tk.StringVar(value='Efectivo')
@@ -1226,7 +1232,7 @@ class CobrarVentaWindow:
                       bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
         
         # Botones
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        button_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         button_frame.pack(side=tk.BOTTOM, pady=(20, 0))
         
         tk.Button(button_frame, text="Finalizar Venta", command=self.finalizar_venta,
@@ -1243,38 +1249,25 @@ class CobrarVentaWindow:
             ['7', '8', '9'],
             ['4', '5', '6'],
             ['1', '2', '3'],
-            ['.', '0', '⌫']
+            ['.', '0', 'X']
         ]
         
         for row_idx, row in enumerate(buttons):
-            row_frame = tk.Frame(self.teclado_frame, bg=COLORS['bg_secondary'])
-            row_frame.pack(pady=5)
+            self.teclado_frame.grid_rowconfigure(row_idx, weight=1)
             
-            for btn_text in row:
-                if btn_text == '⌫':
+            for col_idx, btn_text in enumerate(row):
+                self.teclado_frame.grid_columnconfigure(col_idx, weight=1)
+
+                if btn_text == 'X':
                     cmd = self.numpad_backspace
                 else:
                     cmd = lambda t=btn_text: self.numpad_click(t)
                 
-                btn = tk.Button(row_frame, text=btn_text, command=cmd,
-                              font=('Segoe UI', 16, 'bold'), width=4, height=2,
+                btn = tk.Button(self.teclado_frame, text=btn_text, command=cmd,
+                              font=('Segoe UI', 20, 'bold'),
                               bg=COLORS['button_bg'], relief=tk.RAISED,
                               borderwidth=2, cursor='hand2')
-                btn.pack(side=tk.LEFT, padx=5)
-    
-    def toggle_teclado(self):
-        """Muestra/oculta el teclado numérico"""
-        if self.teclado_visible:
-            self.teclado_frame.pack_forget()
-            self.dialog.geometry("600x650")
-            self.btn_teclado.config(text="🔢 Mostrar Teclado")
-            self.teclado_visible = False
-        else:
-            self.teclado_frame.pack(before=self.dialog.winfo_children()[0].winfo_children()[-3], pady=10)
-            self.dialog.geometry("600x900")
-            self.btn_teclado.config(text="🔢 Ocultar Teclado")
-            self.center_dialog()
-            self.teclado_visible = True
+                btn.grid(row=row_idx, column=col_idx, sticky='nsew', padx=5, pady=5)
     
     def numpad_click(self, digit):
         """Maneja el clic en el teclado numérico"""
@@ -1416,7 +1409,7 @@ class FinalizarDiaWindow:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Finalizar Día - Corte de Caja")
-        self.dialog.geometry("600x700")
+        self.dialog.geometry("650x600") # MODIFICACIÓN: Ventana más ancha
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -1436,8 +1429,8 @@ class FinalizarDiaWindow:
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 600
-        height = 700
+        width = 650 # MODIFICACIÓN: Ancho actualizado
+        height = 600 # MODIFICACIÓN: Altura actualizada
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -1452,10 +1445,15 @@ class FinalizarDiaWindow:
                 font=FONTS['title'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 20))
         
+        # --- INICIO DE MODIFICACIÓN ---
+        # Crear un frame para la sección superior (tablas)
+        top_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        top_section_frame.pack(fill=tk.X) # No se expande verticalmente
+
         # Frame scrollable
-        canvas = tk.Canvas(main_frame, bg=COLORS['bg_primary'], 
-                          highlightthickness=0, height=400)
-        scrollbar = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        canvas = tk.Canvas(top_section_frame, bg=COLORS['bg_primary'], 
+                          highlightthickness=0, height=250) # Altura reducida
+        scrollbar = tk.Scrollbar(top_section_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
         
         scrollable_frame.bind(
@@ -1474,7 +1472,7 @@ class FinalizarDiaWindow:
                                        bg=COLORS['bg_secondary'],
                                        fg=COLORS['text_primary'],
                                        relief=tk.RAISED, borderwidth=2)
-        billetes_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
+        billetes_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(0, 20), padx=10)
         
         for denominacion in DENOMINACIONES['billetes']:
             self.create_denominacion_row(billetes_frame, denominacion, 'billete')
@@ -1485,43 +1483,48 @@ class FinalizarDiaWindow:
                                       bg=COLORS['bg_secondary'],
                                       fg=COLORS['text_primary'],
                                       relief=tk.RAISED, borderwidth=2)
-        monedas_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
+        monedas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(0, 20), padx=10)
         
         for denominacion in DENOMINACIONES['monedas']:
             self.create_denominacion_row(monedas_frame, denominacion, 'moneda')
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Crear un frame para la sección inferior
+        bottom_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        bottom_section_frame.pack(fill=tk.X, pady=(10, 0))
+        # --- FIN DE MODIFICACIÓN ---
         
         # Egresos/Retiros
-        egresos_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        egresos_frame.pack(fill=tk.X, pady=10)
+        egresos_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
+        egresos_frame.pack(pady=10) # Centrado
         
         tk.Label(egresos_frame, text="Egresos/Retiros del día:", 
                 font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
         
         self.egresos_var = tk.StringVar(value="0")
         egresos_entry = tk.Entry(egresos_frame, textvariable=self.egresos_var, 
-                                font=FONTS['normal'], width=15, justify='right')
+                                font=FONTS['normal'], width=15, justify='center')
         egresos_entry.pack(side=tk.LEFT)
         
         # Seleccionar todo al hacer clic
         egresos_entry.bind('<Button-1>', lambda e: egresos_entry.select_range(0, tk.END))
         
         # Total contado
-        total_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        total_frame.pack(fill=tk.X, pady=10)
+        total_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
+        total_frame.pack(pady=10) # Centrado
         
         tk.Label(total_frame, text="Corte Final (contado):", font=FONTS['heading'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
         
         self.total_var = tk.StringVar(value="$0.00")
         tk.Label(total_frame, textvariable=self.total_var, font=FONTS['heading'],
-                bg=COLORS['bg_primary'], fg=COLORS['accent']).pack(side=tk.LEFT)
+                bg=COLORS['bg_primary'], fg=COLORS['accent']).pack(side=tk.LEFT) 
         
         # Botones
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(pady=20)
+        button_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
+        button_frame.pack(pady=20) # Centrado
         
         tk.Button(button_frame, text="Finalizar Día", command=self.finalizar_dia,
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',

@@ -221,8 +221,8 @@ class DineroCajaWindow:
         # Centrar ventana (MÁS ANCHA)
         self.setup_ui()
         self.window.update_idletasks()
-        width = 600  # Aumentado de 500 a 600
-        height = 650
+        width = 650  # Aumentado para alinear horizontalmente
+        height = 550
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")
@@ -236,11 +236,17 @@ class DineroCajaWindow:
         tk.Label(main_frame, text="Ingresa el dinero en caja", 
                 font=FONTS['title'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 30))
-        
+
+        # --- INICIO DE MODIFICACIÓN ---
+        # Crear un frame para la sección superior (tablas)
+        top_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        # MODIFICACIÓN: Se quita la expansión vertical para reducir el espacio.
+        top_section_frame.pack(fill=tk.X)
+
         # Frame scrollable
-        canvas = tk.Canvas(main_frame, bg=COLORS['bg_primary'], 
-                          highlightthickness=0, height=400)
-        scrollbar = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        canvas = tk.Canvas(top_section_frame, bg=COLORS['bg_primary'],
+                          highlightthickness=0, height=200)
+        scrollbar = tk.Scrollbar(top_section_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
         
         scrollable_frame.bind(
@@ -257,7 +263,7 @@ class DineroCajaWindow:
                                        bg=COLORS['bg_secondary'],
                                        fg=COLORS['text_primary'],
                                        relief=tk.RAISED, borderwidth=2)
-        billetes_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
+        billetes_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(0, 20), padx=10)
         
         for denominacion in DENOMINACIONES['billetes']:
             self.create_denominacion_row(billetes_frame, denominacion, 'billete')
@@ -268,18 +274,23 @@ class DineroCajaWindow:
                                       bg=COLORS['bg_secondary'],
                                       fg=COLORS['text_primary'],
                                       relief=tk.RAISED, borderwidth=2)
-        monedas_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
+        monedas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(0, 20), padx=10)
         
         for denominacion in DENOMINACIONES['monedas']:
             self.create_denominacion_row(monedas_frame, denominacion, 'moneda')
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
+
+        # Crear un frame para la sección inferior (total y botón)
+        bottom_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        bottom_section_frame.pack(fill=tk.X, pady=(10, 0))
+        # --- FIN DE MODIFICACIÓN ---
+
         # Total calculado
         self.total_var = tk.StringVar(value="$0.00")
-        total_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        total_frame.pack(fill=tk.X, pady=(10, 20))
+        total_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary']) # Se empaqueta en el frame inferior
+        total_frame.pack(pady=(10, 20))
         
         tk.Label(total_frame, text="Dinero en caja:", font=FONTS['heading'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
@@ -288,7 +299,7 @@ class DineroCajaWindow:
                 bg=COLORS['bg_primary'], fg=COLORS['accent']).pack(side=tk.LEFT)
         
         # Botón aceptar
-        tk.Button(main_frame, text="Aceptar", command=self.accept,
+        tk.Button(bottom_section_frame, text="Aceptar", command=self.accept, # Se empaqueta en el frame inferior
                  font=FONTS['button'], bg=COLORS['success'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=40, pady=15,
                  cursor='hand2').pack(pady=20)
