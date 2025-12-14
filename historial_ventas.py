@@ -17,7 +17,7 @@ class HistorialVentasWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Historial de Ventas - Mitsy's POS")
-        self.window.geometry("1400x800")
+        self.window.geometry("1400x950")
         self.window.configure(bg=COLORS['bg_primary'])
         
         # Centrar ventana
@@ -41,7 +41,7 @@ class HistorialVentasWindow:
         """Centra la ventana en la pantalla"""
         self.window.update_idletasks()
         width = 1400
-        height = 800
+        height = 950
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")
@@ -518,8 +518,8 @@ class HistorialVentasWindow:
             self.products_tree.insert('', tk.END, values=values, tags=('evenrow',))
             
             messagebox.showinfo("Más Vendido", 
- f"Producto: {prod['nombre']}\n"
-                              f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
+                                f"Producto: {prod['nombre']}\n"
+                                f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
     
     def analytics_menos_vendido(self):
         """Filtra solo el producto menos vendido"""
@@ -599,8 +599,8 @@ class HistorialVentasWindow:
             self.products_tree.insert('', tk.END, values=values, tags=('evenrow',))
             
             messagebox.showinfo("Menos Vendido", 
- f"Producto: {prod['nombre']}\n"
-                              f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
+                                f"Producto: {prod['nombre']}\n"
+                                f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
     
     def exportar_productos_analytics(self):
         """Exporta la tabla de análisis de productos a Excel"""
@@ -677,9 +677,9 @@ class HistorialVentasWindow:
         self.detail_tree.tag_configure('efectivo', background='#E8F5E9')
         self.detail_tree.tag_configure('transferencia', background='#E3F2FD')
         
-        # Frame de botones
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(fill=tk.X)
+        # Frame de botones de acción
+        action_button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        action_button_frame.pack(fill=tk.X, pady=(0, 10))
         
         buttons = [
             ("Regresar", self.show_analytics_view),
@@ -689,63 +689,40 @@ class HistorialVentasWindow:
         ]
         
         for text, command in buttons:
-            btn = tk.Button(button_frame, text=text, command=command,
+            btn = tk.Button(action_button_frame, text=text, command=command,
                           font=FONTS['button'], bg=COLORS['button_bg'],
                           fg=COLORS['text_primary'], relief=tk.RAISED,
-                          borderwidth=2, padx=20, pady=10)
+                          borderwidth=2, padx=15, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
-        
-        # Botones de Excel
-        excel_button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        excel_button_frame.pack(fill=tk.X, pady=(10,0))
 
-        tk.Button(excel_button_frame, text="Exportar a Excel", 
+        tk.Button(action_button_frame, text="Exportar a Excel", 
                   command=self.exportar_ventas_detalle,
                   font=FONTS['button'], bg=COLORS['success'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
+                  relief=tk.RAISED, borderwidth=2, padx=15, pady=10).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(excel_button_frame, text="Importar desde Excel", 
+        tk.Button(action_button_frame, text="Importar desde Excel", 
                   command=self.importar_ventas_detalle,
                   font=FONTS['button'], bg=COLORS['accent'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
+                  relief=tk.RAISED, borderwidth=2, padx=15, pady=10).pack(side=tk.LEFT, padx=5)
+        
+        # --- Zona de Peligro ---
+        danger_zone_frame = tk.LabelFrame(main_frame, text="Zona de Peligro", 
+                                          font=FONTS['heading'], fg="red",
+                                          bg=COLORS['bg_primary'], relief=tk.RIDGE, borderwidth=2)
+        danger_zone_frame.pack(fill=tk.X, pady=(20, 0), padx=5)
+
+        tk.Button(danger_zone_frame, text="Reemplazar Base de Datos", 
+                  command=self.reemplazar_base_de_datos_ventas,
+                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
+
+        tk.Button(danger_zone_frame, text="Borrar Toda la Información", 
+                  command=self.borrar_todas_las_ventas,
+                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
         
         # Cargar datos
         self.load_detail_data()
-
-        # --- Zona de Peligro ---
-        danger_zone_frame = tk.LabelFrame(main_frame, text="Zona de Peligro", 
-                                          font=FONTS['heading'], fg="red",
-                                          bg=COLORS['bg_primary'], relief=tk.RIDGE, borderwidth=2)
-        danger_zone_frame.pack(fill=tk.X, pady=(20, 0), padx=5)
-
-        tk.Button(danger_zone_frame, text="Reemplazar Base de Datos", 
-                  command=self.reemplazar_base_de_datos_ventas,
-                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
-
-        tk.Button(danger_zone_frame, text="Borrar Toda la Información", 
-                  command=self.borrar_todas_las_ventas,
-                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
-    
-    # Cargar datos
-        self.load_detail_data()
-
-        # --- Zona de Peligro ---
-        danger_zone_frame = tk.LabelFrame(main_frame, text="Zona de Peligro", 
-                                          font=FONTS['heading'], fg="red",
-                                          bg=COLORS['bg_primary'], relief=tk.RIDGE, borderwidth=2)
-        danger_zone_frame.pack(fill=tk.X, pady=(20, 0), padx=5)
-
-        tk.Button(danger_zone_frame, text="Reemplazar Base de Datos", 
-                  command=self.reemplazar_base_de_datos_ventas,
-                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
-
-        tk.Button(danger_zone_frame, text="Borrar Toda la Información", 
-                  command=self.borrar_todas_las_ventas,
-                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
     
     def setup_detail_filters(self, parent):
         """Configura los filtros para la vista de detalle"""
@@ -1009,7 +986,7 @@ class HistorialVentasWindow:
             return
         
         if not messagebox.askyesno("Confirmar", 
-                                   f"¿Estás seguro de borrar {len(selection)} venta(s)?\n\n"
+                                   f"¿Estás seguro de borrar {len(selection)} venta(s)?\n\n" 
                                    "ADVERTENCIA: Esto NO restaurará el inventario."):
             return
         
