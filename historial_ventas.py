@@ -644,7 +644,7 @@ class HistorialVentasWindow:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Treeview (tabla)
-        columns = ('No. Venta', 'Fecha', 'Producto', 'Cantidad', 'Costo', 'Total', 'Método')
+        columns = ('No. Venta', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método')
         
         self.detail_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                        yscrollcommand=scrollbar.set, selectmode='extended')
@@ -653,16 +653,18 @@ class HistorialVentasWindow:
         self.detail_tree.heading('No. Venta', text='No. Venta')
         self.detail_tree.heading('Fecha', text='Fecha')
         self.detail_tree.heading('Producto', text='Producto')
+        self.detail_tree.heading('ID Producto', text='ID Prod.')
         self.detail_tree.heading('Cantidad', text='Cantidad')
-        self.detail_tree.heading('Costo', text='Precio Unitario')
+        self.detail_tree.heading('Precio Unitario', text='Precio Unitario')
         self.detail_tree.heading('Total', text='Total')
         self.detail_tree.heading('Método', text='Método')
         
         self.detail_tree.column('No. Venta', width=100, anchor='center')
         self.detail_tree.column('Fecha', width=180, anchor='center')
         self.detail_tree.column('Producto', width=250)
+        self.detail_tree.column('ID Producto', width=80, anchor='center')
         self.detail_tree.column('Cantidad', width=100, anchor='center')
-        self.detail_tree.column('Costo', width=150, anchor='e')
+        self.detail_tree.column('Precio Unitario', width=150, anchor='e')
         self.detail_tree.column('Total', width=150, anchor='e')
         self.detail_tree.column('Método', width=120, anchor='center')
         
@@ -835,6 +837,7 @@ class HistorialVentasWindow:
                 v['numero_venta'],
                 v['fecha'],
                 v['producto'],
+                v['id_producto'],
                 f"{v['cantidad']:.1f}",
                 format_currency(v['precio_unitario']),
                 format_currency(v['total']),
