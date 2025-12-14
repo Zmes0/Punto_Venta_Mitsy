@@ -617,6 +617,22 @@ class Database:
         
         return self.cursor.lastrowid
     
+    def add_imported_venta(self, numero_venta: int, fecha: str, producto: str, id_producto: int,
+                           cantidad: float, precio_unitario: float, total: float,
+                           metodo_pago: str = 'Efectivo', mesa: str = None,
+                           propina: float = 0) -> int:
+        """Añade una venta importada con fecha específica."""
+        self.cursor.execute('''
+            INSERT INTO ventas (numero_venta, fecha, producto, id_producto, cantidad,
+                              precio_unitario, total, metodo_pago, mesa, propina)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (numero_venta, fecha, producto, id_producto, cantidad, precio_unitario,
+              total, metodo_pago, mesa, propina))
+        
+        # No se hace commit aquí para poder hacer bulk insert
+        
+        return self.cursor.lastrowid
+    
     def finalizar_venta(self, productos: list, metodo_pago: str, mesa: str = None,
                        propina: float = 0) -> int:
         """

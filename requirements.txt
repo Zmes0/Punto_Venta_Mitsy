@@ -1,3 +1,5 @@
 Pillow>=10.0.0
 reportlab>=4.0.0
 tkcalendar>=1.6.1
+openpyxl
+pandas

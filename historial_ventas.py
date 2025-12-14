@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from config import COLORS, FONTS
 from utils import format_currency, get_current_datetime, calculate_week_range, calculate_month_range
 from database import db
+from excel_utils import ExcelManager, importar_ventas_excel
 
 class HistorialVentasWindow:
     def __init__(self, parent, on_close=None):
@@ -168,6 +169,15 @@ class HistorialVentasWindow:
                                       fg=COLORS['text_primary'])
         products_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
+        # Botones de exportación
+        export_button_frame = tk.Frame(products_frame, bg=COLORS['bg_primary'])
+        export_button_frame.pack(anchor='ne', pady=(0, 5), padx=5)
+
+        tk.Button(export_button_frame, text="Exportar a Excel",
+                  command=self.exportar_productos_analytics,
+                  font=FONTS['normal'], bg=COLORS['success'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack()
+        
         # Frame con scrollbar
         table_frame = tk.Frame(products_frame, bg=COLORS['bg_primary'])
         table_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -215,6 +225,15 @@ class HistorialVentasWindow:
                                    bg=COLORS['bg_primary'],
                                    fg=COLORS['text_primary'])
         dates_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Botones de exportación
+        export_button_frame = tk.Frame(dates_frame, bg=COLORS['bg_primary'])
+        export_button_frame.pack(anchor='ne', pady=(0, 5), padx=5)
+
+        tk.Button(export_button_frame, text="Exportar a Excel",
+                  command=self.exportar_fechas_analytics,
+                  font=FONTS['normal'], bg=COLORS['success'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack()
         
         # Frame con scrollbar
         table_frame = tk.Frame(dates_frame, bg=COLORS['bg_primary'])
@@ -499,7 +518,7 @@ class HistorialVentasWindow:
             self.products_tree.insert('', tk.END, values=values, tags=('evenrow',))
             
             messagebox.showinfo("Más Vendido", 
-                              f"Producto: {prod['nombre']}\n"
+ f"Producto: {prod['nombre']}\n"
                               f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
     
     def analytics_menos_vendido(self):
@@ -580,9 +599,25 @@ class HistorialVentasWindow:
             self.products_tree.insert('', tk.END, values=values, tags=('evenrow',))
             
             messagebox.showinfo("Menos Vendido", 
-                              f"Producto: {prod['nombre']}\n"
+ f"Producto: {prod['nombre']}\n"
                               f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
     
+    def exportar_productos_analytics(self):
+        """Exporta la tabla de análisis de productos a Excel"""
+        ExcelManager.exportar_treeview_a_excel(
+            self.products_tree, 
+            "analisis_productos", 
+            "Análisis por Producto"
+        )
+
+    def exportar_fechas_analytics(self):
+        """Exporta la tabla de análisis por fecha a Excel"""
+        ExcelManager.exportar_treeview_a_excel(
+            self.dates_tree, 
+            "analisis_fechas", 
+            "Análisis por Fecha"
+        )
+
     # ==================== VISTA DE DETALLE ====================
     
     def show_detail_view(self):
@@ -657,6 +692,20 @@ class HistorialVentasWindow:
                           fg=COLORS['text_primary'], relief=tk.RAISED,
                           borderwidth=2, padx=20, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
+        
+        # Botones de Excel
+        excel_button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        excel_button_frame.pack(fill=tk.X, pady=(10,0))
+
+        tk.Button(excel_button_frame, text="Exportar a Excel", 
+                  command=self.exportar_ventas_detalle,
+                  font=FONTS['button'], bg=COLORS['success'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
+
+        tk.Button(excel_button_frame, text="Importar desde Excel", 
+                  command=self.importar_ventas_detalle,
+                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
         
         # Cargar datos
         self.load_detail_data()
@@ -954,6 +1003,64 @@ class HistorialVentasWindow:
         
         result = db.cursor.fetchone()
         return result['id'] if result else None
+    
+    def exportar_ventas_detalle(self):
+        """Exporta la tabla de detalle de ventas a Excel"""
+        ExcelManager.exportar_treeview_a_excel(
+            self.detail_tree, 
+            "historial_ventas_detalle", 
+            "Detalle de Ventas"
+        )
+
+    def importar_ventas_detalle(self):
+        """Importa ventas desde un archivo Excel"""
+        if not messagebox.askokcancel("Importar Ventas",
+                                      "Se intentarán agregar las ventas desde un archivo Excel.\n\n"
+                                      "Asegúrate de que el archivo tenga el formato correcto y que los 'ID Producto' existan en la base de datos.\n\n"
+                                      "Se recomienda hacer un respaldo de la base de datos antes de proceder."):
+            return
+
+        ventas_a_importar = importar_ventas_excel()
+
+        if not ventas_a_importar:
+            return
+
+        errores = []
+        exitos = 0
+        for venta in ventas_a_importar:
+            try:
+                # Verificar si el producto existe
+                db.cursor.execute("SELECT id FROM productos WHERE id = ?", (venta['id_producto'],))
+                if not db.cursor.fetchone():
+                    errores.append(f"Venta para producto '{venta['producto']}' (ID: {venta['id_producto']}) omitida: El producto no existe.")
+                    continue
+
+                db.add_imported_venta(
+                    numero_venta=venta['numero_venta'],
+                    fecha=venta['fecha'],
+                    producto=venta['producto'],
+                    id_producto=venta['id_producto'],
+                    cantidad=venta['cantidad'],
+                    precio_unitario=venta['precio_unitario'],
+                    total=venta['total'],
+                    metodo_pago=venta['metodo_pago'],
+                    mesa=venta.get('mesa')
+                )
+                exitos += 1
+            except Exception as e:
+                errores.append(f"Error al importar venta para producto '{venta['producto']}': {e}")
+        
+        if exitos > 0:
+            db.conn.commit()
+            messagebox.showinfo("Importación Parcial/Completa", f"{exitos} venta(s) importada(s) correctamente.")
+        else:
+            db.conn.rollback()
+
+        if errores:
+            error_str = "\n".join(errores)
+            messagebox.showwarning("Errores de Importación", f"Ocurrieron los siguientes errores:\n\n{error_str}")
+
+        self.load_detail_data()
     
     def close_window(self):
         """Cierra la ventana y vuelve al menú"""
