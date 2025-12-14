@@ -84,8 +84,8 @@ class TicketGenerator:
         # Intentar cargar logo
         if os.path.exists(BUSINESS_INFO['logo_path']):
             try:
-                logo_width = 25 * mm
-                logo_height = 25 * mm
+                logo_width = 30 * mm
+                logo_height = 30 * mm
                 x_pos = (self.width - logo_width) / 2
                 
                 c.drawImage(BUSINESS_INFO['logo_path'], 
@@ -156,7 +156,7 @@ class TicketGenerator:
             c.drawRightString(self.width - self.margin, self.current_y, 
                             format_currency(producto['total']))
             
-            self.current_y -= 4 * mm
+            self.current_y -= 3 * mm
             
             # Precio unitario (línea adicional más pequeña)
             c.setFont("Helvetica", 6)
@@ -165,11 +165,11 @@ class TicketGenerator:
             c.setFont("Helvetica", 8)
             self.current_y -= 3 * mm
         
-        self.current_y -= 1 * mm
+        self.current_y -= 3 * mm
     
     def _draw_totals(self, c, venta_data):
         """Dibuja los totales"""
-        self.current_y -= 1 * mm
+        self.current_y -= 3 * mm
         
         # Subtotal (si hay propina)
         if venta_data.get('propina', 0) > 0:

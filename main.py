@@ -97,7 +97,7 @@ class MitsysPOS:
         
         # Configurar ventana
         self.root.title("Mitsy's POS - Menú Principal")
-        self.center_window(self.root, 600, 700)
+        self.center_window(self.root, 600, 800)
         
         # Forzar al frente
         self.root.lift()
