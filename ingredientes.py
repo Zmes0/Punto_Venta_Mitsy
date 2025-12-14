@@ -257,7 +257,6 @@ class IngredienteDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Añadir Ingrediente" if not ingrediente_id else "Modificar Ingrediente")
-        self.dialog.geometry("450x500")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -267,102 +266,87 @@ class IngredienteDialog:
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
-        # Centrar ventana
-        self.center_dialog()
-        
         self.setup_ui()
         
         if ingrediente_id:
             self.load_ingrediente_data()
-    
+
+        # Centrar después de crear UI y cargar datos
+        self.center_dialog()
+
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 450
-        height = 500
+        width = self.dialog.winfo_reqwidth()
+        height = self.dialog.winfo_reqheight()
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
-        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
-    
+        self.dialog.geometry(f"+{x}+{y}")
+
     def setup_ui(self):
-        """Configura la interfaz del diálogo"""
-        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
+        """Configura la interfaz del diálogo con dos columnas"""
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'], padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Configurar grid para dos columnas
+        main_frame.grid_columnconfigure(0, weight=1, minsize=250)
+        main_frame.grid_columnconfigure(1, weight=1, minsize=250)
+
+        # --- Columna Izquierda ---
+        left_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
         # ID (editable)
-        tk.Label(main_frame, text="ID:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        tk.Label(left_frame, text="ID:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
         self.id_var = tk.StringVar()
         if not self.ingrediente_id:
             self.id_var.set(str(db.get_next_ingrediente_id()))
         else:
             self.id_var.set(str(self.ingrediente_id))
-        
-        tk.Entry(main_frame, textvariable=self.id_var, font=FONTS['normal'],
-                width=40).pack(fill=tk.X, pady=(0, 10))
-        
+        tk.Entry(left_frame, textvariable=self.id_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
         # Nombre
-        tk.Label(main_frame, text="Nombre:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        tk.Label(left_frame, text="Nombre:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
         self.nombre_var = tk.StringVar()
-        tk.Entry(main_frame, textvariable=self.nombre_var, font=FONTS['normal'],
-                width=40).pack(fill=tk.X, pady=(0, 10))
-        
+        tk.Entry(left_frame, textvariable=self.nombre_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
         # Costo Unitario
-        tk.Label(main_frame, text="Costo Unitario:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Label(left_frame, text="Costo Unitario:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
         self.costo_var = tk.StringVar()
-        tk.Entry(main_frame, textvariable=self.costo_var, font=FONTS['normal'],
-                width=40).pack(fill=tk.X, pady=(0, 10))
-        
+        tk.Entry(left_frame, textvariable=self.costo_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        # --- Columna Derecha ---
+        right_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
         # Unidad de Almacén
-        tk.Label(main_frame, text="Unidad de Almacén:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        
-        unidad_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        unidad_frame.pack(anchor='w', pady=(0, 10))
-        
+        tk.Label(right_frame, text="Unidad de Almacén:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        unidad_frame = tk.Frame(right_frame, bg=COLORS['bg_primary'])
+        unidad_frame.pack(anchor='w', pady=(0, 10), fill=tk.X)
         self.unidad_var = tk.StringVar(value='Kg')
         for unidad in ['Pza', 'Kg', 'L']:
-            tk.Radiobutton(unidad_frame, text=unidad, variable=self.unidad_var,
-                          value=unidad, font=FONTS['normal'],
-                          bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
-        
+            tk.Radiobutton(unidad_frame, text=unidad, variable=self.unidad_var, value=unidad, font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=5)
+
         # Cantidad en Stock
-        tk.Label(main_frame, text="Cantidad en Stock:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Label(right_frame, text="Cantidad en Stock:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
         self.stock_var = tk.StringVar(value="0")
-        tk.Entry(main_frame, textvariable=self.stock_var, font=FONTS['normal'],
-                width=40).pack(fill=tk.X, pady=(0, 10))
-        
+        tk.Entry(right_frame, textvariable=self.stock_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
         # Gestión de Stock
-        tk.Label(main_frame, text="Gestión de Stock:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        
-        gestion_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        gestion_frame.pack(anchor='w', pady=(0, 20))
-        
+        tk.Label(right_frame, text="Gestión de Stock:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        gestion_frame = tk.Frame(right_frame, bg=COLORS['bg_primary'])
+        gestion_frame.pack(anchor='w', pady=(0, 20), fill=tk.X)
         self.gestion_var = tk.BooleanVar(value=False)
-        
-        tk.Radiobutton(gestion_frame, text="Sí", variable=self.gestion_var,
-                      value=True, font=FONTS['normal'],
-                      bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
-        tk.Radiobutton(gestion_frame, text="No", variable=self.gestion_var,
-                      value=False, font=FONTS['normal'],
-                      bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
-        
-        # Botones
+        tk.Radiobutton(gestion_frame, text="Sí", variable=self.gestion_var, value=True, font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(gestion_frame, text="No", variable=self.gestion_var, value=False, font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=5)
+
+        # --- Botones ---
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(pady=20)
+        button_frame.grid(row=1, column=0, columnspan=2, pady=20)
         
-        tk.Button(button_frame, text="Aceptar", command=self.save_ingrediente,
-                 font=FONTS['button'], bg=COLORS['success'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
-        
-        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
-                 font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
-    
+        tk.Button(button_frame, text="Aceptar", command=self.save_ingrediente, font=FONTS['button'], bg=COLORS['success'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy, font=FONTS['button'], bg=COLORS['danger'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+
     def load_ingrediente_data(self):
         """Carga los datos del ingrediente a editar"""
         ingrediente = db.get_ingrediente(self.ingrediente_id)

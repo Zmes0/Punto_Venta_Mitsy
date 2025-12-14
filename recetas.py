@@ -238,7 +238,6 @@ class RecetaDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Añadir Receta" if not receta_id else "Modificar Receta")
-        self.dialog.geometry("500x550")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -248,101 +247,86 @@ class RecetaDialog:
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
-        # Centrar ventana
-        self.center_dialog()
-        
         self.setup_ui()
         
         if receta_id:
             self.load_receta_data()
-    
+
+        # Centrar después de crear UI y cargar datos
+        self.center_dialog()
+
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 500
-        height = 550
+        width = self.dialog.winfo_reqwidth()
+        height = self.dialog.winfo_reqheight()
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
-        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
-    
+        self.dialog.geometry(f"+{x}+{y}")
+
     def setup_ui(self):
-        """Configura la interfaz del diálogo"""
-        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
+        """Configura la interfaz del diálogo con dos columnas"""
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'], padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Configurar grid para dos columnas
+        main_frame.grid_columnconfigure(0, weight=1, minsize=250)
+        main_frame.grid_columnconfigure(1, weight=1, minsize=250)
+
+        # --- Columna Izquierda ---
+        left_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
         # ID (editable)
-        tk.Label(main_frame, text="ID Receta:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        tk.Label(left_frame, text="ID Receta:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
         self.id_var = tk.StringVar()
         if not self.receta_id:
             self.id_var.set(str(db.get_next_receta_id()))
         else:
             self.id_var.set(str(self.receta_id))
-        
-        tk.Entry(main_frame, textvariable=self.id_var, font=FONTS['normal'],
-                width=40).pack(fill=tk.X, pady=(0, 10))
-        
+        tk.Entry(left_frame, textvariable=self.id_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
         # Producto
-        tk.Label(main_frame, text="Producto:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
-        
+        tk.Label(left_frame, text="Producto:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
         self.producto_var = tk.StringVar()
-        self.producto_combo = ttk.Combobox(main_frame, textvariable=self.producto_var,
-                                          font=FONTS['normal'], state='readonly')
+        self.producto_combo = ttk.Combobox(left_frame, textvariable=self.producto_var, font=FONTS['normal'], state='readonly')
         self.producto_combo.pack(fill=tk.X, pady=(0, 10))
-        
-        # Cargar productos
         productos = db.get_productos()
         self.productos_dict = {f"{p['nombre']} (ID: {p['id']})": p for p in productos}
         self.producto_combo['values'] = list(self.productos_dict.keys())
-        
-        # Ingrediente
-        tk.Label(main_frame, text="Ingrediente:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        
-        self.ingrediente_var = tk.StringVar()
-        self.ingrediente_combo = ttk.Combobox(main_frame, 
-                                             textvariable=self.ingrediente_var,
-                                             font=FONTS['normal'], state='readonly')
-        self.ingrediente_combo.pack(fill=tk.X, pady=(0, 10))
-        
-        # Cargar ingredientes
-        ingredientes = db.get_ingredientes()
-        self.ingredientes_dict = {f"{i['nombre']} (ID: {i['id']})": i 
-                                 for i in ingredientes}
-        self.ingrediente_combo['values'] = list(self.ingredientes_dict.keys())
-        
+
         # Cantidad Requerida
-        tk.Label(main_frame, text="Cantidad Requerida:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Label(left_frame, text="Cantidad Requerida:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
         self.cantidad_var = tk.StringVar()
-        tk.Entry(main_frame, textvariable=self.cantidad_var, 
-                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
-        
+        tk.Entry(left_frame, textvariable=self.cantidad_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        # --- Columna Derecha ---
+        right_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
+        # Ingrediente
+        tk.Label(right_frame, text="Ingrediente:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        self.ingrediente_var = tk.StringVar()
+        self.ingrediente_combo = ttk.Combobox(right_frame, textvariable=self.ingrediente_var, font=FONTS['normal'], state='readonly')
+        self.ingrediente_combo.pack(fill=tk.X, pady=(0, 10))
+        ingredientes = db.get_ingredientes()
+        self.ingredientes_dict = {f"{i['nombre']} (ID: {i['id']})": i for i in ingredientes}
+        self.ingrediente_combo['values'] = list(self.ingredientes_dict.keys())
+
         # Unidad de porcionamiento
-        tk.Label(main_frame, text="Unidad de Porcionamiento:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        
-        unidad_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        unidad_frame.pack(anchor='w', pady=(0, 20))
-        
+        tk.Label(right_frame, text="Unidad de Porcionamiento:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        unidad_frame = tk.Frame(right_frame, bg=COLORS['bg_primary'])
+        unidad_frame.pack(anchor='w', pady=(0, 20), fill=tk.X)
         self.unidad_var = tk.StringVar(value='Kg')
         for unidad in ['Pza', 'Kg', 'L']:
-            tk.Radiobutton(unidad_frame, text=unidad, variable=self.unidad_var,
-                          value=unidad, font=FONTS['normal'],
-                          bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
-        
-        # Botones
+            tk.Radiobutton(unidad_frame, text=unidad, variable=self.unidad_var, value=unidad, font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
+
+        # --- Botones ---
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(pady=20)
+        button_frame.grid(row=1, column=0, columnspan=2, pady=20)
         
-        tk.Button(button_frame, text="Aceptar", command=self.save_receta,
-                 font=FONTS['button'], bg=COLORS['success'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
-        
-        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
-                 font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Aceptar", command=self.save_receta, font=FONTS['button'], bg=COLORS['success'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy, font=FONTS['button'], bg=COLORS['danger'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
     
     def load_receta_data(self):
         """Carga los datos de la receta a editar"""
