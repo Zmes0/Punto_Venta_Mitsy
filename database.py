@@ -653,6 +653,35 @@ class Database:
         
         return numero_venta
     
+    def borrar_todas_las_ventas_db(self):
+        """Elimina todas las ventas de la base de datos."""
+        self.cursor.execute('DELETE FROM ventas')
+        self.set_config('ultimo_numero_venta', '0')
+        self.conn.commit()
+
+    def reemplazar_ventas(self, ventas: List[Dict[str, Any]]):
+        """Reemplaza todas las ventas con una nueva lista de ventas."""
+        self.cursor.execute('DELETE FROM ventas')
+        
+        max_numero_venta = 0
+        for venta in ventas:
+            self.add_imported_venta(
+                numero_venta=venta['numero_venta'],
+                fecha=venta['fecha'],
+                producto=venta['producto'],
+                id_producto=venta['id_producto'],
+                cantidad=venta['cantidad'],
+                precio_unitario=venta['precio_unitario'],
+                total=venta['total'],
+                metodo_pago=venta['metodo_pago'],
+                mesa=venta.get('mesa')
+            )
+            if venta['numero_venta'] > max_numero_venta:
+                max_numero_venta = venta['numero_venta']
+
+        self.set_config('ultimo_numero_venta', str(max_numero_venta))
+        self.conn.commit()
+    
     # ==================== VENTAS PENDIENTES ====================
     
     def save_venta_pendiente(self, mesa: str, productos: list, total: float):

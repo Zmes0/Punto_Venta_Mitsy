@@ -711,6 +711,41 @@ class HistorialVentasWindow:
         
         # Cargar datos
         self.load_detail_data()
+
+        # --- Zona de Peligro ---
+        danger_zone_frame = tk.LabelFrame(main_frame, text="Zona de Peligro", 
+                                          font=FONTS['heading'], fg="red",
+                                          bg=COLORS['bg_primary'], relief=tk.RIDGE, borderwidth=2)
+        danger_zone_frame.pack(fill=tk.X, pady=(20, 0), padx=5)
+
+        tk.Button(danger_zone_frame, text="Reemplazar Base de Datos", 
+                  command=self.reemplazar_base_de_datos_ventas,
+                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
+
+        tk.Button(danger_zone_frame, text="Borrar Toda la Información", 
+                  command=self.borrar_todas_las_ventas,
+                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
+    
+    # Cargar datos
+        self.load_detail_data()
+
+        # --- Zona de Peligro ---
+        danger_zone_frame = tk.LabelFrame(main_frame, text="Zona de Peligro", 
+                                          font=FONTS['heading'], fg="red",
+                                          bg=COLORS['bg_primary'], relief=tk.RIDGE, borderwidth=2)
+        danger_zone_frame.pack(fill=tk.X, pady=(20, 0), padx=5)
+
+        tk.Button(danger_zone_frame, text="Reemplazar Base de Datos", 
+                  command=self.reemplazar_base_de_datos_ventas,
+                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
+
+        tk.Button(danger_zone_frame, text="Borrar Toda la Información", 
+                  command=self.borrar_todas_las_ventas,
+                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
     
     def setup_detail_filters(self, parent):
         """Configura los filtros para la vista de detalle"""
@@ -1064,6 +1099,47 @@ class HistorialVentasWindow:
             messagebox.showwarning("Errores de Importación", f"Ocurrieron los siguientes errores:\n\n{error_str}")
 
         self.load_detail_data()
+    
+    def borrar_todas_las_ventas(self):
+        """Elimina TODAS las ventas del historial."""
+        if not messagebox.askyesno("Confirmación Extrema",
+                                   "¿ESTÁS COMPLETAMENTE SEGURO?\n\n"
+                                   "Esta acción borrará permanentemente TODO el historial de ventas. "
+                                   "Esta acción no se puede deshacer.\n\n"
+                                   "Se recomienda encarecidamente hacer una copia de seguridad de 'data/mitsys.db' antes de continuar.\n\n"
+                                   "¿Deseas continuar y borrar todas las ventas?"):
+            return
+        
+        try:
+            db.borrar_todas_las_ventas_db()
+            messagebox.showinfo("Éxito", "Se ha borrado todo el historial de ventas.")
+            self.load_detail_data()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al borrar las ventas:\n{e}")
+
+    def reemplazar_base_de_datos_ventas(self):
+        """Reemplaza la base de datos de ventas con datos de un archivo Excel."""
+        if not messagebox.askyesno("Confirmación Extrema",
+                                   "¿ESTÁS COMPLETAMENTE SEGURO?\n\n"
+                                   "Esta acción reemplazará permanentemente TODO el historial de ventas con los datos del archivo que selecciones. "
+                                   "La información actual se perderá.\n\n"
+                                   "Asegúrate de que el archivo Excel tiene el formato correcto.\n\n"
+                                   "¿Deseas continuar?"):
+            return
+
+        ventas_a_importar = importar_ventas_excel()
+
+        if not ventas_a_importar:
+            return
+
+        try:
+            db.reemplazar_ventas(ventas_a_importar)
+            messagebox.showinfo("Éxito", f"La base de datos de ventas ha sido reemplazada con {len(ventas_a_importar)} registros.")
+            self.load_detail_data()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al reemplazar la base de datos:\n{e}")
+            # Recargar los datos originales si es posible, aunque ya se borraron.
+            self.load_detail_data()
     
     def close_window(self):
         """Cierra la ventana y vuelve al menú"""
