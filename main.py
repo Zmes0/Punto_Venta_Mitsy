@@ -95,9 +95,11 @@ class MitsysPOS:
         # Asegurar que el root está visible
         self.root.deiconify()
         
-        # Configurar ventana
+        # Configurar ventana (más pequeña)
+        new_width = 450
+        new_height = 650
         self.root.title("Mitsy's POS - Menú Principal")
-        self.center_window(self.root, 600, 800)
+        self.center_window(self.root, new_width, new_height)
         
         # Forzar al frente
         self.root.lift()
@@ -115,7 +117,7 @@ class MitsysPOS:
         
         # Título
         tk.Label(center_frame, text="Sistema POS", font=FONTS['title'],
-                bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 40))
+                bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 20))
         
         # Botones del menú
         menu_options = [
@@ -136,9 +138,9 @@ class MitsysPOS:
             
             btn = tk.Button(center_frame, text=text, command=command,
                           font=FONTS['button'], bg=bg_color, fg=fg_color,
-                          relief=tk.RAISED, borderwidth=2, width=25, pady=15,
+                          relief=tk.RAISED, borderwidth=2, width=20, pady=8,
                           cursor='hand2')
-            btn.pack(pady=10)
+            btn.pack(pady=6)
             
             # Efecto hover (solo para botones que no sean "Salir")
             if text != "Salir":

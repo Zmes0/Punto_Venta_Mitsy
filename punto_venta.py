@@ -16,11 +16,10 @@ class PuntoVentaWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Punto de Venta - Mitsy's POS")
-        self.window.geometry("700x650")  # MÁS ALTO para nuevos controles
         self.window.configure(bg=COLORS['bg_primary'])
         
-        # Centrar ventana
-        self.center_window()
+        # Maximizar la ventana (pantalla completa en ventana)
+        self.window.state('zoomed')
         
         # Forzar al frente
         self.window.lift()
@@ -31,15 +30,6 @@ class PuntoVentaWindow:
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
         
         self.setup_ui()
-    
-    def center_window(self):
-        """Centra la ventana en la pantalla"""
-        self.window.update_idletasks()
-        width = 1050
-        height = 750
-        x = (self.window.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.window.winfo_screenheight() // 2) - (height // 2)
-        self.window.geometry(f"{width}x{height}+{x}+{y}")
     
     def setup_ui(self):
         """Configura la interfaz de usuario"""
@@ -181,8 +171,9 @@ class VentaMesaWindow:
         self.productos_venta = []  # Lista de productos en la venta actual
         
         self.window = tk.Toplevel(parent)
+        self.window.transient(parent)
+        self.window.grab_set()
         self.window.title(f"{mesa} - Mitsy's POS")
-        self.window.geometry("1000x700")
         self.window.configure(bg=COLORS['bg_primary'])
         
         # Centrar ventana
