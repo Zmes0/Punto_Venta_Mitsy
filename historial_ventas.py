@@ -108,7 +108,7 @@ class HistorialVentasWindow:
                                                borderwidth=2, date_pattern='dd/mm/yyyy')
         # Por defecto: último mes
         self.analytics_fecha_inicio.set_date(datetime.now().date() - timedelta(days=30))
-        self.analytics_fecha_inicio.pack(side=tk.LEFT, padx=(0, 20))
+        self.analytics_fecha_inicio.pack(side=tk.LEFT, padx=(0, 10))
         
         # Fecha Fin
         tk.Label(filters_top_frame, text="Fecha Fin:", font=FONTS['normal'],
@@ -117,49 +117,37 @@ class HistorialVentasWindow:
         self.analytics_fecha_fin = DateEntry(filters_top_frame, width=12,
                                             background='darkblue', foreground='white',
                                             borderwidth=2, date_pattern='dd/mm/yyyy')
-        self.analytics_fecha_fin.pack(side=tk.LEFT, padx=(0, 20))
+        self.analytics_fecha_fin.pack(side=tk.LEFT, padx=(0, 10))
         
         # Botón aplicar filtros
         tk.Button(filters_top_frame, text="Aplicar Filtros", 
                  command=self.load_analytics_data,
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=15, pady=5).pack(side=tk.LEFT)
-        
-        # Frame de botones rápidos
-        quick_filters_frame = tk.Frame(parent, bg=COLORS['bg_primary'])
-        quick_filters_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        tk.Label(quick_filters_frame, text="Rápidos:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
-        
+                 relief=tk.RAISED, borderwidth=2, padx=15, pady=5).pack(side=tk.LEFT, padx=(0, 15))
+
+        # Separador
+        tk.Label(filters_top_frame, text="|", font=FONTS['normal'],
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=5)
+
+        # Botones rápidos
         quick_buttons = [
             ("Hoy", self.analytics_filtro_hoy),
             ("Ayer", self.analytics_filtro_ayer),
             ("Esta Semana", self.analytics_filtro_semana),
             ("Este Mes", self.analytics_filtro_mes),
-            ("Limpiar Filtros", self.analytics_limpiar_filtros)
         ]
         
         for text, command in quick_buttons:
-            btn = tk.Button(quick_filters_frame, text=text, command=command,
+            btn = tk.Button(filters_top_frame, text=text, command=command,
                           font=FONTS['normal'], bg=COLORS['button_bg'],
                           relief=tk.RAISED, borderwidth=2, padx=10, pady=3)
             btn.pack(side=tk.LEFT, padx=5)
-        
-        # Separador
-        tk.Label(quick_filters_frame, text="  |  ", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=5)
-        
-        # Filtros más/menos vendido
-        tk.Button(quick_filters_frame, text="Más Vendido", 
-                 command=self.analytics_mas_vendido,
-                 font=FONTS['normal'], bg=COLORS['success'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
-        
-        tk.Button(quick_filters_frame, text="Menos Vendido", 
-                 command=self.analytics_menos_vendido,
+
+        # Botón para limpiar filtros
+        tk.Button(filters_top_frame, text="Limpiar Filtros", 
+                 command=self.analytics_limpiar_filtros,
                  font=FONTS['normal'], bg=COLORS['warning'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
+                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(15, 5))
     
     def setup_products_table(self, parent):
         """Configura la tabla de productos"""
@@ -440,167 +428,9 @@ class HistorialVentasWindow:
         self.analytics_fecha_fin.set_date(hoy)
         self.load_analytics_data()
     
-    def analytics_mas_vendido(self):
-        """Filtra solo el producto más vendido"""
-        fecha_inicio = self.analytics_fecha_inicio.get_date()
-        fecha_fin = self.analytics_fecha_fin.get_date()
-        
-        db.cursor.execute('''
-            SELECT 
-                p.id,
-                p.nombre,
-                SUM(v.cantidad) as unidades_vendidas
-            FROM ventas v
-            JOIN productos p ON v.id_producto = p.id
-            WHERE DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2))
-                BETWEEN ? AND ?
-            GROUP BY p.id, p.nombre
-            ORDER BY unidades_vendidas DESC
-            LIMIT 1
-        ''', (fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')))
-        
-        result = db.cursor.fetchone()
-        
-        if result:
-            # Limpiar tabla de productos
-            for item in self.products_tree.get_children():
-                self.products_tree.delete(item)
-            
-            # Cargar solo ese producto
-            prod_id = result['id']
-            
-            db.cursor.execute('''
-                SELECT 
-                    p.id,
-                    p.nombre,
-                    p.precio_unitario,
-                    p.costo,
-                    p.ganancia,
-                    SUM(v.cantidad) as unidades_vendidas,
-                    SUM(v.total) as ingresos_totales
-                FROM productos p
-                JOIN ventas v ON p.id = v.id_producto
-                WHERE p.id = ?
-                    AND DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2))
-                        BETWEEN ? AND ?
-                GROUP BY p.id, p.nombre, p.precio_unitario, p.costo, p.ganancia
-            ''', (prod_id, fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')))
-            
-            prod = dict(db.cursor.fetchone())
-            
-            costo_pieza = prod['costo']
-            costo_total = costo_pieza * prod['unidades_vendidas']
-            profit_pieza = prod['ganancia']
-            profit_total = profit_pieza * prod['unidades_vendidas']
-            
-            if costo_pieza == 0:
-                costo_pieza_str = ""
-                costo_total_str = ""
-                profit_pieza_str = ""
-                profit_total_str = ""
-            else:
-                costo_pieza_str = format_currency(costo_pieza)
-                costo_total_str = format_currency(costo_total)
-                profit_pieza_str = format_currency(profit_pieza)
-                profit_total_str = format_currency(profit_total)
-            
-            values = (
-                prod['nombre'],
-                format_currency(prod['precio_unitario']),
-                f"{prod['unidades_vendidas']:.0f}",
-                costo_pieza_str,
-                costo_total_str,
-                profit_pieza_str,
-                format_currency(prod['ingresos_totales']),
-                profit_total_str
-            )
-            
-            self.products_tree.insert('', tk.END, values=values, tags=('evenrow',))
-            
-            messagebox.showinfo("Más Vendido", 
-                                f"Producto: {prod['nombre']}\n"
-                                f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
     
-    def analytics_menos_vendido(self):
-        """Filtra solo el producto menos vendido"""
-        fecha_inicio = self.analytics_fecha_inicio.get_date()
-        fecha_fin = self.analytics_fecha_fin.get_date()
-        
-        db.cursor.execute('''
-            SELECT 
-                p.id,
-                p.nombre,
-                SUM(v.cantidad) as unidades_vendidas
-            FROM ventas v
-            JOIN productos p ON v.id_producto = p.id
-            WHERE DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2))
-                BETWEEN ? AND ?
-            GROUP BY p.id, p.nombre
-            ORDER BY unidades_vendidas ASC
-            LIMIT 1
-        ''', (fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')))
-        
-        result = db.cursor.fetchone()
-        
-        if result:
-            # Limpiar tabla de productos
-            for item in self.products_tree.get_children():
-                self.products_tree.delete(item)
-            
-            # Cargar solo ese producto
-            prod_id = result['id']
-            
-            db.cursor.execute('''
-                SELECT 
-                    p.id,
-                    p.nombre,
-                    p.precio_unitario,
-                    p.costo,
-                    p.ganancia,
-                    SUM(v.cantidad) as unidades_vendidas,
-                    SUM(v.total) as ingresos_totales
-                FROM productos p
-                JOIN ventas v ON p.id = v.id_producto
-                WHERE p.id = ?
-                    AND DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2))
-                        BETWEEN ? AND ?
-                GROUP BY p.id, p.nombre, p.precio_unitario, p.costo, p.ganancia
-            ''', (prod_id, fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')))
-            
-            prod = dict(db.cursor.fetchone())
-            
-            costo_pieza = prod['costo']
-            costo_total = costo_pieza * prod['unidades_vendidas']
-            profit_pieza = prod['ganancia']
-            profit_total = profit_pieza * prod['unidades_vendidas']
-            
-            if costo_pieza == 0:
-                costo_pieza_str = ""
-                costo_total_str = ""
-                profit_pieza_str = ""
-                profit_total_str = ""
-            else:
-                costo_pieza_str = format_currency(costo_pieza)
-                costo_total_str = format_currency(costo_total)
-                profit_pieza_str = format_currency(profit_pieza)
-                profit_total_str = format_currency(profit_total)
-            
-            values = (
-                prod['nombre'],
-                format_currency(prod['precio_unitario']),
-                f"{prod['unidades_vendidas']:.0f}",
-                costo_pieza_str,
-                costo_total_str,
-                profit_pieza_str,
-                format_currency(prod['ingresos_totales']),
-                profit_total_str
-            )
-            
-            self.products_tree.insert('', tk.END, values=values, tags=('evenrow',))
-            
-            messagebox.showinfo("Menos Vendido", 
-                                f"Producto: {prod['nombre']}\n"
-                                f"Unidades vendidas: {prod['unidades_vendidas']:.0f}")
+    
+    
     
     def exportar_productos_analytics(self):
         """Exporta la tabla de análisis de productos a Excel"""
