@@ -13,11 +13,11 @@ class StockWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Gestión de Stock - Mitsy's POS")
-        self.window.geometry("1300x700")
         self.window.configure(bg=COLORS['bg_primary'])
+        self.window.state('zoomed')
         
-        # Centrar ventana
-        self.center_window()
+        # La ventana se maximiza, no es necesario centrar
+        # self.center_window()
         
         # Forzar al frente
         self.window.lift()

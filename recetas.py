@@ -12,11 +12,10 @@ class RecetasWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Recetas - Mitsy's POS")
-        self.window.geometry("1200x700")
         self.window.configure(bg=COLORS['bg_primary'])
         
-        # Centrar ventana
-        self.center_window()
+        # Maximizar ventana
+        self.window.state('zoomed')
         
         # Forzar al frente
         self.window.lift()
@@ -28,15 +27,6 @@ class RecetasWindow:
         
         self.setup_ui()
         self.load_recetas()
-    
-    def center_window(self):
-        """Centra la ventana en la pantalla"""
-        self.window.update_idletasks()
-        width = 1200
-        height = 700
-        x = (self.window.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.window.winfo_screenheight() // 2) - (height // 2)
-        self.window.geometry(f"{width}x{height}+{x}+{y}")
     
     def setup_ui(self):
         """Configura la interfaz de usuario"""

@@ -171,13 +171,11 @@ class VentaMesaWindow:
         self.productos_venta = []  # Lista de productos en la venta actual
         
         self.window = tk.Toplevel(parent)
+        self.window.title(f"{mesa} - Mitsy's POS")
+        self.window.geometry("1000x700")
+        self.window.configure(bg=COLORS['bg_primary'])
         self.window.transient(parent)
         self.window.grab_set()
-        self.window.title(f"{mesa} - Mitsy's POS")
-        self.window.configure(bg=COLORS['bg_primary'])
-        
-        # Centrar ventana
-        self.center_window()
         
         # Forzar al frente
         self.window.lift()
@@ -186,6 +184,9 @@ class VentaMesaWindow:
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.minimizar_ventana)
+        
+        # Centrar ventana
+        self.center_window()
         
         # Cargar venta pendiente si existe
         self.load_venta_pendiente()
