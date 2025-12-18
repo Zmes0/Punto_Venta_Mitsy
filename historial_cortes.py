@@ -572,7 +572,7 @@ class CorteDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Añadir Corte" if not corte_id else "Modificar Corte")
-        self.dialog.geometry("550x650")
+        self.dialog.geometry("550x850")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -594,7 +594,7 @@ class CorteDialog:
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
         width = 550
-        height = 650
+        height = 850
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")

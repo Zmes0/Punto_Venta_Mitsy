@@ -46,15 +46,58 @@ class HistorialVentasWindow:
         self.window.geometry(f"{width}x{height}+{x}+{y}")
     
     def clear_window(self):
-        """Limpia la ventana"""
+        """Limpia la ventana y quita bindeos de mouse"""
+        self.window.unbind_all('<MouseWheel>')
         for widget in self.window.winfo_children():
             widget.destroy()
     
     def show_analytics_view(self):
         """Muestra la vista principal de analytics"""
         self.clear_window()
+
+        # --- Implementación de Scroll ---
+        # 1. Contenedor principal que aloja el canvas y la scrollbar
+        container = tk.Frame(self.window, bg=COLORS['bg_primary'])
+        container.pack(fill=tk.BOTH, expand=True)
+
+        # 2. Canvas para hacer el contenido desplazable
+        canvas = tk.Canvas(container, bg=COLORS['bg_primary'], highlightthickness=0)
         
-        main_frame = tk.Frame(self.window, bg=COLORS['bg_primary'])
+        # 3. Scrollbar
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        # 4. Frame interior que contendrá todos los widgets
+        scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
+        # 5. Funciones para configurar el scroll y el tamaño del frame
+        def on_frame_configure(event):
+            # Cada vez que el frame interior cambia de tamaño, actualizamos la región de scroll
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def on_canvas_configure(event):
+            # Ajustar el ancho del frame interior al ancho del canvas
+            canvas.itemconfig(canvas_window, width=event.width)
+
+        scrollable_frame.bind("<Configure>", on_frame_configure)
+        canvas.bind("<Configure>", on_canvas_configure)
+
+        # 6. Bindeo de la rueda del mouse para el scroll
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        
+        # Bindeamos al canvas y al frame interior. No usamos bind_all para no interferir con los Treeviews.
+        canvas.bind('<Enter>', lambda e: canvas.bind_all('<MouseWheel>', on_mousewheel))
+        canvas.bind('<Leave>', lambda e: self.window.unbind_all('<MouseWheel>'))
+
+        # --- Fin de Implementación de Scroll ---
+
+        # El 'main_frame' ahora se coloca dentro del 'scrollable_frame' para tener el padding correcto
+        main_frame = tk.Frame(scrollable_frame, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         # Título
@@ -962,7 +1005,7 @@ class VentaDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Añadir Venta" if not venta_id else "Modificar Venta")
-        self.dialog.geometry("500x600")
+        self.dialog.geometry("500x800")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -980,7 +1023,7 @@ class VentaDialog:
     def center_dialog(self):
         self.dialog.update_idletasks()
         width = 500
-        height = 600
+        height = 700
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
