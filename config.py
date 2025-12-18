@@ -22,9 +22,9 @@ COLORS = {
 
 # Fuentes
 FONTS = {
-    'title': ('Segoe UI', 24, 'bold'),
+    'title': ('Segoe UI', 20, 'bold'),
     'subtitle': ('Segoe UI', 18, 'bold'),
-    'heading': ('Segoe UI', 14, 'bold'),
+    'heading': ('Segoe UI', 12, 'bold'),
     'normal': ('Segoe UI', 11),
     'small': ('Segoe UI', 9),
     'button': ('Segoe UI', 11, 'bold')

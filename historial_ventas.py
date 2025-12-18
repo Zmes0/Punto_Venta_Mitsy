@@ -17,11 +17,10 @@ class HistorialVentasWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Historial de Ventas - Mitsy's POS")
-        self.window.geometry("1400x950")
+        self.window.state("zoomed")
         self.window.configure(bg=COLORS['bg_primary'])
         
-        # Centrar ventana
-        self.center_window()
+    
         
         # Forzar al frente
         self.window.lift()
@@ -221,7 +220,7 @@ class HistorialVentasWindow:
         tk.Button(export_button_frame, text="Exportar a Excel",
                   command=self.exportar_fechas_analytics,
                   font=FONTS['normal'], bg=COLORS['success'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack()
+                  relief=tk.RAISED, borderwidth=2, padx=9, pady=2).pack()
         
         # Frame con scrollbar
         table_frame = tk.Frame(dates_frame, bg=COLORS['bg_primary'])

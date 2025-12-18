@@ -15,11 +15,10 @@ class CortesWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Cortes - Mitsy's POS")
-        self.window.geometry("1400x800")
+        self.window.state("zoomed")
         self.window.configure(bg=COLORS['bg_primary'])
         
-        # Centrar ventana
-        self.center_window()
+      
         
         # Forzar al frente
         self.window.lift()
