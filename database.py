@@ -571,22 +571,36 @@ class Database:
     # ==================== VENTAS ====================
     
     def descontar_inventario_por_venta(self, id_producto: int, cantidad_vendida: float):
-        """Descuenta del inventario de ingredientes según la venta de un producto"""
+        """
+        Descuenta el inventario después de una venta.
+        - Si el producto tiene receta, descuenta los ingredientes.
+        - Si el producto no tiene receta (es unitario), descuenta el stock del producto mismo.
+        """
         recetas = self.get_recetas_producto(id_producto)
         
-        for receta in recetas:
-            cantidad_a_descontar = receta['cantidad_requerida'] * cantidad_vendida
+        if recetas:
+            # Producto con receta: descontar ingredientes
+            for receta in recetas:
+                cantidad_a_descontar = receta['cantidad_requerida'] * cantidad_vendida
+                
+                self.cursor.execute('''
+                    UPDATE ingredientes
+                    SET cantidad_stock = cantidad_stock - ?
+                    WHERE id = ?
+                ''', (cantidad_a_descontar, receta['id_ingrediente']))
             
+            # Actualizar stock estimado del producto basado en ingredientes
+            self.actualizar_stock_estimado(id_producto)
+        
+        else:
+            # Producto unitario (sin receta): descontar del propio producto
             self.cursor.execute('''
-                UPDATE ingredientes
-                SET cantidad_stock = cantidad_stock - ?
+                UPDATE productos
+                SET stock_estimado = stock_estimado - ?
                 WHERE id = ?
-            ''', (cantidad_a_descontar, receta['id_ingrediente']))
-        
+            ''', (cantidad_vendida, id_producto))
+
         self.conn.commit()
-        
-        # Actualizar stock estimado del producto
-        self.actualizar_stock_estimado(id_producto)
     
     # ==================== VENTAS (continuación) ====================
     

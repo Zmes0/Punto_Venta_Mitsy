@@ -100,7 +100,7 @@ class ProductosWindow:
         self.tree.tag_configure('evenrow', background=COLORS['table_row_even'])
         self.tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
         
-        # Frame de botones (SIN botón "Gestión Stock")
+        # Frame de botones
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         button_frame.pack(fill=tk.X)
         
@@ -108,7 +108,8 @@ class ProductosWindow:
             ("Regresar", self.close_window),
             ("Editar Producto", self.editar_producto),
             ("Borrar Producto", self.borrar_producto),
-            ("Añadir Producto", self.add_producto_dialog)
+            ("Añadir Producto", self.add_producto_dialog),
+            ("Registrar Compra", self.registrar_compra_unitaria)
         ]
         
         for text, command in buttons:
@@ -217,6 +218,30 @@ class ProductosWindow:
         
         messagebox.showinfo("Éxito", "Producto(s) eliminado(s) correctamente")
         self.load_productos()
+
+    def registrar_compra_unitaria(self):
+        """Abre diálogo para registrar compra de producto unitario"""
+        selection = self.tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un producto para registrar la compra.")
+            return
+        
+        if len(selection) > 1:
+            messagebox.showwarning("Advertencia", "Por favor selecciona solo un producto.")
+            return
+        
+        item = self.tree.item(selection[0])
+        producto_id = item['values'][0]
+        
+        # Verificar que el producto no tenga receta
+        recetas = db.get_recetas_producto(producto_id)
+        if recetas:
+            messagebox.showerror("Operación no permitida", "Esta función es solo para productos unitarios (sin receta).\n\nPara productos con receta, por favor, registre la compra de sus ingredientes en el módulo de 'Materia Prima'.")
+            return
+            
+        producto_nombre = item['values'][1]
+        RegistrarCompraUnitariaDialog(self.window, producto_id, producto_nombre, callback=self.load_productos)
     
     def close_window(self):
         """Cierra la ventana y vuelve al menú"""
@@ -440,11 +465,12 @@ class ProductoDialog:
         
         gestion = self.gestion_var.get()
         
-        # Si gestiona inventario, debe tener ingredientes
-        if gestion and not self.ingredientes_agregados:
-            messagebox.showwarning("Advertencia", 
-                                  "Si gestiona inventario, debe añadir al menos un ingrediente")
-            return
+        # Si gestiona inventario y no tiene ingredientes, se asume que es un producto unitario.
+        # La validación anterior ha sido eliminada para permitir esto.
+        # if gestion and not self.ingredientes_agregados:
+        #     messagebox.showwarning("Advertencia", 
+        #                           "Si gestiona inventario, debe añadir al menos un ingrediente")
+        #     return
         
         try:
             if self.producto_id:
@@ -456,7 +482,7 @@ class ProductoDialog:
                                  unidad_medida=self.unidad_var.get(),
                                  gestion_stock=1 if gestion else 0,
                                  stock_estimado=stock,
-                                 imagen=self.imagen_var.get() or None)  # AÑADIR
+                                 imagen=self.imagen_var.get() or None)
                 
                 # Eliminar recetas anteriores
                 recetas_anteriores = db.get_recetas_producto(new_id)
@@ -633,4 +659,80 @@ class IngredienteRecetaDialog:
             self.callback(data)
         
         self.dialog.destroy()
+
+
+class RegistrarCompraUnitariaDialog:
+    def __init__(self, parent, producto_id, producto_nombre, callback=None):
+        self.producto_id = producto_id
+        self.producto_nombre = producto_nombre
+        self.callback = callback
         
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Registrar Compra de Producto")
+        self.dialog.configure(bg=COLORS['bg_primary'])
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        self.dialog.lift()
+        self.dialog.attributes('-topmost', True)
+        self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+        
+        self.setup_ui()
+        self.center_dialog()
+
+    def center_dialog(self):
+        self.dialog.update_idletasks()
+        width = 400
+        height = 300
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+
+    def setup_ui(self):
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'], padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(main_frame, text=f"Producto: {self.producto_nombre}", font=FONTS['heading'], bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 15))
+
+        tk.Label(main_frame, text="Cantidad por Caja:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w')
+        self.cantidad_caja_var = tk.StringVar(value="1")
+        tk.Entry(main_frame, textvariable=self.cantidad_caja_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(main_frame, text="Cajas Compradas:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w')
+        self.cajas_var = tk.StringVar(value="1")
+        tk.Entry(main_frame, textvariable=self.cajas_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
+
+        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        button_frame.pack()
+        
+        tk.Button(button_frame, text="Aceptar", command=self.accept, font=FONTS['button'], bg=COLORS['success'], fg='white', relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy, font=FONTS['button'], bg=COLORS['danger'], fg='white', relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10)
+
+    def accept(self):
+        try:
+            cantidad_caja = int(self.cantidad_caja_var.get())
+            cajas = int(self.cajas_var.get())
+            
+            if cantidad_caja <= 0 or cajas <= 0:
+                messagebox.showerror("Error", "Las cantidades deben ser números enteros mayores a 0.")
+                return
+
+            total_a_sumar = cantidad_caja * cajas
+            
+            producto = db.get_producto(self.producto_id)
+            stock_actual = producto['stock_estimado']
+            nuevo_stock = stock_actual + total_a_sumar
+            
+            db.update_producto(self.producto_id, self.producto_id, stock_estimado=nuevo_stock)
+            
+            messagebox.showinfo("Éxito", f"Se agregaron {total_a_sumar} unidades al stock de '{self.producto_nombre}'.\nNuevo stock: {nuevo_stock}")
+            
+            if self.callback:
+                self.callback()
+            
+            self.dialog.destroy()
+
+        except ValueError:
+            messagebox.showerror("Error", "Por favor, ingrese números enteros válidos.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error: {e}")

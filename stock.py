@@ -312,7 +312,7 @@ class StockDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Modificar Stock")
-        self.dialog.geometry("450x400")
+        self.dialog.geometry("450x600")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -332,7 +332,7 @@ class StockDialog:
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
         width = 450
-        height = 400
+        height = 600
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
