@@ -506,7 +506,7 @@ class AgregarProductosWindow:
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 1100
+        width = 1150
         height = 700
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
@@ -697,7 +697,7 @@ class AgregarProductosWindow:
             self.create_producto_card(producto, row, col)
             
             col += 1
-            if col > 3:
+            if col > 6:
                 col = 0
                 row += 1
     

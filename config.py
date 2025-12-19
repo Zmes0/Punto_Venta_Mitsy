@@ -40,8 +40,8 @@ WINDOW_CONFIG = {
 # Información del negocio (para tickets)
 BUSINESS_INFO = {
     'name': "Mitsy's",
-    'address': "C. Liverpool 379, Colonia Ejidal, Reyes Acozac",
-    'city': "55757 San Lucas Xolox, Méx.",
+    'address': "Tecámac-Col. Ejidal-San Lucas Xolox",
+    'city': "Calle Liverpool-Esquina Pinos, S/N.",
     'phone': "713-137-4243"
 }
 
@@ -58,8 +58,8 @@ MESAS = [f"Mesa {i}" for i in range(1, 7)] + ["Para llevar"]
 BUSINESS_INFO = {
     'name': "Los Abuelos",
     'subtitle': "Antojitos Mexicanos",
-    'address': "C. Liverpool 379, Colonia Ejidal, Reyes Acozac",
-    'city': "55757 San Lucas Xolox, Méx.",
+    'address': "Tecámac-Col. Ejidal-San Lucas Xolox",
+    'city': "Calle Liverpool-Esquina Pinos, S/N.",
     'phone': "713-137-4243",
     'logo_path': "images/logo.png"  # Ruta al logo
 }
