@@ -185,6 +185,15 @@ class PuntoVentaWindow:
 
     def add_mesa(self):
         """Añade una nueva mesa y refresca la UI"""
+        # MODIFICACIÓN: Limitar el número de mesas a 24
+        num_actual_mesas = len(self.mesas)
+        if 'Para llevar' in self.mesas:
+            num_actual_mesas -= 1
+            
+        if num_actual_mesas >= 24:
+            messagebox.showinfo("Límite alcanzado", "No se pueden agregar más de 24 mesas.")
+            return
+
         # Asumimos que 'Para llevar' siempre está y es el último
         if 'Para llevar' in self.mesas:
             para_llevar = self.mesas.pop()

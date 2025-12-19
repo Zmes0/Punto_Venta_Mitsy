@@ -99,7 +99,6 @@ class MitsysPOS:
         new_width = 450
         new_height = 650
         self.root.title("Mitsy's POS - Menú Principal")
-        self.center_window(self.root, new_width, new_height)
         
         # Forzar al frente
         self.root.lift()
@@ -146,6 +145,9 @@ class MitsysPOS:
             if text != "Salir":
                 btn.bind('<Enter>', lambda e, b=btn: b.config(bg=COLORS['button_hover']))
                 btn.bind('<Leave>', lambda e, b=btn: b.config(bg=COLORS['button_bg']))
+        
+        # MODIFICACIÓN: Centrar la ventana DESPUÉS de añadir todos los widgets
+        self.center_window(self.root, new_width, new_height)
     
     def open_punto_venta(self):
         """Abre el módulo de punto de venta"""
