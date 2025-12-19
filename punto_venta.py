@@ -29,6 +29,9 @@ class PuntoVentaWindow:
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
         
+        # MODIFICACIÓN: Usar una lista de instancia para poder modificarla
+        self.mesas = list(MESAS)
+        
         self.setup_ui()
     
     def setup_ui(self):
@@ -77,10 +80,10 @@ class PuntoVentaWindow:
         # Obtener mesas con ventas pendientes
         mesas_pendientes = db.get_mesas_con_ventas_pendientes()
         
-        # Crear botones de mesas (3x3)
+        # MODIFICACIÓN: Crear botones de mesas usando la lista de instancia
         row = 0
         col = 0
-        for idx, mesa in enumerate(MESAS):
+        for idx, mesa in enumerate(self.mesas):
             # Determinar color según si tiene venta pendiente
             if mesa in mesas_pendientes:
                 bg_color = COLORS['warning']  # Naranja para ventas pendientes
@@ -105,14 +108,27 @@ class PuntoVentaWindow:
         bottom_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         bottom_frame.pack(side=tk.BOTTOM, pady=(20, 0))
         
+        # MODIFICACIÓN: Añadir nuevos botones y definir colores
         buttons = [
+            ("Añadir Mesa", self.add_mesa),
+            ("Eliminar Mesa", self.delete_mesa),
             ("Finalizar Día", self.finalizar_dia),
             ("Volver", self.close_window)
         ]
         
         for text, command in buttons:
-            bg_color = COLORS['accent'] if text == "Finalizar Día" else COLORS['button_bg']
-            fg_color = 'white' if text == "Finalizar Día" else COLORS['text_primary']
+            if text == "Finalizar Día":
+                bg_color = COLORS['accent']
+                fg_color = 'white'
+            elif text == "Añadir Mesa":
+                bg_color = COLORS['success']
+                fg_color = 'white'
+            elif text == "Eliminar Mesa":
+                bg_color = COLORS['danger']
+                fg_color = 'white'
+            else:
+                bg_color = COLORS['button_bg']
+                fg_color = COLORS['text_primary']
             
             btn = tk.Button(bottom_frame, text=text, command=command,
                           font=FONTS['button'], bg=bg_color, fg=fg_color,
@@ -163,6 +179,34 @@ class PuntoVentaWindow:
         self.window.destroy()
         if self.on_close_callback:
             self.on_close_callback()
+
+    def add_mesa(self):
+        """Añade una nueva mesa y refresca la UI"""
+        # Asumimos que 'Para llevar' siempre está y es el último
+        if 'Para llevar' in self.mesas:
+            para_llevar = self.mesas.pop()
+            num_mesas = len(self.mesas)
+            self.mesas.append(f"Mesa {num_mesas + 1}")
+            self.mesas.append(para_llevar)
+        else: # Si no hay 'Para llevar', solo añade
+            num_mesas = len(self.mesas)
+            self.mesas.append(f"Mesa {num_mesas + 1}")
+        
+        self.refresh_mesas()
+
+    def delete_mesa(self):
+        """Elimina la última mesa y refresca la UI"""
+        if 'Para llevar' in self.mesas:
+            para_llevar = self.mesas.pop()
+            # Solo eliminar si hay más de una mesa (sin contar 'Para llevar')
+            if len(self.mesas) > 1:
+                self.mesas.pop()
+            self.mesas.append(para_llevar)
+        # Si 'Para llevar' no existe, solo eliminar si hay más de una mesa
+        elif len(self.mesas) > 1:
+            self.mesas.pop()
+
+        self.refresh_mesas()
            
 class VentaMesaWindow:
     def __init__(self, parent, mesa, callback=None):
