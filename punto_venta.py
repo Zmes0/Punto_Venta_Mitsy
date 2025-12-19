@@ -73,14 +73,17 @@ class PuntoVentaWindow:
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.RIGHT, padx=15, pady=10)
         
-        # Frame para mesas (grid 3x3)
+        # Frame para mesas
         mesas_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         mesas_frame.pack(expand=True)
         
         # Obtener mesas con ventas pendientes
         mesas_pendientes = db.get_mesas_con_ventas_pendientes()
         
-        # MODIFICACIÓN: Crear botones de mesas usando la lista de instancia
+        # MODIFICACIÓN: Determinar el número de columnas dinámicamente
+        num_columns = 5 if len(self.mesas) >= 14 else 3
+        
+        # Crear botones de mesas usando la lista de instancia
         row = 0
         col = 0
         for idx, mesa in enumerate(self.mesas):
@@ -100,7 +103,7 @@ class PuntoVentaWindow:
             btn.grid(row=row, column=col, padx=15, pady=15)
             
             col += 1
-            if col > 2:  # 3 columnas
+            if col > num_columns - 1:  # Usar el número de columnas dinámico
                 col = 0
                 row += 1
         
