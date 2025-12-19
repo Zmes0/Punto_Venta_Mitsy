@@ -17,6 +17,7 @@ class PuntoVentaWindow:
         self.window = tk.Toplevel(parent)
         self.window.title("Punto de Venta - Mitsy's POS")
         self.window.configure(bg=COLORS['bg_primary'])
+        self.window.minsize(800, 600)
         
         # Maximizar la ventana (pantalla completa en ventana)
         self.window.state('zoomed')
@@ -29,11 +30,33 @@ class PuntoVentaWindow:
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
         
-        # MODIFICACIÓN: Usar una lista de instancia para poder modificarla
-        self.mesas = list(MESAS)
+        # MODIFICACIÓN: Cargar mesas desde la base de datos
+        self.load_mesas()
         
         self.setup_ui()
     
+    def load_mesas(self):
+        """Carga la configuración de mesas desde la base de datos."""
+        import json
+        mesas_json = db.get_config('mesas_config')
+        if mesas_json:
+            try:
+                self.mesas = json.loads(mesas_json)
+            except json.JSONDecodeError:
+                # Si hay un error en el JSON, cargar por defecto
+                self.mesas = list(MESAS)
+                self.save_mesas()
+        else:
+            # Si no existe la config, usar la de por defecto y guardarla
+            self.mesas = list(MESAS)
+            self.save_mesas()
+
+    def save_mesas(self):
+        """Guarda la configuración actual de mesas en la base de datos."""
+        import json
+        mesas_json = json.dumps(self.mesas)
+        db.set_config('mesas_config', mesas_json)
+
     def setup_ui(self):
         """Configura la interfaz de usuario"""
         main_frame = tk.Frame(self.window, bg=COLORS['bg_primary'])
@@ -204,6 +227,7 @@ class PuntoVentaWindow:
             num_mesas = len(self.mesas)
             self.mesas.append(f"Mesa {num_mesas + 1}")
         
+        self.save_mesas() # Guardar cambios
         self.refresh_mesas()
 
     def delete_mesa(self):
@@ -218,6 +242,7 @@ class PuntoVentaWindow:
         elif len(self.mesas) > 1:
             self.mesas.pop()
 
+        self.save_mesas() # Guardar cambios
         self.refresh_mesas()
            
 class VentaMesaWindow:
@@ -232,6 +257,7 @@ class VentaMesaWindow:
         self.window.configure(bg=COLORS['bg_primary'])
         self.window.transient(parent)
         self.window.grab_set()
+        self.window.minsize(800, 600)
         
         # Forzar al frente
         self.window.lift()
@@ -544,6 +570,7 @@ class AgregarProductosWindow:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(1000, 600)
         
         # Forzar al frente
         self.dialog.lift()
@@ -786,18 +813,22 @@ class CantidadProductoDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(600, 600)
+        
 
         # Forzar al frente
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
-        # Centrar ventana
-        self.center_dialog()
+        
         
         self.first_numpad_click = True
         
         self.setup_ui()
+       
+        # Centrar ventana
+        self.center_dialog()
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""

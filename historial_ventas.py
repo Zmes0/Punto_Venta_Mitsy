@@ -19,6 +19,7 @@ class HistorialVentasWindow:
         self.window.title("Historial de Ventas - Mitsy's POS")
         self.window.state("zoomed")
         self.window.configure(bg=COLORS['bg_primary'])
+        self.window.minsize(900, 500)
         
     
         
@@ -1009,6 +1010,7 @@ class VentaDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(500, 800)
         
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)

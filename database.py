@@ -197,15 +197,16 @@ class Database:
         self.set_config('gestion_stock_global', '1' if activo else '0')
     
     def check_dinero_ingresado_hoy(self) -> bool:
-        """Verifica si ya se ingresó el dinero en caja hoy"""
-        fecha_hoy = datetime.now().strftime('%d/%m/%Y')
-        fecha_guardada = self.get_config('dinero_ingresado_hoy')
-        return fecha_guardada == fecha_hoy
+        """Verifica si ya se ingresó el dinero en caja para el turno actual"""
+        # MODIFICACIÓN: Ya no se basa en la fecha, sino en un flag '1' o '0'
+        # '1' = dinero ingresado, '0' = pendiente de ingresar
+        estado_dinero = self.get_config('dinero_ingresado_hoy')
+        return estado_dinero == '1'
     
     def mark_dinero_ingresado(self):
-        """Marca que se ingresó el dinero en caja hoy"""
-        fecha_hoy = datetime.now().strftime('%d/%m/%Y')
-        self.set_config('dinero_ingresado_hoy', fecha_hoy)
+        """Marca que se ingresó el dinero en caja para el turno actual"""
+        # MODIFICACIÓN: Se guarda '1' para indicar que el dinero fue ingresado.
+        self.set_config('dinero_ingresado_hoy', '1')
     
     # ==================== VALIDACIÓN DE IDs ====================
     

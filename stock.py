@@ -15,6 +15,7 @@ class StockWindow:
         self.window.title("Gestión de Stock - Mitsy's POS")
         self.window.configure(bg=COLORS['bg_primary'])
         self.window.state('zoomed')
+        self.window.minsize(900, 600)
         
         # La ventana se maximiza, no es necesario centrar
         # self.center_window()
@@ -316,6 +317,7 @@ class StockDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(400, 600)
         
         # Forzar al frente
         self.dialog.lift()
@@ -456,6 +458,7 @@ class RegistrarCompraProductoDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(400, 250)
         
         # Forzar al frente
         self.dialog.lift()

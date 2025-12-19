@@ -148,6 +148,7 @@ class MitsysPOS:
         
         # MODIFICACIÓN: Centrar la ventana DESPUÉS de añadir todos los widgets
         self.center_window(self.root, new_width, new_height)
+        self.root.minsize(400, 600)
     
     def open_punto_venta(self):
         """Abre el módulo de punto de venta"""

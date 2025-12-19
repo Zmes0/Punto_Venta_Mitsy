@@ -17,6 +17,8 @@ class CortesWindow:
         self.window.title("Cortes - Mitsy's POS")
         self.window.state("zoomed")
         self.window.configure(bg=COLORS['bg_primary'])
+        self.window.minsize(1400, 800)
+        
         
       
         
@@ -581,6 +583,7 @@ class CorteDialog:
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+        self.dialog.minsize(550, 850)
         
         # Centrar ventana
         self.center_dialog()

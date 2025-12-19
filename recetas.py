@@ -13,6 +13,7 @@ class RecetasWindow:
         self.window = tk.Toplevel(parent)
         self.window.title("Recetas - Mitsy's POS")
         self.window.configure(bg=COLORS['bg_primary'])
+        self.window.minsize(900, 600)
         
         # Maximizar ventana
         self.window.state('zoomed')
@@ -231,6 +232,7 @@ class RecetaDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(550, 400)
         
         # Forzar al frente
         self.dialog.lift()

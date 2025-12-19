@@ -16,6 +16,7 @@ class ProductosWindow:
         self.window = tk.Toplevel(parent)
         self.window.title("Productos - Mitsy's POS")
         self.window.configure(bg=COLORS['bg_primary'])
+        self.window.minsize(800, 600)
         
         # Maximizar ventana
         self.window.state('zoomed')
@@ -261,6 +262,7 @@ class ProductoDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(600, 500)
         
         # Forzar al frente
         self.dialog.lift()
@@ -561,6 +563,7 @@ class IngredienteRecetaDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(400, 250)
         
         # Forzar al frente
         self.dialog.lift()
@@ -672,6 +675,7 @@ class RegistrarCompraUnitariaDialog:
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
+        self.dialog.minsize(400, 300)
         
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
