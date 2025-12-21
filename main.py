@@ -76,10 +76,15 @@ class MitsysPOS:
         self.check_dinero_caja()
     
     def check_dinero_caja(self):
-        """Verifica si se debe ingresar dinero en caja"""
-        if not db.check_dinero_ingresado_hoy():
+        """Verifica si se debe ingresar dinero en caja - MODIFICADO para verificar corte activo"""
+        # NUEVO: Verificar si hay un corte activo
+        corte_activo_id = db.get_corte_activo_id()
+    
+        if not corte_activo_id:
+            # No hay corte activo, solicitar dinero inicial
             self.show_dinero_caja_window()
         else:
+            # Ya hay un corte activo, continuar al menú
             self.show_main_menu()
     
     def show_dinero_caja_window(self):
@@ -152,6 +157,14 @@ class MitsysPOS:
     
     def open_punto_venta(self):
         """Abre el módulo de punto de venta"""
+        # NUEVO: Verificar que hay un corte activo
+        corte_activo_id = db.get_corte_activo_id()
+    
+        if not corte_activo_id:
+            messagebox.showerror("Error", 
+                           "No hay ningún corte activo. Primero debes ingresar el dinero inicial en caja.")
+            return
+        
         self.root.withdraw()
         from punto_venta import PuntoVentaWindow
         PuntoVentaWindow(self.root, on_close=self.on_module_close)
@@ -391,6 +404,8 @@ class DineroCajaWindow:
             
             db.conn.commit()
             
+            corte_id = db.crear_nuevo_corte(total) 
+            
             # Marcar como ingresado hoy
             db.mark_dinero_ingresado()
             
@@ -398,8 +413,16 @@ class DineroCajaWindow:
             db.set_config('dinero_inicial_dia', str(total))
             
             from utils import format_currency
+            
+            # NUEVO: Obtener el número de corte recién creado
+            db.cursor.execute('SELECT numero_corte FROM cortes WHERE id = ?', (corte_id,))
+            result = db.cursor.fetchone()
+            numero_corte = result['numero_corte'] if result else 'N/A'
+            
             messagebox.showinfo("Éxito", 
-                              f"Dinero en caja registrado: {format_currency(total)}")
+                              f"Dinero en caja registrado: {format_currency(total)}\n\n"
+                              f"Corte #{numero_corte} iniciado correctamente.\n"
+                              f"Todas las ventas se asociarán a este corte.")
             
             self.window.destroy()
             

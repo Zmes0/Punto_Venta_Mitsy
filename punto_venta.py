@@ -1477,18 +1477,25 @@ class FinalizarDiaWindow:
     def __init__(self, parent, callback=None):
         self.callback = callback
         
-        # Verificar si hay ventas pendientes
+        # MODIFICADO: Verificar si hay un corte activo
+        corte_activo_id = db.get_corte_activo_id()
+        if not corte_activo_id:
+            messagebox.showerror("Error", 
+                               "No hay ningún corte activo. Primero debes iniciar un turno ingresando el dinero inicial.")
+            return
+        
+        # Verificar si hay ventas pendientes - BLOQUEAR si las hay
         mesas_pendientes = db.get_mesas_con_ventas_pendientes()
         if mesas_pendientes:
-            if not messagebox.askyesno("Ventas Pendientes", 
-                                      f"Hay {len(mesas_pendientes)} mesa(s) con ventas pendientes:\n"
-                                      f"{', '.join(mesas_pendientes)}\n\n"
-                                      f"¿Deseas continuar con el corte de caja de todos modos?"):
-                return
+            messagebox.showerror("Ventas Pendientes", 
+                               f"No se puede cerrar el corte porque hay {len(mesas_pendientes)} mesa(s) con ventas pendientes:\n\n"
+                               f"{', '.join(mesas_pendientes)}\n\n"
+                               f"Por favor, finaliza o cancela estas ventas antes de cerrar el corte.")
+            return
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Finalizar Día - Corte de Caja")
-        self.dialog.geometry("650x600") # MODIFICACIÓN: Ventana más ancha
+        self.dialog.geometry("650x600")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -1508,8 +1515,8 @@ class FinalizarDiaWindow:
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
-        width = 650 # MODIFICACIÓN: Ancho actualizado
-        height = 600 # MODIFICACIÓN: Altura actualizada
+        width = 650
+        height = 600
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -1524,14 +1531,13 @@ class FinalizarDiaWindow:
                 font=FONTS['title'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 20))
         
-        # --- INICIO DE MODIFICACIÓN ---
         # Crear un frame para la sección superior (tablas)
         top_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        top_section_frame.pack(fill=tk.X) # No se expande verticalmente
-
+        top_section_frame.pack(fill=tk.X)
+        
         # Frame scrollable
         canvas = tk.Canvas(top_section_frame, bg=COLORS['bg_primary'], 
-                          highlightthickness=0, height=250) # Altura reducida
+                          highlightthickness=0, height=250)
         scrollbar = tk.Scrollbar(top_section_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
         
@@ -1569,15 +1575,14 @@ class FinalizarDiaWindow:
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
+        
         # Crear un frame para la sección inferior
         bottom_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         bottom_section_frame.pack(fill=tk.X, pady=(10, 0))
-        # --- FIN DE MODIFICACIÓN ---
         
         # Egresos/Retiros
         egresos_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
-        egresos_frame.pack(pady=10) # Centrado
+        egresos_frame.pack(pady=10)
         
         tk.Label(egresos_frame, text="Egresos/Retiros del día:", 
                 font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
@@ -1592,7 +1597,7 @@ class FinalizarDiaWindow:
         
         # Total contado
         total_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
-        total_frame.pack(pady=10) # Centrado
+        total_frame.pack(pady=10)
         
         tk.Label(total_frame, text="Corte Final (contado):", font=FONTS['heading'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
@@ -1603,7 +1608,7 @@ class FinalizarDiaWindow:
         
         # Botones
         button_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(pady=20) # Centrado
+        button_frame.pack(pady=20)
         
         tk.Button(button_frame, text="Finalizar Día", command=self.finalizar_dia,
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
@@ -1654,7 +1659,7 @@ class FinalizarDiaWindow:
         self.total_var.set(format_currency(total))
     
     def finalizar_dia(self):
-        """Finaliza el día y realiza el corte"""
+        """Finaliza el día y realiza el corte - MODIFICADO con nuevo resumen"""
         try:
             # Calcular corte final
             corte_final = 0
@@ -1677,84 +1682,53 @@ class FinalizarDiaWindow:
                 messagebox.showerror("Error", "Los egresos deben ser un número válido")
                 return
             
-            # Obtener dinero inicial
-            dinero_inicial = float(db.get_config('dinero_inicial_dia') or 0)
+            # NUEVO: Cerrar el corte activo usando el nuevo sistema
+            numero_corte = db.cerrar_corte_activo(corte_final, egresos)
             
-            # Guardar corte en base de datos
-            numero_corte = db.add_corte(dinero_inicial, corte_final, egresos)
+            if not numero_corte:
+                messagebox.showerror("Error", "No se pudo cerrar el corte. No hay corte activo.")
+                return
             
-            # Obtener información del corte
-            from datetime import datetime
-            fecha_hoy = datetime.now().strftime('%d/%m/%Y')
+            # NUEVO: Obtener información completa del corte recién cerrado
+            db.cursor.execute('SELECT * FROM cortes WHERE numero_corte = ? ORDER BY id DESC LIMIT 1', (numero_corte,))
+            corte = dict(db.cursor.fetchone())
             
-            # Calcular INGRESO TOTAL (ventas brutas, sin descontar costos)
-            db.cursor.execute('''
-                SELECT SUM(total) as ingreso_total
-                FROM ventas
-                WHERE fecha LIKE ?
-            ''', (f'{fecha_hoy}%',))
-            
-            result = db.cursor.fetchone()
-            ingreso_total = result['ingreso_total'] if result['ingreso_total'] else 0
-            
-            # Calcular ventas en efectivo (para corte esperado)
-            db.cursor.execute('''
-                SELECT SUM(total) as total_ventas_efectivo
-                FROM ventas
-                WHERE fecha LIKE ? AND metodo_pago = 'Efectivo'
-            ''', (f'{fecha_hoy}%',))
-            
-            result = db.cursor.fetchone()
-            total_ventas_efectivo = result['total_ventas_efectivo'] if result['total_ventas_efectivo'] else 0
-            
-            # Calcular ganancias netas (ventas - costos)
-            db.cursor.execute('''
-                SELECT SUM(v.total) - SUM(p.costo * v.cantidad) as ganancias
-                FROM ventas v
-                JOIN productos p ON v.id_producto = p.id
-                WHERE v.fecha LIKE ?
-            ''', (f'{fecha_hoy}%',))
-            
-            result = db.cursor.fetchone()
-            ganancias = result['ganancias'] if result['ganancias'] else 0
-            
-            corte_esperado = dinero_inicial + total_ventas_efectivo - egresos
-            diferencia = corte_final - corte_esperado
-            
-            if abs(diferencia) < 0.01:
-                estado = '✓ Cuadrado'
-            elif diferencia > 0:
-                estado = '⬆ Sobrante'
-            else:
-                estado = '⬇ Faltante'
-            
-            # Mostrar resumen MEJORADO
+            # NUEVO: Resumen mejorado con separación de efectivo y transferencia
             resumen = f"""
 ╔══════════════════════════════════════╗
          CORTE DE CAJA #{numero_corte}
 ╚══════════════════════════════════════╝
 
-Dinero inicial:          {format_currency(dinero_inicial)}
+Dinero inicial:          {format_currency(corte['dinero_en_caja'])}
 
 ────────────────────────────────────────
-MOVIMIENTOS DEL DÍA:
+VENTAS DEL CORTE:
 ────────────────────────────────────────
-Ingreso Total (Ventas):  {format_currency(ingreso_total)}
-Egresos/Retiros:         {format_currency(egresos)}
+Ventas en Efectivo:      {format_currency(corte['ventas_efectivo'])}
+Ventas por Transferencia: {format_currency(corte['ventas_transferencia'])}
+Total de Ventas:         {format_currency(corte['ventas_efectivo'] + corte['ventas_transferencia'])}
+
+Egresos/Retiros:         {format_currency(corte['retiros'])}
 
 ────────────────────────────────────────
 RESULTADO DEL CORTE:
 ────────────────────────────────────────
-Corte esperado:          {format_currency(corte_esperado)}
-Corte final (contado):   {format_currency(corte_final)}
+Corte esperado:          {format_currency(corte['corte_esperado'])}
+  (Dinero inicial + Efectivo - Retiros)
 
-Diferencia:              {format_currency(abs(diferencia))}
-Estado:                  {estado}
+Corte final (contado):   {format_currency(corte['corte_final'])}
+
+Diferencia:              {format_currency(abs(corte['diferencia']))}
+Estado:                  {self.get_estado_emoji(corte['estado'])} {corte['estado']}
 
 ────────────────────────────────────────
 RENTABILIDAD:
 ────────────────────────────────────────
-Ganancias Netas:         {format_currency(ganancias)}
+Ganancias Netas:         {format_currency(corte['ganancias'])}
+
+────────────────────────────────────────
+NOTA: Solo las ventas en efectivo afectan
+el dinero esperado en caja.
             """
             
             messagebox.showinfo("Corte de Caja Completado", resumen)
@@ -1766,4 +1740,13 @@ Ganancias Netas:         {format_currency(ganancias)}
             
         except Exception as e:
             messagebox.showerror("Error", f"Error al finalizar día: {str(e)}")
-                        
+    
+    def get_estado_emoji(self, estado):
+        """Retorna emoji según el estado del corte"""
+        if estado == 'Cuadrado':
+            return '✓'
+        elif estado == 'Sobrante':
+            return '⬆'
+        elif estado == 'Faltante':
+            return '⬇'
+        return '•'

@@ -516,14 +516,15 @@ class HistorialVentasWindow:
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Treeview (tabla)
-        columns = ('No. Venta', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método')
+        # Treeview (tabla) - AGREGAR columna "No. Corte"
+        columns = ('No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método')
         
         self.detail_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                        yscrollcommand=scrollbar.set, selectmode='extended')
         
         # Configurar columnas
         self.detail_tree.heading('No. Venta', text='No. Venta')
+        self.detail_tree.heading('No. Corte', text='No. Corte')  # NUEVO
         self.detail_tree.heading('Fecha', text='Fecha')
         self.detail_tree.heading('Producto', text='Producto')
         self.detail_tree.heading('ID Producto', text='ID Prod.')
@@ -533,13 +534,14 @@ class HistorialVentasWindow:
         self.detail_tree.heading('Método', text='Método')
         
         self.detail_tree.column('No. Venta', width=100, anchor='center')
-        self.detail_tree.column('Fecha', width=180, anchor='center')
-        self.detail_tree.column('Producto', width=250)
+        self.detail_tree.column('No. Corte', width=90, anchor='center')  # NUEVO
+        self.detail_tree.column('Fecha', width=160, anchor='center')
+        self.detail_tree.column('Producto', width=220)
         self.detail_tree.column('ID Producto', width=80, anchor='center')
-        self.detail_tree.column('Cantidad', width=100, anchor='center')
-        self.detail_tree.column('Precio Unitario', width=150, anchor='e')
-        self.detail_tree.column('Total', width=150, anchor='e')
-        self.detail_tree.column('Método', width=120, anchor='center')
+        self.detail_tree.column('Cantidad', width=90, anchor='center')
+        self.detail_tree.column('Precio Unitario', width=130, anchor='e')
+        self.detail_tree.column('Total', width=130, anchor='e')
+        self.detail_tree.column('Método', width=110, anchor='center')
         
         self.detail_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.detail_tree.yview)
@@ -691,6 +693,21 @@ class HistorialVentasWindow:
                  font=FONTS['normal'], bg=COLORS['button_bg'],
                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(0, 20))
         
+        # NUEVO: No. Corte
+        tk.Label(extra_filters_frame, text="No. Corte:", font=FONTS['normal'],
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.detail_num_corte_var = tk.StringVar()
+        num_corte_entry = tk.Entry(extra_filters_frame, textvariable=self.detail_num_corte_var,
+                                   font=FONTS['normal'], width=10)
+        num_corte_entry.pack(side=tk.LEFT, padx=(0, 10))
+        num_corte_entry.bind('<Return>', lambda e: self.detail_filtro_numero_corte())
+        
+        tk.Button(extra_filters_frame, text="Buscar", 
+                 command=self.detail_filtro_numero_corte,
+                 font=FONTS['normal'], bg=COLORS['button_bg'],
+                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(0, 20))
+        
         # Limpiar todos los filtros
         tk.Button(extra_filters_frame, text="Limpiar Filtros", 
                  command=self.detail_limpiar_filtros,
@@ -703,9 +720,14 @@ class HistorialVentasWindow:
         for item in self.detail_tree.get_children():
             self.detail_tree.delete(item)
         
-        # Obtener ventas
+        # Obtener ventas con JOIN a cortes
         if ventas is None:
-            db.cursor.execute('SELECT * FROM ventas ORDER BY fecha DESC, numero_venta DESC')
+            db.cursor.execute('''
+                SELECT v.*, c.numero_corte 
+                FROM ventas v
+                LEFT JOIN cortes c ON v.corte_id = c.id
+                ORDER BY v.fecha DESC, v.numero_venta DESC
+            ''')
             ventas = [dict(row) for row in db.cursor.fetchall()]
         
         # Cargar en tabla
@@ -718,8 +740,14 @@ class HistorialVentasWindow:
             else:
                 tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
             
+            # MODIFICADO: Incluir número de corte
+            numero_corte = v.get('numero_corte', 'N/A')
+            if numero_corte == 0:
+                numero_corte = 'Legacy'
+            
             values = (
                 v['numero_venta'],
+                numero_corte,  # NUEVO
                 v['fecha'],
                 v['producto'],
                 v['id_producto'],
@@ -737,27 +765,61 @@ class HistorialVentasWindow:
         fecha_inicio = self.detail_fecha_inicio.get_date()
         fecha_fin = self.detail_fecha_fin.get_date()
         
-        # Construir query SQL
-        sql = 'SELECT * FROM ventas WHERE 1=1'
+        # Construir query SQL con JOIN
+        sql = '''
+            SELECT v.*, c.numero_corte 
+            FROM ventas v
+            LEFT JOIN cortes c ON v.corte_id = c.id
+            WHERE 1=1
+        '''
         params = []
         
         # Filtro de búsqueda general
         if query:
-            from utils import normalize_text
-            sql += ' AND (LOWER(producto) LIKE ? OR CAST(numero_venta AS TEXT) LIKE ?)'
+            sql += ' AND (LOWER(v.producto) LIKE ? OR CAST(v.numero_venta AS TEXT) LIKE ?)'
             params.extend([f'%{query.lower()}%', f'%{query}%'])
         
         # Filtro de fechas
-        sql += ' AND DATE(SUBSTR(fecha, 7, 4) || "-" || SUBSTR(fecha, 4, 2) || "-" || SUBSTR(fecha, 1, 2)) BETWEEN ? AND ?'
+        sql += ''' AND DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2)) 
+                   BETWEEN ? AND ?'''
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
-        sql += ' ORDER BY fecha DESC, numero_venta DESC'
+        sql += ' ORDER BY v.fecha DESC, v.numero_venta DESC'
         
         # Ejecutar query
         db.cursor.execute(sql, params)
         ventas = [dict(row) for row in db.cursor.fetchall()]
         
         self.load_detail_data(ventas)
+
+    def detail_filtro_numero_corte(self):
+        """Filtra por número de corte"""
+        num_corte = self.detail_num_corte_var.get().strip()
+        if not num_corte:
+            messagebox.showwarning("Advertencia", "Ingresa un número de corte")
+            return
+        
+        try:
+            if num_corte.lower() == 'legacy':
+                num_corte = 0
+            else:
+                num_corte = int(num_corte)
+            
+            db.cursor.execute('''
+                SELECT v.*, c.numero_corte 
+                FROM ventas v
+                LEFT JOIN cortes c ON v.corte_id = c.id
+                WHERE c.numero_corte = ? 
+                ORDER BY v.fecha DESC, v.numero_venta DESC
+            ''', (num_corte,))
+            ventas = [dict(row) for row in db.cursor.fetchall()]
+            
+            if not ventas:
+                messagebox.showinfo("No encontrado", f"No se encontraron ventas para el corte #{num_corte}")
+            
+            self.load_detail_data(ventas)
+        except ValueError:
+            messagebox.showerror("Error", "El número de corte debe ser un número entero o 'legacy'")
     
     def detail_filtro_hoy(self):
         """Filtra ventas de hoy"""
@@ -824,6 +886,7 @@ class HistorialVentasWindow:
         """Limpia todos los filtros"""
         self.detail_search_var.set("")
         self.detail_num_venta_var.set("")
+        self.detail_num_corte_var.set("")  # NUEVO
         hoy = datetime.now().date()
         self.detail_fecha_inicio.set_date(hoy - timedelta(days=30))
         self.detail_fecha_fin.set_date(hoy)
@@ -880,8 +943,9 @@ class HistorialVentasWindow:
     def get_venta_id_from_values(self, values):
         """Obtiene el ID de la venta desde los valores mostrados"""
         numero_venta = values[0]
-        fecha = values[1]
-        producto = values[2]
+        # MODIFICADO: fecha ahora está en índice 2 (antes era 1)
+        fecha = values[2]
+        producto = values[3]
         
         db.cursor.execute('''
             SELECT id FROM ventas 

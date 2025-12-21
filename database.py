@@ -1,5 +1,6 @@
 """
 Gestor de base de datos SQLite para Mitsy's POS
+ACTUALIZADO: Sistema de cortes independientes con corte_id
 """
 import sqlite3
 from datetime import datetime
@@ -19,6 +20,7 @@ class Database:
         self.connect()
         self.create_tables()
         self.init_config()
+        self.migrate_legacy_data()  # NUEVO: Migrar datos antiguos
     
     def _get_current_datetime(self):
         """Obtiene la fecha y hora actual en formato del sistema"""
@@ -93,7 +95,27 @@ class Database:
             )
         ''')
         
-        # Tabla de Ventas
+        # Tabla de Cortes - MODIFICADA
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS cortes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero_corte INTEGER NOT NULL,
+                fecha_inicio TEXT NOT NULL,
+                fecha_cierre TEXT,
+                dinero_en_caja REAL NOT NULL,
+                corte_final REAL NOT NULL,
+                corte_esperado REAL NOT NULL,
+                retiros REAL DEFAULT 0,
+                diferencia REAL NOT NULL,
+                estado TEXT,
+                estado_corte TEXT DEFAULT 'abierto',
+                ganancias REAL NOT NULL,
+                ventas_efectivo REAL DEFAULT 0,
+                ventas_transferencia REAL DEFAULT 0
+            )
+        ''')
+        
+        # Tabla de Ventas - MODIFICADA con corte_id
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS ventas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,24 +129,16 @@ class Database:
                 metodo_pago TEXT DEFAULT 'Efectivo',
                 mesa TEXT,
                 propina REAL DEFAULT 0,
-                FOREIGN KEY (id_producto) REFERENCES productos(id)
+                corte_id INTEGER DEFAULT NULL,
+                FOREIGN KEY (id_producto) REFERENCES productos(id),
+                FOREIGN KEY (corte_id) REFERENCES cortes(id)
             )
         ''')
         
-        # Tabla de Cortes
+        # Crear índice para búsquedas rápidas por corte_id
         self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS cortes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                numero_corte INTEGER NOT NULL,
-                fecha TEXT NOT NULL,
-                dinero_en_caja REAL NOT NULL,
-                corte_final REAL NOT NULL,
-                corte_esperado REAL NOT NULL,
-                retiros REAL DEFAULT 0,
-                diferencia REAL NOT NULL,
-                estado TEXT,
-                ganancias REAL NOT NULL
-            )
+            CREATE INDEX IF NOT EXISTS idx_ventas_corte 
+            ON ventas(corte_id)
         ''')
         
         # Tabla de Dinero en Caja
@@ -159,7 +173,9 @@ class Database:
             ('gestion_stock_global', '0'),
             ('dinero_ingresado_hoy', '0'),
             ('ultimo_numero_venta', '0'),
-            ('ultimo_numero_corte', '0')
+            ('ultimo_numero_corte', '0'),
+            ('corte_activo_id', None),  # NUEVO: ID del corte activo
+            ('dinero_inicial_dia', '0')
         ]
         
         for clave, valor in configs:
@@ -169,6 +185,48 @@ class Database:
             ''', (clave, valor, datetime.now().strftime('%d/%m/%Y %H:%M:%S')))
         
         self.conn.commit()
+    
+    def migrate_legacy_data(self):
+        """Migra datos antiguos sin corte_id a un corte legacy"""
+        # Verificar si hay ventas sin corte_id
+        self.cursor.execute('SELECT COUNT(*) as count FROM ventas WHERE corte_id IS NULL')
+        result = self.cursor.fetchone()
+        
+        if result['count'] > 0:
+            # Obtener la fecha más antigua de ventas
+            self.cursor.execute('''
+                SELECT MIN(fecha) as fecha_minima FROM ventas WHERE corte_id IS NULL
+            ''')
+            result = self.cursor.fetchone()
+            fecha_minima = result['fecha_minima'] if result['fecha_minima'] else get_current_datetime()
+            
+            # Verificar si ya existe un corte legacy (numero_corte = 0)
+            self.cursor.execute('SELECT id FROM cortes WHERE numero_corte = 0')
+            corte_legacy = self.cursor.fetchone()
+            
+            if not corte_legacy:
+                # Crear corte legacy
+                self.cursor.execute('''
+                    INSERT INTO cortes (
+                        numero_corte, fecha_inicio, fecha_cierre, 
+                        dinero_en_caja, corte_final, corte_esperado, 
+                        retiros, diferencia, estado, estado_corte, ganancias,
+                        ventas_efectivo, ventas_transferencia
+                    )
+                    VALUES (0, ?, ?, 0, 0, 0, 0, 0, 'Legacy', 'cerrado', 0, 0, 0)
+                ''', (fecha_minima, fecha_minima))
+                
+                corte_legacy_id = self.cursor.lastrowid
+            else:
+                corte_legacy_id = corte_legacy['id']
+            
+            # Asignar todas las ventas sin corte_id al corte legacy
+            self.cursor.execute('''
+                UPDATE ventas SET corte_id = ? WHERE corte_id IS NULL
+            ''', (corte_legacy_id,))
+            
+            self.conn.commit()
+            print(f"✓ Migración completada: {result['count']} ventas asignadas al corte legacy")
     
     # ==================== CONFIGURACIÓN ====================
     
@@ -198,15 +256,117 @@ class Database:
     
     def check_dinero_ingresado_hoy(self) -> bool:
         """Verifica si ya se ingresó el dinero en caja para el turno actual"""
-        # MODIFICACIÓN: Ya no se basa en la fecha, sino en un flag '1' o '0'
-        # '1' = dinero ingresado, '0' = pendiente de ingresar
         estado_dinero = self.get_config('dinero_ingresado_hoy')
         return estado_dinero == '1'
     
     def mark_dinero_ingresado(self):
         """Marca que se ingresó el dinero en caja para el turno actual"""
-        # MODIFICACIÓN: Se guarda '1' para indicar que el dinero fue ingresado.
         self.set_config('dinero_ingresado_hoy', '1')
+    
+    # ==================== GESTIÓN DE CORTES ====================
+    
+    def get_corte_activo_id(self) -> Optional[int]:
+        """Obtiene el ID del corte activo actual"""
+        valor = self.get_config('corte_activo_id')
+        return int(valor) if valor and valor != 'None' else None
+    
+    def crear_nuevo_corte(self, dinero_inicial: float) -> int:
+        """Crea un nuevo corte y lo marca como activo"""
+        numero_corte = self.get_next_numero_corte()
+        fecha_inicio = get_current_datetime()
+        
+        self.cursor.execute('''
+            INSERT INTO cortes (
+                numero_corte, fecha_inicio, dinero_en_caja, 
+                corte_final, corte_esperado, retiros, diferencia, 
+                estado, estado_corte, ganancias,
+                ventas_efectivo, ventas_transferencia
+            )
+            VALUES (?, ?, ?, 0, 0, 0, 0, 'Abierto', 'abierto', 0, 0, 0)
+        ''', (numero_corte, fecha_inicio, dinero_inicial))
+        
+        corte_id = self.cursor.lastrowid
+        
+        # Marcar como corte activo
+        self.set_config('corte_activo_id', str(corte_id))
+        self.set_config('dinero_inicial_dia', str(dinero_inicial))
+        self.set_config('ultimo_numero_corte', str(numero_corte))
+        
+        self.conn.commit()
+        
+        print(f"✓ Nuevo corte #{numero_corte} creado (ID: {corte_id})")
+        return corte_id
+    
+    def cerrar_corte_activo(self, corte_final: float, retiros: float) -> Optional[int]:
+        """Cierra el corte activo y calcula los totales"""
+        corte_id = self.get_corte_activo_id()
+        
+        if not corte_id:
+            return None
+        
+        # Obtener información del corte
+        self.cursor.execute('SELECT * FROM cortes WHERE id = ?', (corte_id,))
+        corte = dict(self.cursor.fetchone())
+        
+        dinero_inicial = corte['dinero_en_caja']
+        numero_corte = corte['numero_corte']
+        
+        # Calcular ventas en efectivo y transferencia del corte
+        self.cursor.execute('''
+            SELECT 
+                SUM(CASE WHEN metodo_pago = 'Efectivo' THEN total ELSE 0 END) as efectivo,
+                SUM(CASE WHEN metodo_pago = 'Transferencia' THEN total ELSE 0 END) as transferencia
+            FROM ventas
+            WHERE corte_id = ?
+        ''', (corte_id,))
+        
+        result = self.cursor.fetchone()
+        ventas_efectivo = result['efectivo'] if result['efectivo'] else 0
+        ventas_transferencia = result['transferencia'] if result['transferencia'] else 0
+        
+        # CORREGIDO: Solo ventas en efectivo afectan el corte esperado
+        corte_esperado = dinero_inicial + ventas_efectivo - retiros
+        diferencia = corte_final - corte_esperado
+        
+        # Determinar estado
+        if abs(diferencia) < 0.01:
+            estado = 'Cuadrado'
+        elif diferencia > 0:
+            estado = 'Sobrante'
+        else:
+            estado = 'Faltante'
+        
+        # Calcular ganancias del corte
+        self.cursor.execute('''
+            SELECT SUM(v.total) - SUM(p.costo * v.cantidad) as ganancias
+            FROM ventas v
+            JOIN productos p ON v.id_producto = p.id
+            WHERE v.corte_id = ?
+        ''', (corte_id,))
+        
+        result = self.cursor.fetchone()
+        ganancias = result['ganancias'] if result['ganancias'] else 0
+        
+        fecha_cierre = get_current_datetime()
+        
+        # Actualizar el corte
+        self.cursor.execute('''
+            UPDATE cortes 
+            SET fecha_cierre = ?, corte_final = ?, corte_esperado = ?,
+                retiros = ?, diferencia = ?, estado = ?, estado_corte = 'cerrado',
+                ganancias = ?, ventas_efectivo = ?, ventas_transferencia = ?
+            WHERE id = ?
+        ''', (fecha_cierre, corte_final, corte_esperado, retiros, diferencia, 
+              estado, ganancias, ventas_efectivo, ventas_transferencia, corte_id))
+        
+        # Desactivar corte activo
+        self.set_config('corte_activo_id', 'None')
+        self.set_config('dinero_ingresado_hoy', '0')
+        
+        self.conn.commit()
+        
+        print(f"✓ Corte #{numero_corte} cerrado exitosamente")
+        return numero_corte
     
     # ==================== VALIDACIÓN DE IDs ====================
     
@@ -614,16 +774,19 @@ class Database:
                   cantidad: float, precio: float, total: float,
                   metodo_pago: str = 'Efectivo', mesa: str = None, 
                   propina: float = 0) -> int:
-        """Añade una venta"""
-        from utils import get_current_datetime  # Import aquí por si acaso
+        """Añade una venta - MODIFICADO para incluir corte_id"""
+        from utils import get_current_datetime
         fecha = get_current_datetime()
+        
+        # NUEVO: Obtener corte activo
+        corte_id = self.get_corte_activo_id()
         
         self.cursor.execute('''
             INSERT INTO ventas (numero_venta, fecha, producto, id_producto, cantidad,
-                              precio_unitario, total, metodo_pago, mesa, propina)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              precio_unitario, total, metodo_pago, mesa, propina, corte_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (numero_venta, fecha, producto, id_producto, cantidad, precio, 
-              total, metodo_pago, mesa, propina))
+              total, metodo_pago, mesa, propina, corte_id))
         
         self.conn.commit()
         
@@ -636,15 +799,16 @@ class Database:
                            cantidad: float, precio_unitario: float, total: float,
                            metodo_pago: str = 'Efectivo', mesa: str = None,
                            propina: float = 0) -> int:
-        """Añade una venta importada con fecha específica."""
+        """Añade una venta importada con fecha específica - MODIFICADO para incluir corte_id"""
+        # Las ventas importadas se asignan al corte activo si existe, sino NULL
+        corte_id = self.get_corte_activo_id()
+        
         self.cursor.execute('''
             INSERT INTO ventas (numero_venta, fecha, producto, id_producto, cantidad,
-                              precio_unitario, total, metodo_pago, mesa, propina)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              precio_unitario, total, metodo_pago, mesa, propina, corte_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (numero_venta, fecha, producto, id_producto, cantidad, precio_unitario,
-              total, metodo_pago, mesa, propina))
-        
-        # No se hace commit aquí para poder hacer bulk insert
+              total, metodo_pago, mesa, propina, corte_id))
         
         return self.cursor.lastrowid
     
@@ -758,62 +922,9 @@ class Database:
     
     def add_corte(self, dinero_caja: float, corte_final: float, 
                   retiros: float = 0) -> int:
-        """Añade un corte de caja"""
-        numero_corte = self.get_next_numero_corte()
-        fecha = get_current_datetime()
-        
-        # Calcular corte esperado (dinero inicial + ventas - retiros)
-        dinero_inicial = float(self.get_config('dinero_inicial_dia') or 0)
-        
-        # Sumar todas las ventas del día (solo efectivo)
-        fecha_hoy = datetime.now().strftime('%d/%m/%Y')
-        self.cursor.execute('''
-            SELECT SUM(total) as total_ventas
-            FROM ventas
-            WHERE fecha LIKE ? AND metodo_pago = 'Efectivo'
-        ''', (f'{fecha_hoy}%',))
-        
-        result = self.cursor.fetchone()
-        total_ventas = result['total_ventas'] if result['total_ventas'] else 0
-        
-        # Calcular ganancias del día
-        self.cursor.execute('''
-            SELECT SUM(v.total) - SUM(p.costo * v.cantidad) as ganancias
-            FROM ventas v
-            JOIN productos p ON v.id_producto = p.id
-            WHERE v.fecha LIKE ?
-        ''', (f'{fecha_hoy}%',))
-        
-        result = self.cursor.fetchone()
-        ganancias = result['ganancias'] if result['ganancias'] else 0
-        
-        corte_esperado = dinero_inicial + total_ventas - retiros
-        diferencia = corte_final - corte_esperado
-        
-        # Determinar estado
-        if abs(diferencia) < 0.01:  # Tolerancia de 1 centavo
-            estado = 'Cuadrado'
-        elif diferencia > 0:
-            estado = 'Sobrante'
-        else:
-            estado = 'Faltante'
-        
-        self.cursor.execute('''
-            INSERT INTO cortes (numero_corte, fecha, dinero_en_caja, corte_final,
-                              corte_esperado, retiros, diferencia, estado, ganancias)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (numero_corte, fecha, dinero_caja, corte_final, corte_esperado,
-              retiros, diferencia, estado, ganancias))
-        
-        self.conn.commit()
-        
-        # Actualizar último número de corte
-        self.set_config('ultimo_numero_corte', str(numero_corte))
-        
-        # Resetear dinero ingresado para el próximo día
-        self.set_config('dinero_ingresado_hoy', '0')
-        
-        return numero_corte
+        """Añade un corte de caja - DEPRECADO: Usar cerrar_corte_activo()"""
+        # Mantener por compatibilidad pero usar el nuevo sistema
+        return self.cerrar_corte_activo(corte_final, retiros)
 
     # ==================== CONFIGURACIÓN DE IMPRESIÓN ====================
     
@@ -833,5 +944,6 @@ class Database:
     def set_last_ticket_path(self, path: str):
         """Guarda la ruta del último ticket generado"""
         self.set_config('last_ticket_path', path)
+
 # Instancia global de la base de datos
 db = Database()
