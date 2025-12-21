@@ -19,9 +19,6 @@ class CortesWindow:
         self.window.configure(bg=COLORS['bg_primary'])
         self.window.minsize(1400, 800)
         
-        
-      
-        
         # Forzar al frente
         self.window.lift()
         self.window.attributes('-topmost', True)
@@ -118,17 +115,17 @@ class CortesWindow:
         # Filtros por estado
         tk.Button(quick_filters_frame, text="Sobrante", 
                  command=lambda: self.filtro_estado('Sobrante'),
-                 font=FONTS['normal'], bg=COLORS['success'], fg='white',
+                 font=FONTS['normal'], bg='#E3F2FD', fg='black',
                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
         
         tk.Button(quick_filters_frame, text="Faltante", 
                  command=lambda: self.filtro_estado('Faltante'),
-                 font=FONTS['normal'], bg=COLORS['danger'], fg='white',
+                 font=FONTS['normal'], bg='#FFEBEE', fg='black',
                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
         
         tk.Button(quick_filters_frame, text="Cuadrado", 
                  command=lambda: self.filtro_estado('Cuadrado'),
-                 font=FONTS['normal'], bg=COLORS['accent'], fg='white',
+                 font=FONTS['normal'], bg='#E8F5E9', fg='black',
                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
         
         # Frame de filtros adicionales
@@ -164,13 +161,14 @@ class CortesWindow:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Treeview (tabla)
-        columns = ('No. Corte', 'Fecha', 'Dinero en Caja', 'Corte Final', 
+        columns = ('ID', 'No. Corte', 'Fecha', 'Dinero en Caja', 'Corte Final', 
                    'Corte Esperado', 'Retiros', 'Diferencia', 'Estado', 'Ganancias')
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                 yscrollcommand=scrollbar.set, selectmode='extended')
         
         # Configurar columnas
+        self.tree.heading('ID', text='ID')
         self.tree.heading('No. Corte', text='No. Corte')
         self.tree.heading('Fecha', text='Fecha')
         self.tree.heading('Dinero en Caja', text='Dinero en Caja')
@@ -181,6 +179,7 @@ class CortesWindow:
         self.tree.heading('Estado', text='Estado')
         self.tree.heading('Ganancias', text='Ganancias')
         
+        self.tree.column('ID', width=0, stretch=tk.NO) # Ocultar ID
         self.tree.column('No. Corte', width=100, anchor='center')
         self.tree.column('Fecha', width=180, anchor='center')
         self.tree.column('Dinero en Caja', width=140, anchor='e')
@@ -197,9 +196,9 @@ class CortesWindow:
         # Colores por estado
         self.tree.tag_configure('evenrow', background=COLORS['table_row_even'])
         self.tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
-        self.tree.tag_configure('cuadrado', background='#E8F5E9')
-        self.tree.tag_configure('sobrante', background='#E3F2FD')
-        self.tree.tag_configure('faltante', background='#FFEBEE')
+        self.tree.tag_configure('Cuadrado', background='#E8F5E9')
+        self.tree.tag_configure('Sobrante', background='#E3F2FD')
+        self.tree.tag_configure('Faltante', background='#FFEBEE')
         
         # Doble clic para ver detalles
         self.tree.bind('<Double-1>', self.ver_detalles_corte)
@@ -225,37 +224,27 @@ class CortesWindow:
     
     def load_cortes(self, cortes=None):
         """Carga los cortes en la tabla"""
-        # Limpiar tabla
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        # Obtener cortes
         if cortes is None:
             db.cursor.execute('SELECT * FROM cortes ORDER BY fecha_inicio DESC, numero_corte DESC')
             cortes = [dict(row) for row in db.cursor.fetchall()]
         
-        # Cargar en tabla
         for idx, c in enumerate(cortes):
-            # Determinar tag por estado
-            if c['estado'] == 'Cuadrado':
-                tag = 'cuadrado'
-            elif c['estado'] == 'Sobrante':
-                tag = 'sobrante'
-            elif c['estado'] == 'Faltante':
-                tag = 'faltante'
-            else:
-                tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            tag = c['estado']
             
             fecha_mostrar = c['fecha_cierre'] if c['fecha_cierre'] else c['fecha_inicio']
             
             values = (
+                c['id'],
                 c['numero_corte'],
-                fecha_mostrar, # <-- CORREGIDO
+                fecha_mostrar,
                 format_currency(c['dinero_en_caja']),
                 format_currency(c['corte_final']),
                 format_currency(c['corte_esperado']),
                 format_currency(c['retiros']),
-                format_currency(abs(c['diferencia'])),
+                format_currency(c['diferencia']),
                 c['estado'],
                 format_currency(c['ganancias'])
             )
@@ -268,81 +257,66 @@ class CortesWindow:
         fecha_inicio = self.fecha_inicio.get_date()
         fecha_fin = self.fecha_fin.get_date()
         
-        # Construir query SQL
         sql = 'SELECT * FROM cortes WHERE 1=1'
         params = []
         
-        # Filtro de búsqueda general
         if query:
             sql += ' AND (estado LIKE ? OR CAST(numero_corte AS TEXT) LIKE ?)'
             params.extend([f'%{query}%', f'%{query}%'])
         
-        # Filtro de fechas
-        # Filtro de fechas - usar fecha_inicio para el rango
-        sql += ''' AND DATE(SUBSTR(fecha_inicio, 7, 4) || "-" || SUBSTR(fecha_inicio, 4, 2) || "-" || SUBSTR(fecha_inicio, 1, 2)) 
-                   BETWEEN ? AND ?'''
+        sql += ' AND date(fecha_inicio) BETWEEN ? AND ?'
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
-        sql += ' ORDER BY fecha DESC, numero_corte DESC'
+        sql += ' ORDER BY fecha_inicio DESC, numero_corte DESC'
         
-        # Ejecutar query
         db.cursor.execute(sql, params)
         cortes = [dict(row) for row in db.cursor.fetchall()]
         
         self.load_cortes(cortes)
     
     def filtro_hoy(self):
-        """Filtra cortes de hoy"""
         hoy = datetime.now().date()
         self.fecha_inicio.set_date(hoy)
         self.fecha_fin.set_date(hoy)
         self.aplicar_filtros()
     
     def filtro_ayer(self):
-        """Filtra cortes de ayer"""
         ayer = datetime.now().date() - timedelta(days=1)
         self.fecha_inicio.set_date(ayer)
         self.fecha_fin.set_date(ayer)
         self.aplicar_filtros()
     
     def filtro_semana(self):
-        """Filtra cortes de esta semana (viernes a miércoles)"""
         viernes, miercoles = calculate_week_range()
         self.fecha_inicio.set_date(viernes.date())
         self.fecha_fin.set_date(miercoles.date())
         self.aplicar_filtros()
     
     def filtro_mes(self):
-        """Filtra cortes de este mes (día 1 hasta hoy)"""
         primer_dia, hoy = calculate_month_range()
         self.fecha_inicio.set_date(primer_dia.date())
         self.fecha_fin.set_date(hoy.date())
         self.aplicar_filtros()
     
     def limpiar_fechas(self):
-        """Limpia los filtros de fecha"""
         hoy = datetime.now().date()
         self.fecha_inicio.set_date(hoy - timedelta(days=30))
         self.fecha_fin.set_date(hoy)
-        self.aplicar_filtros()
+        self.load_cortes() # Cargar todos, no aplicar filtros vacíos
     
     def filtro_estado(self, estado):
-        """Filtra por estado del corte"""
-        db.cursor.execute('SELECT * FROM cortes WHERE estado = ? ORDER BY fecha DESC', (estado,))
-        cortes = [dict(row) for row in db.cursor.fetchall()]
-        self.load_cortes(cortes)
+        self.search_var.set(estado)
+        self.aplicar_filtros()
     
     def filtro_numero_corte(self):
-        """Filtra por número de corte"""
         num_corte = self.num_corte_var.get().strip()
         if not num_corte:
-            messagebox.showwarning("Advertencia", "Ingresa un número de corte")
+            self.load_cortes()
             return
         
         try:
-            num_corte = int(num_corte)
-            db.cursor.execute('SELECT * FROM cortes WHERE numero_corte = ? ORDER BY fecha DESC', 
-                            (num_corte,))
+            num_corte_int = int(num_corte)
+            db.cursor.execute('SELECT * FROM cortes WHERE numero_corte = ? ORDER BY fecha_inicio DESC', (num_corte_int,))
             cortes = [dict(row) for row in db.cursor.fetchall()]
             
             if not cortes:
@@ -353,7 +327,6 @@ class CortesWindow:
             messagebox.showerror("Error", "El número de corte debe ser un número entero")
     
     def limpiar_filtros(self):
-        """Limpia todos los filtros"""
         self.search_var.set("")
         self.num_corte_var.set("")
         hoy = datetime.now().date()
@@ -361,93 +334,58 @@ class CortesWindow:
         self.fecha_fin.set_date(hoy)
         self.load_cortes()
     
-    def ver_detalles_corte(self, event=None):
-        """Muestra detalles completos del corte"""
+    def get_selected_corte_id(self, required=True):
+        """Obtiene el ID del corte seleccionado en la tabla"""
         selection = self.tree.selection()
         
         if not selection:
-            if event:
-                return
-            messagebox.showwarning("Advertencia", 
-                                  "Por favor selecciona un corte para ver detalles")
-            return
+            if required:
+                messagebox.showwarning("Advertencia", "Por favor selecciona un corte.")
+            return None
         
         if len(selection) > 1:
-            messagebox.showwarning("Advertencia", 
-                                  "Por favor selecciona solo un corte")
-            return
-        
+            if required:
+                messagebox.showwarning("Advertencia", "Por favor selecciona solo un corte.")
+            return None
+            
         item = self.tree.item(selection[0])
-        corte_id = self.get_corte_id_from_values(item['values'])
-        
+        return item['values'][0]
+
+    def ver_detalles_corte(self, event=None):
+        corte_id = self.get_selected_corte_id()
         if corte_id:
             DetallesCorteDialog(self.window, corte_id)
     
     def modificar_corte(self):
-        """Abre diálogo para modificar corte"""
-        selection = self.tree.selection()
-        
-        if not selection:
-            messagebox.showwarning("Advertencia", 
-                                  "Por favor selecciona un corte para modificar")
-            return
-        
-        if len(selection) > 1:
-            messagebox.showwarning("Advertencia", 
-                                  "Por favor selecciona solo un corte para modificar")
-            return
-        
-        item = self.tree.item(selection[0])
-        corte_id = self.get_corte_id_from_values(item['values'])
-        
+        corte_id = self.get_selected_corte_id()
         if corte_id:
             CorteDialog(self.window, corte_id=corte_id, callback=self.load_cortes)
     
     def borrar_corte(self):
-        """Elimina cortes seleccionados"""
         selection = self.tree.selection()
-        
         if not selection:
-            messagebox.showwarning("Advertencia", 
-                                  "Por favor selecciona al menos un corte para borrar")
+            messagebox.showwarning("Advertencia", "Por favor selecciona al menos un corte para borrar.")
             return
         
-        if not messagebox.askyesno("Confirmar", 
-                                   f"¿Estás seguro de borrar {len(selection)} corte(s)?"):
+        if not messagebox.askyesno("Confirmar", f"¿Estás seguro de borrar {len(selection)} corte(s)? Esta acción no se puede deshacer."):
             return
         
-        for item in selection:
-            values = self.tree.item(item)['values']
-            corte_id = self.get_corte_id_from_values(values)
-            if corte_id:
-                db.cursor.execute('DELETE FROM cortes WHERE id = ?', (corte_id,))
+        ids_to_delete = []
+        for item_id in selection:
+            item = self.tree.item(item_id)
+            corte_id = item['values'][0]
+            ids_to_delete.append((corte_id,))
         
+        db.cursor.executemany('DELETE FROM cortes WHERE id = ?', ids_to_delete)
         db.conn.commit()
-        messagebox.showinfo("Éxito", "Corte(s) eliminado(s) correctamente")
+        
+        messagebox.showinfo("Éxito", f"{len(ids_to_delete)} corte(s) eliminado(s) correctamente.")
         self.load_cortes()
     
     def agregar_corte(self):
-        """Abre diálogo para agregar corte manual"""
         CorteDialog(self.window, callback=self.load_cortes)
     
-    def get_corte_id_from_values(self, values):
-        """Obtiene el ID del corte desde los valores mostrados"""
-        numero_corte = values[0]
-        fecha = values[1]
-        
-        # Buscar por numero_corte y cualquiera de las fechas
-        db.cursor.execute('''
-            SELECT id FROM cortes 
-            WHERE numero_corte = ? 
-            AND (fecha_inicio = ? OR fecha_cierre = ?)
-            LIMIT 1
-        ''', (numero_corte, fecha, fecha))
-        
-        result = db.cursor.fetchone()
-        return result['id'] if result else None
-    
     def close_window(self):
-        """Cierra la ventana y vuelve al menú"""
         self.window.destroy()
         if self.on_close_callback:
             self.on_close_callback()
@@ -465,19 +403,14 @@ class DetallesCorteDialog:
         self.dialog.grab_set()
         self.dialog.minsize(600, 700)
         
-        
-        # Forzar al frente
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
-        # Centrar ventana
         self.center_dialog()
-        
         self.setup_ui()
     
     def center_dialog(self):
-        """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
         width = 600
         height = 740
@@ -486,11 +419,9 @@ class DetallesCorteDialog:
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
     
     def setup_ui(self):
-        """Configura la interfaz del diálogo"""
         main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
         
-        # Obtener datos del corte
         db.cursor.execute('SELECT * FROM cortes WHERE id = ?', (self.corte_id,))
         corte = db.cursor.fetchone()
         
@@ -501,26 +432,21 @@ class DetallesCorteDialog:
         
         corte = dict(corte)
         
-        # Título
         tk.Label(main_frame, text=f"Corte de Caja #{corte['numero_corte']}", 
                 font=FONTS['title'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 20))
         
-        # Frame de información
         info_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
                              relief=tk.RAISED, borderwidth=2)
         info_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Fecha inicio y cierre
         self.add_info_row(info_frame, "Fecha Inicio:", corte['fecha_inicio'])
         if corte['fecha_cierre']:
             self.add_info_row(info_frame, "Fecha Cierre:", corte['fecha_cierre'])
         
-        # Dinero en caja
         self.add_info_row(info_frame, "Dinero en Caja:", 
                          format_currency(corte['dinero_en_caja']))
         
-        # NUEVO: Separar ventas por método de pago
         tk.Label(info_frame, text="── VENTAS DEL CORTE ──", 
                 font=FONTS['normal'], bg=COLORS['bg_secondary'],
                 fg=COLORS['accent']).pack(pady=(10, 5))
@@ -535,23 +461,18 @@ class DetallesCorteDialog:
         self.add_info_row(info_frame, "Total de Ventas:", 
                          format_currency(total_ventas), COLORS['accent'])
         
-        # Separador
         tk.Frame(info_frame, bg=COLORS['border'], height=2).pack(fill=tk.X, pady=10, padx=20)
         
-        # Corte final
         self.add_info_row(info_frame, "Corte Final (contado):", 
                          format_currency(corte['corte_final']), COLORS['accent'])
         
-        # Corte esperado
         self.add_info_row(info_frame, "Corte Esperado:", 
                          format_currency(corte['corte_esperado']))
         
-        # Retiros
         if corte['retiros'] > 0:
             self.add_info_row(info_frame, "Retiros/Egresos:", 
                              format_currency(corte['retiros']))
         
-        # Diferencia
         diferencia_color = COLORS['text_primary']
         if corte['estado'] == 'Sobrante':
             diferencia_color = COLORS['success']
@@ -559,9 +480,8 @@ class DetallesCorteDialog:
             diferencia_color = COLORS['danger']
         
         self.add_info_row(info_frame, "Diferencia:", 
-                         format_currency(abs(corte['diferencia'])), diferencia_color)
+                         format_currency(corte['diferencia']), diferencia_color)
         
-        # Estado
         estado_color = COLORS['text_primary']
         if corte['estado'] == 'Cuadrado':
             estado_color = COLORS['accent']
@@ -573,74 +493,14 @@ class DetallesCorteDialog:
         self.add_info_row(info_frame, "Estado del Corte:", 
                          corte['estado'], estado_color)
         
-        # Ganancias
         self.add_info_row(info_frame, "Ganancias del Día:", 
                          format_currency(corte['ganancias']), COLORS['success'])
         
-        # Título
-        tk.Label(main_frame, text=f"Corte de Caja #{corte['numero_corte']}", 
-                font=FONTS['title'], bg=COLORS['bg_primary'],
-                fg=COLORS['text_primary']).pack(pady=(0, 20))
-        
-        # Frame de información
-        info_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
-                             relief=tk.RAISED, borderwidth=2)
-        info_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Fecha inicio y cierre
-        self.add_info_row(info_frame, "Fecha Inicio:", corte['fecha_inicio'])
-        if corte['fecha_cierre']:
-           self.add_info_row(info_frame, "Fecha Cierre:", corte['fecha_cierre'])
-        
-        # Dinero en caja
-        self.add_info_row(info_frame, "Dinero en Caja:", 
-                         format_currency(corte['dinero_en_caja']))
-        
-        # Corte final
-        self.add_info_row(info_frame, "Corte Final (contado):", 
-                         format_currency(corte['corte_final']), COLORS['accent'])
-        
-        # Corte esperado
-        self.add_info_row(info_frame, "Corte Esperado:", 
-                         format_currency(corte['corte_esperado']))
-        
-        # Retiros
-        self.add_info_row(info_frame, "Retiros/Egresos:", 
-                         format_currency(corte['retiros']))
-        
-        # Diferencia
-        diferencia_color = COLORS['text_primary']
-        if corte['estado'] == 'Sobrante':
-            diferencia_color = COLORS['success']
-        elif corte['estado'] == 'Faltante':
-            diferencia_color = COLORS['danger']
-        
-        self.add_info_row(info_frame, "Diferencia:", 
-                         format_currency(abs(corte['diferencia'])), diferencia_color)
-        
-        # Estado
-        estado_color = COLORS['text_primary']
-        if corte['estado'] == 'Cuadrado':
-            estado_color = COLORS['accent']
-        elif corte['estado'] == 'Sobrante':
-            estado_color = COLORS['success']
-        elif corte['estado'] == 'Faltante':
-            estado_color = COLORS['danger']
-        
-        self.add_info_row(info_frame, "Estado del Corte:", 
-                         corte['estado'], estado_color)
-        
-        # Ganancias
-        self.add_info_row(info_frame, "Ganancias del Día:", 
-                         format_currency(corte['ganancias']), COLORS['success'])
-        
-        # Botón cerrar
         tk.Button(main_frame, text="Cerrar", command=self.dialog.destroy,
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=40, pady=12).pack(pady=20)
     
     def add_info_row(self, parent, label, value, color=None):
-        """Añade una fila de información"""
         row_frame = tk.Frame(parent, bg=COLORS['bg_secondary'])
         row_frame.pack(fill=tk.X, padx=20, pady=8)
         
@@ -657,6 +517,7 @@ class CorteDialog:
     def __init__(self, parent, corte_id=None, callback=None):
         self.corte_id = corte_id
         self.callback = callback
+        self.corte_data = None
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Añadir Corte" if not corte_id else "Modificar Corte")
@@ -665,22 +526,20 @@ class CorteDialog:
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
-        # Forzar al frente
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         self.dialog.minsize(550, 850)
         
-        # Centrar ventana
         self.center_dialog()
-        
         self.setup_ui()
         
-        if corte_id:
+        if self.corte_id:
             self.load_corte_data()
-    
+        
+        self.calcular_diferencia()
+
     def center_dialog(self):
-        """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
         width = 550
         height = 850
@@ -689,125 +548,90 @@ class CorteDialog:
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
     
     def setup_ui(self):
-        """Configura la interfaz del diálogo"""
         main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Número de corte
-        tk.Label(main_frame, text="Número de Corte:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        # --- Variables ---
         self.num_corte_var = tk.StringVar()
+        self.fecha_inicio_var = tk.StringVar(value=get_current_datetime())
+        self.fecha_cierre_var = tk.StringVar(value=get_current_datetime())
+        self.dinero_caja_var = tk.StringVar(value="0")
+        self.ventas_efectivo_var = tk.StringVar(value="0")
+        self.ventas_transferencia_var = tk.StringVar(value="0")
+        self.corte_final_var = tk.StringVar(value="0")
+        self.retiros_var = tk.StringVar(value="0")
+        self.ganancias_var = tk.StringVar(value="0")
+        self.corte_esperado_var = tk.StringVar()
+        self.diferencia_var = tk.StringVar()
+        self.estado_var = tk.StringVar()
+
+        # --- Trace ---
+        for var in [self.dinero_caja_var, self.ventas_efectivo_var, self.retiros_var, self.corte_final_var]:
+            var.trace('w', self.calcular_diferencia)
+
+        # --- Widgets ---
+        tk.Label(main_frame, text="Número de Corte:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        tk.Entry(main_frame, textvariable=self.num_corte_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
         if not self.corte_id:
             self.num_corte_var.set(str(db.get_next_numero_corte()))
-        tk.Entry(main_frame, textvariable=self.num_corte_var, 
-                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
-        
-        # Fecha Inicio
-        tk.Label(main_frame, text="Fecha Inicio:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.fecha_inicio_var = tk.StringVar(value=get_current_datetime())
-        tk.Entry(main_frame, textvariable=self.fecha_inicio_var, 
-                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
 
-        # Fecha Cierre (opcional)
-        tk.Label(main_frame, text="Fecha Cierre (opcional):", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.fecha_cierre_var = tk.StringVar(value=get_current_datetime())
+        tk.Label(main_frame, text="Fecha Inicio:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.fecha_inicio_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(main_frame, text="Fecha Cierre (opcional):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.fecha_cierre_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
         
-        # Dinero en caja
-        tk.Label(main_frame, text="Dinero en Caja:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.dinero_caja_var = tk.StringVar(value="0")
-        tk.Entry(main_frame, textvariable=self.dinero_caja_var, 
-                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(main_frame, text="Dinero en Caja (Inicial):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.dinero_caja_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(main_frame, text="Ventas en Efectivo:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.ventas_efectivo_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(main_frame, text="Ventas por Transferencia:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.ventas_transferencia_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(main_frame, text="Retiros/Egresos:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.retiros_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(main_frame, text="Corte Final (Dinero contado):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.corte_final_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(main_frame, text="Ganancias del Día:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Entry(main_frame, textvariable=self.ganancias_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        # --- Calculated Fields ---
+        tk.Label(main_frame, text="Corte Esperado:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        tk.Label(main_frame, textvariable=self.corte_esperado_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], fg=COLORS['text_primary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w').pack(fill=tk.X, pady=(0, 10))
         
-        # Corte final
-        tk.Label(main_frame, text="Corte Final (contado):", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.corte_final_var = tk.StringVar(value="0")
-        self.corte_final_var.trace('w', self.calcular_diferencia)
-        tk.Entry(main_frame, textvariable=self.corte_final_var, 
-                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
-        
-        # Retiros
-        tk.Label(main_frame, text="Retiros/Egresos:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.retiros_var = tk.StringVar(value="0")
-        self.retiros_var.trace('w', self.calcular_diferencia)
-        tk.Entry(main_frame, textvariable=self.retiros_var, 
-                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
-        
-        # Corte esperado (calculado automáticamente)
-        tk.Label(main_frame, text="Corte Esperado:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.corte_esperado_var = tk.StringVar(value="$0.00")
-        tk.Label(main_frame, textvariable=self.corte_esperado_var, 
-                font=FONTS['heading'], bg=COLORS['bg_secondary'],
-                fg=COLORS['text_primary'], relief=tk.SUNKEN, 
-                padx=10, pady=5, anchor='w').pack(fill=tk.X, pady=(0, 10))
-        
-        # Diferencia (calculada automáticamente)
-        tk.Label(main_frame, text="Diferencia:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.diferencia_var = tk.StringVar(value="$0.00")
-        self.diferencia_label = tk.Label(main_frame, textvariable=self.diferencia_var, 
-                                        font=FONTS['heading'], bg=COLORS['bg_secondary'],
-                                        relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
+        tk.Label(main_frame, text="Diferencia:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        self.diferencia_label = tk.Label(main_frame, textvariable=self.diferencia_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
         self.diferencia_label.pack(fill=tk.X, pady=(0, 10))
         
-        # Estado (calculado automáticamente)
-        tk.Label(main_frame, text="Estado del Corte:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.estado_var = tk.StringVar(value="Cuadrado")
-        self.estado_label = tk.Label(main_frame, textvariable=self.estado_var, 
-                                     font=FONTS['heading'], bg=COLORS['bg_secondary'],
-                                     relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
+        tk.Label(main_frame, text="Estado del Corte:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        self.estado_label = tk.Label(main_frame, textvariable=self.estado_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
         self.estado_label.pack(fill=tk.X, pady=(0, 10))
         
-        # Ganancias
-        tk.Label(main_frame, text="Ganancias del Día:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.ganancias_var = tk.StringVar(value="0")
-        tk.Entry(main_frame, textvariable=self.ganancias_var, 
-                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
-        
-        # Botones
+        # --- Buttons ---
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         button_frame.pack(pady=20)
         
-        tk.Button(button_frame, text="Aceptar", command=self.save_corte,
-                 font=FONTS['button'], bg=COLORS['success'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
-        
-        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
-                 font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Guardar", command=self.save_corte, font=FONTS['button'], bg=COLORS['success'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy, font=FONTS['button'], bg=COLORS['danger'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
     
     def calcular_diferencia(self, *args):
-        """Calcula la diferencia y estado automáticamente"""
         try:
-            dinero_caja = float(self.dinero_caja_var.get())
-            corte_final = float(self.corte_final_var.get())
-            retiros = float(self.retiros_var.get())
+            dinero_caja = float(self.dinero_caja_var.get() or 0)
+            ventas_efectivo = float(self.ventas_efectivo_var.get() or 0)
+            retiros = float(self.retiros_var.get() or 0)
+            corte_final = float(self.corte_final_var.get() or 0)
             
-            # Calcular corte esperado (esto es simplificado, en realidad 
-            # debería calcularse basado en ventas del día)
-            # Por ahora usamos: dinero_caja + ventas_efectivo - retiros
-            # Pero como es manual, el usuario puede ajustarlo
-            
-            # Para simplificar, el corte esperado es el dinero en caja
-            # (asumiendo que todas las ventas ya están incluidas)
-            corte_esperado = dinero_caja - retiros
-            
-            self.corte_esperado_var.set(format_currency(corte_esperado))
-            
-            # Calcular diferencia
+            corte_esperado = dinero_caja + ventas_efectivo - retiros
             diferencia = corte_final - corte_esperado
             
-            self.diferencia_var.set(format_currency(abs(diferencia)))
+            self.corte_esperado_var.set(format_currency(corte_esperado))
+            self.diferencia_var.set(format_currency(diferencia))
             
-            # Determinar estado y color
-            if abs(diferencia) < 0.01:  # Tolerancia de 1 centavo
+            if abs(diferencia) < 0.01:
                 estado = 'Cuadrado'
                 color = COLORS['accent']
             elif diferencia > 0:
@@ -820,114 +644,88 @@ class CorteDialog:
             self.estado_var.set(estado)
             self.diferencia_label.config(fg=color)
             self.estado_label.config(fg=color)
-            
-        except ValueError:
+        except (ValueError, tk.TclError):
             pass
     
     def load_corte_data(self):
-        """Carga los datos del corte a editar"""
         db.cursor.execute('SELECT * FROM cortes WHERE id = ?', (self.corte_id,))
-        corte = db.cursor.fetchone()
+        self.corte_data = db.cursor.fetchone()
         
-        if not corte:
-            messagebox.showerror("Error", "Corte no encontrado")
+        if not self.corte_data:
+            messagebox.showerror("Error", "Corte no encontrado.")
             self.dialog.destroy()
             return
         
-        corte = dict(corte)
-        
-        self.num_corte_var.set(str(corte['numero_corte']))
-        self.fecha_inicio_var.set(corte['fecha_inicio'])
-        if corte['fecha_cierre']:
-             self.fecha_cierre_var.set(corte['fecha_cierre'])
-        self.dinero_caja_var.set(str(corte['dinero_en_caja']))
-        self.corte_final_var.set(str(corte['corte_final']))
-        self.retiros_var.set(str(corte['retiros']))
-        self.ganancias_var.set(str(corte['ganancias']))
-        
-        # Los campos calculados se actualizarán automáticamente
-        self.calcular_diferencia()
+        self.num_corte_var.set(self.corte_data['numero_corte'])
+        self.fecha_inicio_var.set(self.corte_data['fecha_inicio'])
+        self.fecha_cierre_var.set(self.corte_data['fecha_cierre'] or '')
+        self.dinero_caja_var.set(self.corte_data['dinero_en_caja'])
+        self.ventas_efectivo_var.set(self.corte_data['ventas_efectivo'])
+        self.ventas_transferencia_var.set(self.corte_data['ventas_transferencia'])
+        self.corte_final_var.set(self.corte_data['corte_final'])
+        self.retiros_var.set(self.corte_data['retiros'])
+        self.ganancias_var.set(self.corte_data['ganancias'])
     
     def save_corte(self):
-        """Guarda el corte"""
-        # Validaciones
         try:
+            # --- Recolectar y validar datos ---
             numero_corte = int(self.num_corte_var.get())
-            dinero_caja = float(self.dinero_caja_var.get())
-            corte_final = float(self.corte_final_var.get())
-            retiros = float(self.retiros_var.get())
-            ganancias = float(self.ganancias_var.get())
-        except ValueError:
-            messagebox.showerror("Error", "Valores numéricos inválidos")
-            return
-        
-        fecha_inicio = self.fecha_inicio_var.get().strip()
-        fecha_cierre = self.fecha_cierre_var.get().strip()
+            fecha_inicio = self.fecha_inicio_var.get().strip()
+            fecha_cierre = self.fecha_cierre_var.get().strip() or None
+            dinero_caja = float(self.dinero_caja_var.get() or 0)
+            ventas_efectivo = float(self.ventas_efectivo_var.get() or 0)
+            ventas_transferencia = float(self.ventas_transferencia_var.get() or 0)
+            retiros = float(self.retiros_var.get() or 0)
+            corte_final = float(self.corte_final_var.get() or 0)
+            ganancias = float(self.ganancias_var.get() or 0)
 
-        if not fecha_inicio:
-            messagebox.showerror("Error", "La fecha de inicio es obligatoria")
-            return
-        
-        # NUEVO: Si estamos editando, obtener ventas_efectivo y ventas_transferencia
-        if self.corte_id:
-            # Actualizar corte existente
-            db.cursor.execute('''
-                UPDATE cortes 
-                SET numero_corte = ?, fecha_inicio = ?, fecha_cierre = ?, dinero_en_caja = ?,
-                    corte_final = ?, corte_esperado = ?, retiros = ?,
-                    diferencia = ?, estado = ?, ganancias = ?
-                WHERE id = ?
-             ''', (numero_corte, fecha_inicio, fecha_cierre, dinero_caja, corte_final, 
-                   corte_esperado, retiros, diferencia, estado, ganancias, self.corte_id))
-        else:
-            ventas_efectivo = 0
-            ventas_transferencia = 0
-        
-        # Calcular valores (CORREGIDO: Solo efectivo afecta corte esperado)
-        corte_esperado = dinero_caja + ventas_efectivo - retiros
-        diferencia = corte_final - corte_esperado
-        
-        if abs(diferencia) < 0.01:
-            estado = 'Cuadrado'
-        elif diferencia > 0:
-            estado = 'Sobrante'
-        else:
-            estado = 'Faltante'
-        
-        try:
-            if self.corte_id:
-                # Actualizar corte existente
-                db.cursor.execute('''
-                    UPDATE cortes 
-                    SET numero_corte = ?, fecha_inicio = ?, dinero_en_caja = ?,
-                        corte_final = ?, corte_esperado = ?, retiros = ?,
-                        diferencia = ?, estado = ?, ganancias = ?
-                    WHERE id = ?
-                ''', (numero_corte, fecha_inicio, fecha_cierre, dinero_caja, corte_final, corte_esperado,
-                      retiros, diferencia, estado, ganancias, self.corte_id))
+            if not fecha_inicio:
+                messagebox.showerror("Error", "La fecha de inicio es obligatoria.")
+                return
+
+            # --- Calcular valores derivados ---
+            corte_esperado = dinero_caja + ventas_efectivo - retiros
+            diferencia = corte_final - corte_esperado
+            
+            if abs(diferencia) < 0.01:
+                estado = 'Cuadrado'
+            elif diferencia > 0:
+                estado = 'Sobrante'
             else:
-                # Crear nuevo corte
-                db.cursor.execute('''
-                    INSERT INTO cortes (numero_corte, fecha_inicio, fecha_cierre, dinero_en_caja,
-                                     corte_final, corte_esperado, retiros,
-                                     diferencia, estado, ganancias, estado_corte,
-                                     ventas_efectivo, ventas_transferencia)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cerrado', 0, 0)
-                 ''', (numero_corte, fecha_inicio, fecha_cierre, dinero_caja, corte_final, 
-                       corte_esperado, retiros, diferencia, estado, ganancias))
-                
-                # Actualizar último número de corte si es mayor
-                ultimo_num = int(db.get_config('ultimo_numero_corte') or 0)
-                if numero_corte > ultimo_num:
-                    db.set_config('ultimo_numero_corte', str(numero_corte))
+                estado = 'Faltante'
+
+            # --- Construir tupla de parámetros ---
+            params = (
+                numero_corte, fecha_inicio, fecha_cierre, dinero_caja,
+                ventas_efectivo, ventas_transferencia, corte_final,
+                corte_esperado, retiros, diferencia, estado, ganancias
+            )
+
+            # --- Ejecutar SQL ---
+            if self.corte_id:
+                sql = '''UPDATE cortes SET 
+                            numero_corte=?, fecha_inicio=?, fecha_cierre=?, dinero_en_caja=?,
+                            ventas_efectivo=?, ventas_transferencia=?, corte_final=?,
+                            corte_esperado=?, retiros=?, diferencia=?, estado=?, ganancias=?
+                         WHERE id = ?'''
+                db.cursor.execute(sql, params + (self.corte_id,))
+            else:
+                sql = '''INSERT INTO cortes (
+                            numero_corte, fecha_inicio, fecha_cierre, dinero_en_caja,
+                            ventas_efectivo, ventas_transferencia, corte_final,
+                            corte_esperado, retiros, diferencia, estado, ganancias, estado_corte
+                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cerrado')'''
+                db.cursor.execute(sql, params)
             
             db.conn.commit()
-            messagebox.showinfo("Éxito", "Corte guardado correctamente")
+            messagebox.showinfo("Éxito", "Corte guardado correctamente.")
             
             if self.callback:
                 self.callback()
             
             self.dialog.destroy()
             
+        except ValueError:
+            messagebox.showerror("Error", "Valores numéricos inválidos. Asegúrate de que todos los campos de dinero sean números.")
         except Exception as e:
-            messagebox.showerror("Error", f"Error al guardar corte: {str(e)}")
+            messagebox.showerror("Error", f"Ocurrió un error al guardar el corte: {e}")
