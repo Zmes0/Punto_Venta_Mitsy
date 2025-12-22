@@ -521,7 +521,7 @@ class CorteDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Añadir Corte" if not corte_id else "Modificar Corte")
-        self.dialog.geometry("550x850")
+        self.dialog.geometry("900x700") # Adjusted geometry
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -529,7 +529,7 @@ class CorteDialog:
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
-        self.dialog.minsize(550, 850)
+        self.dialog.minsize(900, 700) # Adjusted minsize
         
         self.center_dialog()
         self.setup_ui()
@@ -541,8 +541,8 @@ class CorteDialog:
 
     def center_dialog(self):
         self.dialog.update_idletasks()
-        width = 550
-        height = 850
+        width = 900 # Adjusted width
+        height = 700 # Adjusted height
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -569,47 +569,59 @@ class CorteDialog:
         for var in [self.dinero_caja_var, self.ventas_efectivo_var, self.retiros_var, self.corte_final_var]:
             var.trace('w', self.calcular_diferencia)
 
-        # --- Widgets ---
-        tk.Label(main_frame, text="Número de Corte:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
-        tk.Entry(main_frame, textvariable=self.num_corte_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        # --- Input Widgets Frame ---
+        inputs_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        inputs_frame.pack(fill=tk.X, pady=(10, 20))
+        inputs_frame.columnconfigure(1, weight=1)
+        inputs_frame.columnconfigure(3, weight=1)
+
+        # --- Column 1 ---
+        tk.Label(inputs_frame, text="Número de Corte:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=0, column=0, sticky='w', padx=5, pady=5)
+        num_corte_entry = tk.Entry(inputs_frame, textvariable=self.num_corte_var, font=FONTS['normal'])
+        num_corte_entry.grid(row=0, column=1, sticky='ew', padx=5, pady=5)
         if not self.corte_id:
             self.num_corte_var.set(str(db.get_next_numero_corte()))
 
-        tk.Label(main_frame, text="Fecha Inicio:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.fecha_inicio_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(inputs_frame, text="Fecha Inicio:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=1, column=0, sticky='w', padx=5, pady=5)
+        tk.Entry(inputs_frame, textvariable=self.fecha_inicio_var, font=FONTS['normal']).grid(row=1, column=1, sticky='ew', padx=5, pady=5)
 
-        tk.Label(main_frame, text="Fecha Cierre (opcional):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.fecha_cierre_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(inputs_frame, text="Fecha Cierre (opcional):", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=2, column=0, sticky='w', padx=5, pady=5)
+        tk.Entry(inputs_frame, textvariable=self.fecha_cierre_var, font=FONTS['normal']).grid(row=2, column=1, sticky='ew', padx=5, pady=5)
         
-        tk.Label(main_frame, text="Dinero en Caja (Inicial):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.dinero_caja_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(inputs_frame, text="Dinero en Caja (Inicial):", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=3, column=0, sticky='w', padx=5, pady=5)
+        tk.Entry(inputs_frame, textvariable=self.dinero_caja_var, font=FONTS['normal']).grid(row=3, column=1, sticky='ew', padx=5, pady=5)
 
-        tk.Label(main_frame, text="Ventas en Efectivo:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.ventas_efectivo_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(inputs_frame, text="Ganancias del Día:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=4, column=0, sticky='w', padx=5, pady=5)
+        tk.Entry(inputs_frame, textvariable=self.ganancias_var, font=FONTS['normal']).grid(row=4, column=1, sticky='ew', padx=5, pady=5)
 
-        tk.Label(main_frame, text="Ventas por Transferencia:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.ventas_transferencia_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        # --- Column 2 ---
+        tk.Label(inputs_frame, text="Ventas en Efectivo:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=0, column=2, sticky='w', padx=(20, 5), pady=5)
+        tk.Entry(inputs_frame, textvariable=self.ventas_efectivo_var, font=FONTS['normal']).grid(row=0, column=3, sticky='ew', padx=5, pady=5)
 
-        tk.Label(main_frame, text="Retiros/Egresos:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.retiros_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(inputs_frame, text="Ventas por Transferencia:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=1, column=2, sticky='w', padx=(20, 5), pady=5)
+        tk.Entry(inputs_frame, textvariable=self.ventas_transferencia_var, font=FONTS['normal']).grid(row=1, column=3, sticky='ew', padx=5, pady=5)
 
-        tk.Label(main_frame, text="Corte Final (Dinero contado):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.corte_final_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(inputs_frame, text="Retiros/Egresos:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=2, column=2, sticky='w', padx=(20, 5), pady=5)
+        tk.Entry(inputs_frame, textvariable=self.retiros_var, font=FONTS['normal']).grid(row=2, column=3, sticky='ew', padx=5, pady=5)
 
-        tk.Label(main_frame, text="Ganancias del Día:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Entry(main_frame, textvariable=self.ganancias_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(inputs_frame, text="Corte Final (Dinero contado):", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=3, column=2, sticky='w', padx=(20, 5), pady=5)
+        tk.Entry(inputs_frame, textvariable=self.corte_final_var, font=FONTS['normal']).grid(row=3, column=3, sticky='ew', padx=5, pady=5)
 
-        # --- Calculated Fields ---
-        tk.Label(main_frame, text="Corte Esperado:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        tk.Label(main_frame, textvariable=self.corte_esperado_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], fg=COLORS['text_primary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w').pack(fill=tk.X, pady=(0, 10))
+        # --- Calculated Fields Frame ---
+        calculated_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        calculated_frame.pack(fill=tk.X, pady=10)
+        calculated_frame.columnconfigure(0, weight=1)
+
+        tk.Label(calculated_frame, text="Corte Esperado:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=0, column=0, sticky='w', pady=(10,0))
+        tk.Label(calculated_frame, textvariable=self.corte_esperado_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], fg=COLORS['text_primary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w').grid(row=1, column=0, sticky='ew', pady=(0, 10))
         
-        tk.Label(main_frame, text="Diferencia:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.diferencia_label = tk.Label(main_frame, textvariable=self.diferencia_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
-        self.diferencia_label.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(calculated_frame, text="Diferencia:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=2, column=0, sticky='w')
+        self.diferencia_label = tk.Label(calculated_frame, textvariable=self.diferencia_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
+        self.diferencia_label.grid(row=3, column=0, sticky='ew', pady=(0, 10))
         
-        tk.Label(main_frame, text="Estado del Corte:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.estado_label = tk.Label(main_frame, textvariable=self.estado_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
-        self.estado_label.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(calculated_frame, text="Estado del Corte:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=4, column=0, sticky='w')
+        self.estado_label = tk.Label(calculated_frame, textvariable=self.estado_var, font=FONTS['heading'], bg=COLORS['bg_secondary'], relief=tk.SUNKEN, padx=10, pady=5, anchor='w')
+        self.estado_label.grid(row=5, column=0, sticky='ew', pady=(0, 10))
         
         # --- Buttons ---
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
