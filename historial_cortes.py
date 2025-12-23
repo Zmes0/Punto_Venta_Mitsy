@@ -81,6 +81,11 @@ class CortesWindow:
                                    borderwidth=2, date_pattern='dd/mm/yyyy')
         self.fecha_fin.pack(side=tk.LEFT, padx=(0, 20))
         
+        # Set default dates
+        hoy = datetime.now().date()
+        self.fecha_inicio.set_date(hoy - timedelta(days=30))
+        self.fecha_fin.set_date(hoy)
+        
         # Botón aplicar filtros
         tk.Button(filters_top_frame, text="Aplicar Filtros", 
                  command=self.aplicar_filtros,
@@ -252,18 +257,25 @@ class CortesWindow:
             self.tree.insert('', tk.END, values=values, tags=(tag,))
     
     def aplicar_filtros(self):
-        """Aplica los filtros de búsqueda"""
+        """Aplica los filtros de búsqueda de texto y fecha."""
         query = self.search_var.get().strip()
-        fecha_inicio = self.fecha_inicio.get_date()
-        fecha_fin = self.fecha_fin.get_date()
         
+        try:
+            fecha_inicio = self.fecha_inicio.get_date()
+            fecha_fin = self.fecha_fin.get_date()
+        except (ValueError, TypeError):
+            messagebox.showerror("Error de Fecha", "El formato de fecha no es válido.")
+            return
+
         sql = 'SELECT * FROM cortes WHERE 1=1'
         params = []
         
         if query:
-            sql += ' AND (estado LIKE ? OR CAST(numero_corte AS TEXT) LIKE ?)'
-            params.extend([f'%{query}%', f'%{query}%'])
+            # Búsqueda genérica sobre estado y número de corte
+            sql += ' AND (LOWER(estado) LIKE ? OR CAST(numero_corte AS TEXT) LIKE ?)'
+            params.extend([f'%{query.lower()}%', f'%{query.lower()}%'])
         
+        # Siempre filtra por el rango de fechas seleccionado
         sql += ' AND date(fecha_inicio) BETWEEN ? AND ?'
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
@@ -299,14 +311,26 @@ class CortesWindow:
         self.aplicar_filtros()
     
     def limpiar_fechas(self):
+        """ Restablece las fechas al rango por defecto y aplica el filtro. """
         hoy = datetime.now().date()
         self.fecha_inicio.set_date(hoy - timedelta(days=30))
         self.fecha_fin.set_date(hoy)
-        self.load_cortes() # Cargar todos, no aplicar filtros vacíos
+        self.aplicar_filtros()
     
     def filtro_estado(self, estado):
-        self.search_var.set(estado)
-        self.aplicar_filtros()
+        """Filtra los cortes por estado, ignorando otros filtros."""
+        # Limpiar otros filtros de texto para evitar confusión en la UI
+        self.search_var.set("")
+        self.num_corte_var.set("")
+        
+        sql = 'SELECT * FROM cortes WHERE estado = ? ORDER BY fecha_inicio DESC, numero_corte DESC'
+        db.cursor.execute(sql, (estado,))
+        cortes = [dict(row) for row in db.cursor.fetchall()]
+        
+        if not cortes:
+            messagebox.showinfo("No encontrado", f"No se encontraron cortes con estado '{estado}' en todo el historial.")
+        
+        self.load_cortes(cortes)
     
     def filtro_numero_corte(self):
         num_corte = self.num_corte_var.get().strip()

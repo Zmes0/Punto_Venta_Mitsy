@@ -2,7 +2,7 @@
 Funciones auxiliares y utilidades generales
 """
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import unicodedata
 
@@ -114,34 +114,37 @@ def get_current_datetime() -> str:
 
 def calculate_week_range(date: datetime = None) -> tuple:
     """
-    Calcula el rango de la semana (viernes a miércoles)
-    según la lógica especificada
+    Calcula el rango de la semana de Viernes a Miércoles.
+
+    La semana se considera de la siguiente manera:
+    - Inicia el Viernes.
+    - Termina el Miércoles siguiente (5 días después).
+
+    Ejemplos:
+    - Si la fecha es Martes 23/12/2025, la semana es del Vie 19/12 al Mie 24/12.
+    - Si la fecha es Jueves 25/12/2025, la semana es del Vie 19/12 al Mie 24/12.
     """
     if date is None:
         date = datetime.now()
     
-    # Obtener día de la semana (0=Lunes, 6=Domingo)
-    weekday = date.weekday()
+    today = date.date()
     
-    # Calcular días hasta el viernes anterior
-    # Viernes = 4
-    if weekday >= 4:  # Viernes (4), Sábado (5), Domingo (6)
-        days_since_friday = weekday - 4
-    else:  # Lunes (0), Martes (1), Miércoles (2), Jueves (3)
-        days_since_friday = weekday + 3
+    # Lunes=0, Martes=1, ..., Viernes=4, ..., Domingo=6
+    weekday = today.weekday()
     
-    # Viernes de la semana
-    from datetime import timedelta
-    friday = date - timedelta(days=days_since_friday)
+    # Días a restar para encontrar el último viernes.
+    # (weekday - 4 + 7) % 7 nos da la distancia al viernes anterior.
+    days_to_subtract = (weekday - 4 + 7) % 7
+    friday_date = today - timedelta(days=days_to_subtract)
     
-    # Si hoy es jueves o antes, el miércoles es hoy o pasado
-    if weekday <= 2:  # Lunes, Martes, Miércoles
-        wednesday = date if weekday == 2 else date - timedelta(days=weekday + 5)
-    else:  # Jueves, Viernes, Sábado, Domingo
-        wednesday = friday + timedelta(days=5)
+    # El miércoles de esa semana siempre está 5 días después del viernes.
+    wednesday_date = friday_date + timedelta(days=5)
     
-    return (friday.replace(hour=0, minute=0, second=0, microsecond=0),
-            wednesday.replace(hour=23, minute=59, second=59, microsecond=999999))
+    # Devolver como objetos datetime con la hora al inicio y fin del día.
+    start_of_week = datetime.combine(friday_date, datetime.min.time())
+    end_of_week = datetime.combine(wednesday_date, datetime.max.time())
+    
+    return start_of_week, end_of_week
 
 def calculate_month_range(date: datetime = None) -> tuple:
     """
