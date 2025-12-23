@@ -726,7 +726,7 @@ class HistorialVentasWindow:
                 SELECT v.*, c.numero_corte 
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
-                ORDER BY v.fecha DESC, v.numero_venta DESC
+                ORDER BY v.numero_venta DESC
             ''')
             ventas = [dict(row) for row in db.cursor.fetchall()]
         
@@ -784,7 +784,7 @@ class HistorialVentasWindow:
                    BETWEEN ? AND ?'''
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
-        sql += ' ORDER BY v.fecha DESC, v.numero_venta DESC'
+        sql += ' ORDER BY v.numero_venta DESC'
         
         # Ejecutar query
         db.cursor.execute(sql, params)
@@ -810,7 +810,7 @@ class HistorialVentasWindow:
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
                 WHERE c.numero_corte = ? 
-                ORDER BY v.fecha DESC, v.numero_venta DESC
+                ORDER BY v.numero_venta DESC
             ''', (num_corte,))
             ventas = [dict(row) for row in db.cursor.fetchall()]
             
@@ -858,7 +858,13 @@ class HistorialVentasWindow:
     
     def detail_filtro_metodo_pago(self, metodo):
         """Filtra por método de pago"""
-        db.cursor.execute('SELECT * FROM ventas WHERE metodo_pago = ? ORDER BY fecha DESC', (metodo,))
+        db.cursor.execute('''
+            SELECT v.*, c.numero_corte 
+            FROM ventas v
+            LEFT JOIN cortes c ON v.corte_id = c.id
+            WHERE v.metodo_pago = ? 
+            ORDER BY v.numero_venta DESC
+        ''', (metodo,))
         ventas = [dict(row) for row in db.cursor.fetchall()]
         self.load_detail_data(ventas)
     
@@ -871,8 +877,13 @@ class HistorialVentasWindow:
         
         try:
             num_venta = int(num_venta)
-            db.cursor.execute('SELECT * FROM ventas WHERE numero_venta = ? ORDER BY fecha DESC', 
-                            (num_venta,))
+            db.cursor.execute('''
+                SELECT v.*, c.numero_corte 
+                FROM ventas v
+                LEFT JOIN cortes c ON v.corte_id = c.id
+                WHERE v.numero_venta = ? 
+                ORDER BY v.numero_venta DESC
+            ''', (num_venta,))
             ventas = [dict(row) for row in db.cursor.fetchall()]
             
             if not ventas:

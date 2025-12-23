@@ -233,7 +233,7 @@ class CortesWindow:
             self.tree.delete(item)
         
         if cortes is None:
-            db.cursor.execute('SELECT * FROM cortes ORDER BY fecha_inicio DESC, numero_corte DESC')
+            db.cursor.execute('SELECT * FROM cortes ORDER BY numero_corte DESC')
             cortes = [dict(row) for row in db.cursor.fetchall()]
         
         for idx, c in enumerate(cortes):
@@ -279,7 +279,7 @@ class CortesWindow:
         sql += ' AND DATE(SUBSTR(fecha_inicio, 7, 4) || "-" || SUBSTR(fecha_inicio, 4, 2) || "-" || SUBSTR(fecha_inicio, 1, 2)) BETWEEN ? AND ?'
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
-        sql += ' ORDER BY fecha_inicio DESC, numero_corte DESC'
+        sql += ' ORDER BY numero_corte DESC'
         
         db.cursor.execute(sql, params)
         cortes = [dict(row) for row in db.cursor.fetchall()]
@@ -323,7 +323,7 @@ class CortesWindow:
         self.search_var.set("")
         self.num_corte_var.set("")
         
-        sql = 'SELECT * FROM cortes WHERE estado = ? ORDER BY fecha_inicio DESC, numero_corte DESC'
+        sql = 'SELECT * FROM cortes WHERE estado = ? ORDER BY numero_corte DESC'
         db.cursor.execute(sql, (estado,))
         cortes = [dict(row) for row in db.cursor.fetchall()]
         
