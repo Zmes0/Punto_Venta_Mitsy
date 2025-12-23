@@ -347,7 +347,7 @@ def exportar_ventas_excel(ventas):
 
 def importar_ventas_excel():
     """Importa ventas desde Excel"""
-    columnas = ['No. Venta', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 
+    columnas = ['No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 
                 'Precio Unitario', 'Total', 'Método']
     
     datos = ExcelManager.importar_desde_excel(columnas, "Importar Ventas")
@@ -358,6 +358,7 @@ def importar_ventas_excel():
             try:
                 venta = {
                     'numero_venta': int(registro['No. Venta']),
+                    'numero_corte': int(registro['No. Corte']) if registro.get('No. Corte') is not None and pd.notna(registro['No. Corte']) else None,
                     'fecha': str(registro['Fecha']),
                     'producto': str(registro['Producto']).strip(),
                     'id_producto': int(registro['ID Producto']),
@@ -385,6 +386,7 @@ def importar_ventas_excel():
         return ventas_validas
     
     return None
+
 
 
 def exportar_cortes_excel(cortes):

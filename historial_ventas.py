@@ -996,7 +996,8 @@ class HistorialVentasWindow:
                     precio_unitario=venta['precio_unitario'],
                     total=venta['total'],
                     metodo_pago=venta['metodo_pago'],
-                    mesa=venta.get('mesa')
+                    mesa=venta.get('mesa'),
+                    numero_corte=venta.get('numero_corte')
                 )
                 exitos += 1
             except Exception as e:

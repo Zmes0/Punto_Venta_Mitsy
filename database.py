@@ -798,11 +798,25 @@ class Database:
     def add_imported_venta(self, numero_venta: int, fecha: str, producto: str, id_producto: int,
                            cantidad: float, precio_unitario: float, total: float,
                            metodo_pago: str = 'Efectivo', mesa: str = None,
-                           propina: float = 0) -> int:
-        """Añade una venta importada con fecha específica - MODIFICADO para incluir corte_id"""
-        # Las ventas importadas se asignan al corte activo si existe, sino NULL
-        corte_id = self.get_corte_activo_id()
-        
+                           propina: float = 0, numero_corte: int = None) -> int:
+        """Añade una venta importada con fecha específica y número de corte"""
+        corte_id = None
+        if numero_corte is not None:
+            # Buscar el corte_id basado en el numero_corte
+            self.cursor.execute('SELECT id FROM cortes WHERE numero_corte = ?', (numero_corte,))
+            result = self.cursor.fetchone()
+            if result:
+                corte_id = result['id']
+            else:
+                # Si no se encuentra, se podría asignar al corte legacy (0) si existe
+                self.cursor.execute('SELECT id FROM cortes WHERE numero_corte = 0')
+                legacy_result = self.cursor.fetchone()
+                if legacy_result:
+                    corte_id = legacy_result['id']
+        else:
+            # Comportamiento anterior: asignar al corte activo si existe
+            corte_id = self.get_corte_activo_id()
+
         self.cursor.execute('''
             INSERT INTO ventas (numero_venta, fecha, producto, id_producto, cantidad,
                               precio_unitario, total, metodo_pago, mesa, propina, corte_id)
