@@ -276,7 +276,7 @@ class CortesWindow:
             params.extend([f'%{query.lower()}%', f'%{query.lower()}%'])
         
         # Siempre filtra por el rango de fechas seleccionado
-        sql += ' AND date(fecha_inicio) BETWEEN ? AND ?'
+        sql += ' AND DATE(SUBSTR(fecha_inicio, 7, 4) || "-" || SUBSTR(fecha_inicio, 4, 2) || "-" || SUBSTR(fecha_inicio, 1, 2)) BETWEEN ? AND ?'
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
         sql += ' ORDER BY fecha_inicio DESC, numero_corte DESC'
