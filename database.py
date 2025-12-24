@@ -865,6 +865,35 @@ class Database:
         
         return numero_venta
     
+    def delete_ventas_and_reorganize(self, venta_ids: list):
+        """
+        Elimina una o más ventas y reorganiza los numero_venta para llenar los vacíos.
+        """
+        if not venta_ids:
+            return
+
+        # 1. Delete the sales
+        placeholders = ','.join('?' for _ in venta_ids)
+        self.cursor.execute(f'DELETE FROM ventas WHERE id IN ({placeholders})', venta_ids)
+
+        # 2. Get all unique, sorted numero_venta remaining in the table
+        self.cursor.execute('SELECT DISTINCT numero_venta FROM ventas ORDER BY numero_venta ASC')
+        numeros_actuales = [row['numero_venta'] for row in self.cursor.fetchall()]
+
+        # 3. Iterate and fix gaps
+        expected_num = 1
+        for num_actual in numeros_actuales:
+            if num_actual != expected_num:
+                # Gap detected. Update the current number to the expected one.
+                self.cursor.execute('UPDATE ventas SET numero_venta = ? WHERE numero_venta = ?', (expected_num, num_actual))
+            expected_num += 1
+        
+        # 4. Update the 'ultimo_numero_venta' config value
+        nuevo_max_num = (expected_num - 1) if numeros_actuales else 0
+        self.set_config('ultimo_numero_venta', str(nuevo_max_num))
+
+        self.conn.commit()
+
     def borrar_todas_las_ventas_db(self):
         """Elimina todas las ventas de la base de datos."""
         self.cursor.execute('DELETE FROM ventas')
@@ -886,7 +915,8 @@ class Database:
                 precio_unitario=venta['precio_unitario'],
                 total=venta['total'],
                 metodo_pago=venta['metodo_pago'],
-                mesa=venta.get('mesa')
+                mesa=venta.get('mesa'),
+                numero_corte=venta.get('numero_corte')
             )
             if venta['numero_venta'] > max_numero_venta:
                 max_numero_venta = venta['numero_venta']
@@ -971,6 +1001,35 @@ class Database:
             self.set_config('ultimo_numero_corte', str(numero_mas_alto))
         
         return numero_mas_alto + 1
+
+    def delete_cortes_and_reorganize(self, corte_ids: list):
+        """
+        Elimina uno o más cortes y reorganiza los numero_corte para llenar los vacíos.
+        """
+        if not corte_ids:
+            return
+
+        # 1. Delete the cortes, ensuring the legacy cut (numero_corte=0) is not deleted
+        placeholders = ','.join('?' for _ in corte_ids)
+        self.cursor.execute(f'DELETE FROM cortes WHERE id IN ({placeholders}) AND numero_corte != 0', corte_ids)
+
+        # 2. Get all unique, sorted numero_corte remaining in the table (excluding legacy)
+        self.cursor.execute('SELECT DISTINCT numero_corte FROM cortes WHERE numero_corte != 0 ORDER BY numero_corte ASC')
+        numeros_actuales = [row['numero_corte'] for row in self.cursor.fetchall()]
+
+        # 3. Iterate and fix gaps
+        expected_num = 1
+        for num_actual in numeros_actuales:
+            if num_actual != expected_num:
+                # Gap detected. Update the current number to the expected one.
+                self.cursor.execute('UPDATE cortes SET numero_corte = ? WHERE numero_corte = ?', (expected_num, num_actual))
+            expected_num += 1
+        
+        # 4. Update the 'ultimo_numero_corte' config value
+        nuevo_max_num = (expected_num - 1) if numeros_actuales else 0
+        self.set_config('ultimo_numero_corte', str(nuevo_max_num))
+
+        self.conn.commit()
     
     def add_corte(self, dinero_caja: float, corte_final: float, 
                   retiros: float = 0) -> int:

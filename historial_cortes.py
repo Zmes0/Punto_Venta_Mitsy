@@ -400,12 +400,11 @@ class CortesWindow:
         for item_id in selection:
             item = self.tree.item(item_id)
             corte_id = item['values'][0]
-            ids_to_delete.append((corte_id,))
+            ids_to_delete.append(corte_id)
         
-        db.cursor.executemany('DELETE FROM cortes WHERE id = ?', ids_to_delete)
-        db.conn.commit()
+        db.delete_cortes_and_reorganize(ids_to_delete)
         
-        messagebox.showinfo("Éxito", f"{len(ids_to_delete)} corte(s) eliminado(s) correctamente.")
+        messagebox.showinfo("Éxito", f"{len(ids_to_delete)} corte(s) eliminado(s) y reorganizado(s) correctamente.")
         self.load_cortes()
     
     def agregar_corte(self):
