@@ -6,6 +6,7 @@ from tkinter import ttk, messagebox
 from config import COLORS, FONTS
 from utils import format_currency, validate_float
 from database import db
+import utils
 
 class IngredientesWindow:
     def __init__(self, parent, on_close=None):
@@ -71,6 +72,7 @@ class IngredientesWindow:
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                 yscrollcommand=scrollbar.set, selectmode='extended')
+        utils.enable_drag_selection(self.tree)
         
         # Configurar columnas
         self.tree.heading('ID', text='ID')

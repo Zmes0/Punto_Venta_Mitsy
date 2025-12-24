@@ -766,9 +766,28 @@ class Database:
     # ==================== VENTAS (continuación) ====================
     
     def get_next_numero_venta(self) -> int:
-        """Obtiene el siguiente número de venta"""
-        ultimo = self.get_config('ultimo_numero_venta')
-        return int(ultimo) + 1 if ultimo else 1
+        """
+        Obtiene el siguiente número de venta disponible.
+        Compara el valor de configuración con el máximo ID de la tabla
+        para asegurar que no haya colisiones.
+        """
+        # Obtener de la configuración
+        ultimo_config = self.get_config('ultimo_numero_venta')
+        ultimo_config_num = int(ultimo_config) if ultimo_config else 0
+        
+        # Obtener el máximo de la tabla
+        self.cursor.execute('SELECT MAX(numero_venta) as max_num FROM ventas')
+        result = self.cursor.fetchone()
+        max_db_num = result['max_num'] if result['max_num'] else 0
+        
+        # El número más alto es la base para el siguiente
+        numero_mas_alto = max(ultimo_config_num, max_db_num)
+        
+        # Actualizar la configuración por si estaba desincronizada
+        if str(numero_mas_alto) != ultimo_config:
+            self.set_config('ultimo_numero_venta', str(numero_mas_alto))
+        
+        return numero_mas_alto + 1
     
     def add_venta(self, numero_venta: int, producto: str, id_producto: int,
                   cantidad: float, precio: float, total: float,
@@ -930,9 +949,28 @@ class Database:
     # ==================== CORTES ====================
     
     def get_next_numero_corte(self) -> int:
-        """Obtiene el siguiente número de corte"""
-        ultimo = self.get_config('ultimo_numero_corte')
-        return int(ultimo) + 1 if ultimo else 1
+        """
+        Obtiene el siguiente número de corte disponible.
+        Compara el valor de configuración con el máximo ID de la tabla
+        para asegurar que no haya colisiones.
+        """
+        # Obtener de la configuración
+        ultimo_config = self.get_config('ultimo_numero_corte')
+        ultimo_config_num = int(ultimo_config) if ultimo_config else 0
+        
+        # Obtener el máximo de la tabla
+        self.cursor.execute('SELECT MAX(numero_corte) as max_num FROM cortes')
+        result = self.cursor.fetchone()
+        max_db_num = result['max_num'] if result['max_num'] is not None else 0
+        
+        # El número más alto es la base para el siguiente
+        numero_mas_alto = max(ultimo_config_num, max_db_num)
+        
+        # Actualizar la configuración por si estaba desincronizada
+        if str(numero_mas_alto) != ultimo_config:
+            self.set_config('ultimo_numero_corte', str(numero_mas_alto))
+        
+        return numero_mas_alto + 1
     
     def add_corte(self, dinero_caja: float, corte_final: float, 
                   retiros: float = 0) -> int:

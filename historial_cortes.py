@@ -7,6 +7,7 @@ from tkcalendar import DateEntry
 from datetime import datetime, timedelta
 from config import COLORS, FONTS
 from utils import format_currency, get_current_datetime, calculate_week_range, calculate_month_range
+import utils
 from database import db
 
 class CortesWindow:
@@ -171,6 +172,7 @@ class CortesWindow:
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                 yscrollcommand=scrollbar.set, selectmode='extended')
+        utils.enable_drag_selection(self.tree)
         
         # Configurar columnas
         self.tree.heading('ID', text='ID')

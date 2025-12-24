@@ -7,6 +7,7 @@ from PIL import Image, ImageTk
 import os
 from config import COLORS, FONTS
 from utils import format_currency, parse_currency, validate_float
+import utils
 from database import db
 
 class ProductosWindow:
@@ -74,6 +75,7 @@ class ProductosWindow:
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                 yscrollcommand=scrollbar.set, selectmode='extended')
+        utils.enable_drag_selection(self.tree)
         
         # Configurar columnas
         self.tree.heading('ID', text='ID')

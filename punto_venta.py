@@ -9,6 +9,7 @@ from config import COLORS, FONTS, MESAS
 from utils import format_currency, parse_currency
 from database import db
 from tickets import ticket_generator
+import utils
 
 class PuntoVentaWindow:
     def __init__(self, parent, on_close=None):
@@ -314,6 +315,7 @@ class VentaMesaWindow:
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                 yscrollcommand=scrollbar.set, selectmode='extended')
+        utils.enable_drag_selection(self.tree)
         
         # Configurar columnas
         self.tree.heading('No.', text='No. Venta')

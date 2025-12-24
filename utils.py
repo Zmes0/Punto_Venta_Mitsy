@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional
 import unicodedata
+from tkinter import ttk
 
 def format_currency(amount: float) -> str:
     """
@@ -157,3 +158,21 @@ def calculate_month_range(date: datetime = None) -> tuple:
     last_day = date.replace(hour=23, minute=59, second=59, microsecond=999999)
     
     return (first_day, last_day)
+
+def enable_drag_selection(tree: ttk.Treeview):
+    """
+    Habilita la selección por arrastre en un widget Treeview.
+    Permite al usuario mantener presionado el botón izquierdo del ratón y
+    arrastrar para seleccionar múltiples filas.
+    """
+    
+    def on_drag_motion(event):
+        """Manejador para el evento de arrastre del ratón."""
+        item = tree.identify_row(event.y)
+        if item:
+            # El comportamiento de clic normal (Button-1) ya ha manejado
+            # la selección inicial (limpiar o extender).
+            # B1-Motion solo necesita AÑADIR a la selección.
+            tree.selection_add(item)
+
+    tree.bind("<B1-Motion>", on_drag_motion)
