@@ -113,25 +113,16 @@ class TicketGenerator:
                     # Convertir a blanco y negro
                     img = img.convert('1')
                     
-                    # Redimensionar para 58mm centrado (280 píxeles recomendado)
-                    max_width = 280
+                    # Redimensionar para 58mm (300 píxeles recomendado para centrado)
+                    max_width = 300
                     if img.width > max_width:
                         ratio = max_width / img.width
                         new_height = int(img.height * ratio)
                         img = img.resize((max_width, new_height), Image.LANCZOS)
                     
-                    # Centrar imagen manualmente con espacios
-                    # Para 58mm, aprox 32 caracteres de ancho
-                    # Calcular espacios necesarios (aprox)
-                    chars_width = 32
-                    img_chars = int((img.width / 384) * chars_width)
-                    spaces_needed = (chars_width - img_chars) // 2
-                    
-                    if spaces_needed > 0:
-                        p.text(' ' * spaces_needed)
-                    
-                    # Imprimir imagen
-                    p.image(img, impl='bitImageColumn', high_density_horizontal=True, high_density_vertical=True)
+                    # Imprimir imagen centrada usando center en el método image
+                    # Nota: Ignorar la advertencia del perfil, la imagen se centrará
+                    p.image(img, impl='bitImageColumn', center=True)
                     p.text('\n')
                     
                 except Exception as e:
@@ -245,8 +236,8 @@ class TicketGenerator:
             p.set(align='center', bold=False)
             p.text("Vuelva pronto\n")
             
-            # Espacio final y cortar papel
-            p.text('\n\n\n')
+            # Espacio mínimo antes de cortar (solo 1 línea)
+            p.text('\n')
             p.cut()
             
             # Cerrar conexión
