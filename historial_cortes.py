@@ -9,6 +9,7 @@ from config import COLORS, FONTS
 from utils import format_currency, get_current_datetime, calculate_week_range, calculate_month_range
 import utils
 from database import db
+from excel_utils import ExcelManager, exportar_cortes_excel, importar_cortes_excel
 
 class CortesWindow:
     def __init__(self, parent, on_close=None):
@@ -215,19 +216,22 @@ class CortesWindow:
         button_frame.pack(fill=tk.X)
         
         buttons = [
-            ("Regresar", self.close_window),
-            ("Ver Detalles", self.ver_detalles_corte),
-            ("Modificar Corte", self.modificar_corte),
-            ("Borrar Corte", self.borrar_corte),
-            ("Agregar Corte", self.agregar_corte)
+            ("Regresar", self.close_window, COLORS['button_bg'], COLORS['text_primary']),
+            ("Ver Detalles", self.ver_detalles_corte, COLORS['button_bg'], COLORS['text_primary']),
+            ("Modificar Corte", self.modificar_corte, COLORS['button_bg'], COLORS['text_primary']),
+            ("Borrar Corte", self.borrar_corte, COLORS['button_bg'], COLORS['text_primary']),
+            ("Agregar Corte", self.agregar_corte, COLORS['button_bg'], COLORS['text_primary']),
+            ("Exportar a Excel", self.exportar_cortes, COLORS['success'], 'white'),  # NUEVO
+            ("Importar desde Excel", self.importar_cortes, COLORS['accent'], 'white')  # NUEVO
         ]
         
-        for text, command in buttons:
+        for text, command, bg, fg in buttons:
             btn = tk.Button(button_frame, text=text, command=command,
-                          font=FONTS['button'], bg=COLORS['button_bg'],
-                          fg=COLORS['text_primary'], relief=tk.RAISED,
-                          borderwidth=2, padx=20, pady=10)
+                  font=FONTS['button'], bg=bg, fg=fg,
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
+            
+    
     
     def load_cortes(self, cortes=None):
         """Carga los cortes en la tabla"""
@@ -414,8 +418,147 @@ class CortesWindow:
         self.window.destroy()
         if self.on_close_callback:
             self.on_close_callback()
+    
+    def exportar_cortes(self):
+        """Exporta los cortes mostrados actualmente a Excel"""
+        # Obtener los IDs de los cortes en la tabla
+        corte_ids = []
+        for item in self.tree.get_children():
+            values = self.tree.item(item)['values']
+            corte_ids.append(values[0])  # ID está en la primera columna (oculta)
+    
+        if not corte_ids:
+            messagebox.showwarning("Sin datos", "No hay cortes para exportar")
+            return
+    
+        # Obtener los datos completos de la base de datos
+        placeholders = ','.join('?' for _ in corte_ids)
+        db.cursor.execute(f'''
+            SELECT numero_corte, fecha_inicio, fecha_cierre, dinero_en_caja,
+                   ventas_efectivo, ventas_transferencia, corte_final,
+                   corte_esperado, retiros, diferencia, estado, ganancias
+            FROM cortes
+            WHERE id IN ({placeholders})
+            ORDER BY numero_corte DESC
+        ''', corte_ids)
+    
+        cortes = [dict(row) for row in db.cursor.fetchall()]
+    
+        # Usar la función específica de excel_utils
+        from excel_utils import exportar_cortes_excel
+        exportar_cortes_excel(cortes)
+        
+    def importar_cortes(self):
+        """Importa cortes desde un archivo Excel"""
+        if not messagebox.askokcancel("Importar Cortes",
+                                  "Se intentarán agregar los cortes desde un archivo Excel.\n\n"
+                                  "Los cortes con números duplicados serán ignorados.\n\n"
+                                  "Se recomienda hacer un respaldo de la base de datos antes de proceder."):
+            return
+    
+        cortes_a_importar = importar_cortes_excel()
+    
+        if not cortes_a_importar:
+            return
+    
+        errores = []
+        exitos = 0
+        
+        for corte in cortes_a_importar:
+            try:
+                # Verificar si el número de corte ya existe
+                db.cursor.execute("SELECT id FROM cortes WHERE numero_corte = ?", (corte['numero_corte'],))
+                if db.cursor.fetchone():
+                    errores.append(f"Corte #{corte['numero_corte']} ya existe. Omitido.")
+                    continue
+            
+                # Extraer valores con valores por defecto
+                dinero_caja = float(corte.get('dinero_en_caja', 0))
+                ventas_efectivo = float(corte.get('ventas_efectivo', 0))
+                ventas_transferencia = float(corte.get('ventas_transferencia', 0))
+                corte_final = float(corte.get('corte_final', 0))
+                retiros = float(corte.get('retiros', 0))
+                ganancias = float(corte.get('ganancias', 0))
+                fecha_inicio = str(corte.get('fecha_inicio', ''))
+            
+                # Validar fecha_inicio
+                if not fecha_inicio:
+                    errores.append(f"Corte #{corte['numero_corte']}: Fecha Inicio es obligatoria.")
+                    continue
+                
+                
+                # Calcular valores derivados
+                corte_esperado = dinero_caja + ventas_efectivo - retiros
+                diferencia = corte_final - corte_esperado
+                
+                if abs(diferencia) < 0.01:
+                    estado = 'Cuadrado'
+                elif diferencia > 0:
+                    estado = 'Sobrante'
+                else:
+                    estado = 'Faltante'
+                    
+                # Fecha cierre: usar la del Excel si existe, sino usar fecha_inicio
+                fecha_cierre = corte.get('fecha_cierre', None)
+                if fecha_cierre:
+                    fecha_cierre = str(fecha_cierre)
+                else:
+                    fecha_cierre = fecha_inicio
+                    
+                # Insertar corte
+                db.cursor.execute('''
+                    INSERT INTO cortes (
+                        numero_corte, fecha_inicio, fecha_cierre, dinero_en_caja,
+                        ventas_efectivo, ventas_transferencia, corte_final,
+                        corte_esperado, retiros, diferencia, estado, ganancias, estado_corte
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cerrado')    
+                ''', (
+                    corte['numero_corte'],
+                    fecha_inicio,  # fecha_inicio
+                    fecha_cierre,  # fecha_cierre (misma que inicio)
+                    dinero_caja,
+                    ventas_efectivo,
+                    ventas_transferencia,
+                    corte_final,
+                    corte_esperado,
+                    retiros,
+                    diferencia,
+                    estado,
+                    ganancias
+                ))
+                
+                exitos += 1
+                
+            except KeyError as e:
+                errores.append(f"Corte #{corte.get('numero_corte', '?')}: Falta el campo {str(e)}")
+            except Exception as e:
+                errores.append(f"Corte #{corte.get('numero_corte', '?')}: {str(e)}")
 
-
+        if exitos > 0:
+            db.conn.commit()
+            
+            # Actualizar ultimo_numero_corte si es necesario
+            db.cursor.execute('SELECT MAX(numero_corte) as max_num FROM cortes')
+            result = db.cursor.fetchone()
+            max_num = result['max_num'] if result['max_num'] else 0
+            db.set_config('ultimo_numero_corte', str(max_num))
+        
+            messagebox.showinfo("Importación Completada", 
+                              f"{exitos} corte(s) importado(s) correctamente.")
+        else:
+            db.conn.rollback()
+            
+        if errores:
+            error_str = "\n".join(errores[:10])  # Mostrar máximo 10 errores
+            if len(errores) > 10:
+                error_str += f"\n\n... y {len(errores) - 10} errores más."
+            messagebox.showwarning("Errores de Importación", 
+                                 f"Ocurrieron los siguientes errores:\n\n{error_str}")
+    
+        # Recargar la tabla
+        self.load_cortes()
+        
 class DetallesCorteDialog:
     def __init__(self, parent, corte_id):
         self.corte_id = corte_id

@@ -10,7 +10,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 from datetime import datetime
 from config import BUSINESS_INFO, TICKET_CONFIG
-from utils import format_currency
+from utils import format_currency, get_base_path
 from datetime import datetime
 
 class TicketGenerator:
@@ -43,9 +43,11 @@ class TicketGenerator:
         
         # Crear nombre de archivo si no se proporciona
         if not filename:
-            os.makedirs('tickets', exist_ok=True)
+            base_path = get_base_path()
+            tickets_dir = os.path.join(base_path, 'tickets')
+            os.makedirs(tickets_dir, exist_ok=True)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'tickets/ticket_{venta_data["numero_venta"]}_{timestamp}.pdf'
+            filename = os.path.join(tickets_dir, f'ticket_{venta_data["numero_venta"]}_{timestamp}.pdf')
         
         # Calcular altura necesaria
         estimated_height = self._estimate_height(venta_data)
@@ -81,14 +83,16 @@ class TicketGenerator:
     
     def _draw_header(self, c, venta_data):
         """Dibuja el encabezado del ticket"""
+        base_path = get_base_path()
+        logo_path = os.path.join(base_path, BUSINESS_INFO['logo_path'])
         # Intentar cargar logo
-        if os.path.exists(BUSINESS_INFO['logo_path']):
+        if os.path.exists(logo_path):
             try:
                 logo_width = 30 * mm
                 logo_height = 30 * mm
                 x_pos = (self.width - logo_width) / 2
                 
-                c.drawImage(BUSINESS_INFO['logo_path'], 
+                c.drawImage(logo_path, 
                            x_pos, self.current_y - logo_height,
                            width=logo_width, height=logo_height,
                            preserveAspectRatio=True, mask='auto')
@@ -253,16 +257,24 @@ class TicketGenerator:
         system = platform.system()
         
         try:
+            # Asegurarse de que la ruta sea absoluta
+            absolute_path = os.path.abspath(filename)
+            if not os.path.exists(absolute_path):
+                raise FileNotFoundError(f"El archivo no se encuentra en la ruta especificada: {absolute_path}")
+
             if system == "Windows":
-                os.startfile(filename, "print")
+                os.startfile(absolute_path, "print")
             elif system == "Darwin":  # macOS
-                subprocess.run(["lpr", filename])
+                subprocess.run(["lpr", absolute_path], check=True)
             else:  # Linux
-                subprocess.run(["lp", filename])
+                subprocess.run(["lp", absolute_path], check=True)
             
             return True
-        except Exception as e:
+        except (FileNotFoundError, subprocess.CalledProcessError) as e:
             print(f"Error al imprimir: {e}")
+            return False
+        except Exception as e:
+            print(f"Ocurrió un error inesperado al imprimir: {e}")
             return False
 
 

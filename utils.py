@@ -6,6 +6,21 @@ from datetime import datetime, timedelta
 from typing import Optional
 import unicodedata
 from tkinter import ttk
+import sys
+import os
+
+def get_base_path():
+    """
+    Obtiene la ruta base para los recursos, compatible con PyInstaller.
+    Si la aplicación está 'congelada' (empaquetada), usa la ruta del ejecutable.
+    De lo contrario, usa la ruta del script principal.
+    """
+    if getattr(sys, 'frozen', False):
+        # Estamos en un ejecutable de PyInstaller
+        return os.path.dirname(sys.executable)
+    else:
+        # Estamos ejecutando como un script normal
+        return os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 def format_currency(amount: float) -> str:
     """

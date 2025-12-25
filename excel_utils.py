@@ -391,15 +391,28 @@ def importar_ventas_excel():
 
 def exportar_cortes_excel(cortes):
     """Exporta cortes a Excel"""
-    columnas = ['No. Corte', 'Fecha', 'Dinero en Caja', 'Corte Final', 
-                'Corte Esperado', 'Retiros', 'Diferencia', 'Estado', 'Ganancias']
+    columnas = ['No. Corte', 'Fecha Inicio', 'Fecha Cierre', 'Dinero en Caja', 
+                'Ventas Efectivo', 'Ventas Transferencia', 'Total Ventas',
+                'Corte Final', 'Corte Esperado', 'Retiros', 
+                'Diferencia', 'Estado', 'Ganancias']
     
     datos = []
     for c in cortes:
+        # Calcular total de ventas
+        total_ventas = c.get('ventas_efectivo', 0) + c.get('ventas_transferencia', 0)
+        
+        # Usar fecha_cierre si existe, sino fecha_inicio
+        fecha_inicio = c.get('fecha_inicio', c.get('fecha', ''))
+        fecha_cierre = c.get('fecha_cierre', '')
+        
         datos.append((
             c['numero_corte'],
-            c['fecha'],
+            fecha_inicio,
+            fecha_cierre,
             c['dinero_en_caja'],
+            c.get('ventas_efectivo', 0),
+            c.get('ventas_transferencia', 0),
+            total_ventas,
             c['corte_final'],
             c['corte_esperado'],
             c['retiros'],
@@ -413,8 +426,9 @@ def exportar_cortes_excel(cortes):
 
 def importar_cortes_excel():
     """Importa cortes desde Excel"""
-    columnas = ['No. Corte', 'Fecha', 'Dinero en Caja', 'Corte Final', 
-                'Retiros', 'Ganancias']
+    columnas = ['No. Corte', 'Fecha Inicio', 'Dinero en Caja', 
+                'Ventas Efectivo', 'Ventas Transferencia', 
+                'Corte Final', 'Retiros', 'Ganancias']
     
     datos = ExcelManager.importar_desde_excel(columnas, "Importar Cortes")
     
@@ -422,10 +436,20 @@ def importar_cortes_excel():
         cortes_validos = []
         for idx, registro in enumerate(datos, start=2):
             try:
+                # Fecha Cierre es opcional
+                fecha_cierre = registro.get('Fecha Cierre', None)
+                if fecha_cierre and pd.notna(fecha_cierre):
+                    fecha_cierre = str(fecha_cierre)
+                else:
+                    fecha_cierre = None
+                
                 corte = {
                     'numero_corte': int(registro['No. Corte']),
-                    'fecha': str(registro['Fecha']),
+                    'fecha_inicio': str(registro['Fecha Inicio']),
+                    'fecha_cierre': fecha_cierre,
                     'dinero_en_caja': float(registro['Dinero en Caja']),
+                    'ventas_efectivo': float(registro.get('Ventas Efectivo', 0)),
+                    'ventas_transferencia': float(registro.get('Ventas Transferencia', 0)),
                     'corte_final': float(registro['Corte Final']),
                     'retiros': float(registro.get('Retiros', 0)),
                     'ganancias': float(registro.get('Ganancias', 0))
