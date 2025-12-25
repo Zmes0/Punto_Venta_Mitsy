@@ -113,30 +113,39 @@ class TicketGenerator:
                     # Convertir a blanco y negro
                     img = img.convert('1')
                     
-                    # Redimensionar para 58mm (384 píxeles de ancho máximo)
-                    max_width = 384
+                    # Redimensionar para 58mm centrado (280 píxeles recomendado)
+                    max_width = 280
                     if img.width > max_width:
                         ratio = max_width / img.width
                         new_height = int(img.height * ratio)
                         img = img.resize((max_width, new_height), Image.LANCZOS)
                     
-                    # Imprimir imagen (sin flag center para evitar error)
-                    # Centramos manualmente calculando espacios
-                    p.image(img, impl='bitImageColumn')
+                    # Centrar imagen manualmente con espacios
+                    # Para 58mm, aprox 32 caracteres de ancho
+                    # Calcular espacios necesarios (aprox)
+                    chars_width = 32
+                    img_chars = int((img.width / 384) * chars_width)
+                    spaces_needed = (chars_width - img_chars) // 2
+                    
+                    if spaces_needed > 0:
+                        p.text(' ' * spaces_needed)
+                    
+                    # Imprimir imagen
+                    p.image(img, impl='bitImageColumn', high_density_horizontal=True, high_density_vertical=True)
                     p.text('\n')
                     
                 except Exception as e:
                     print(f"⚠ Error al cargar logo: {e}")
                     # Si falla el logo, imprimir nombre del negocio
-                    p.set(align='center', bold=True, double_width=True, double_height=True)
+                    p.set(align='center', bold=True)
                     p.text(f"{BUSINESS_INFO['name']}\n")
-                    p.set(align='center', bold=False, double_width=False, double_height=False)
+                    p.set(align='center', bold=False)
                     p.text(f"{BUSINESS_INFO['subtitle']}\n")
             else:
                 # Sin logo, imprimir nombre
-                p.set(align='center', bold=True, double_width=True, double_height=True)
+                p.set(align='center', bold=True)
                 p.text(f"{BUSINESS_INFO['name']}\n")
-                p.set(align='center', bold=False, double_width=False, double_height=False)
+                p.set(align='center', bold=False)
                 p.text(f"{BUSINESS_INFO['subtitle']}\n")
             
             # ========== INFORMACIÓN DEL NEGOCIO ==========
@@ -201,28 +210,30 @@ class TicketGenerator:
                 
                 propina = format_currency(venta_data['propina'])
                 p.text(f"{'Propina:':<24}{propina:>8}\n")
+                p.text('\n')
             
-            # Total
-            p.set(bold=True, double_width=True, double_height=True)
+            # Total (sin doble tamaño, solo negrita)
+            p.set(bold=True)
             total = format_currency(venta_data['total'])
-            p.text(f"TOTAL: {total}\n")
+            p.text(f"{'TOTAL:':<24}{total:>8}\n")
             
-            p.set(bold=False, double_width=False, double_height=False)
+            p.set(bold=False)
             p.text('\n')
             
-            # Recibido
+            # Recibido (tamaño normal)
             recibido = format_currency(venta_data['recibido'])
             p.text(f"{'Recibido:':<24}{recibido:>8}\n")
             
-            # Cambio
+            # Cambio (tamaño normal)
             cambio = format_currency(venta_data['cambio'])
             p.text(f"{'Cambio:':<24}{cambio:>8}\n")
             
             p.text('\n')
             
-            # Método de pago
+            # Método de pago (tamaño normal)
             p.set(align='center')
-            p.text(f"Metodo de pago: {venta_data['metodo_pago']}\n")
+            p.text(f"Metodo de pago:\n")
+            p.text(f"{venta_data['metodo_pago']}\n")
             
             # ========== LÍNEA SEPARADORA ==========
             p.text('================================\n')
