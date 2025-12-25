@@ -1,5 +1,6 @@
 """
 Módulo de generación de tickets para Mitsy's POS
+Soporta generación de PDF (respaldo) e impresión directa en térmica ESC/POS
 """
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
@@ -10,8 +11,17 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 from datetime import datetime
 from config import BUSINESS_INFO, TICKET_CONFIG
-from utils import format_currency, get_base_path
-from datetime import datetime
+from utils import format_currency, get_resource_path
+from PIL import Image
+
+# Importaciones para ESC/POS
+try:
+    from escpos.printer import Win32Raw
+    from escpos import printer
+    ESCPOS_AVAILABLE = True
+except ImportError:
+    ESCPOS_AVAILABLE = False
+    print("⚠ Advertencia: python-escpos no instalado. Impresión térmica deshabilitada.")
 
 class TicketGenerator:
     def __init__(self):
@@ -20,9 +30,12 @@ class TicketGenerator:
         self.line_height = 3 * mm
         self.current_y = 0
         
+        # Configuración de impresora térmica
+        self.thermal_printer_name = "POS-58"
+        
     def generate_ticket_pdf(self, venta_data, filename=None):
         """
-        Genera un ticket en PDF
+        Genera un ticket en PDF (RESPALDO ÚNICAMENTE)
         
         venta_data = {
             'numero_venta': 1,
@@ -43,8 +56,7 @@ class TicketGenerator:
         
         # Crear nombre de archivo si no se proporciona
         if not filename:
-            base_path = get_base_path()
-            tickets_dir = os.path.join(base_path, 'tickets')
+            tickets_dir = os.path.join(os.path.dirname(get_resource_path('')), 'tickets')
             os.makedirs(tickets_dir, exist_ok=True)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = os.path.join(tickets_dir, f'ticket_{venta_data["numero_venta"]}_{timestamp}.pdf')
@@ -73,6 +85,194 @@ class TicketGenerator:
         
         return filename
     
+    def print_thermal_ticket(self, venta_data):
+        """
+        Imprime ticket directamente en impresora térmica usando ESC/POS
+        
+        Returns:
+            bool: True si se imprimió correctamente, False si hubo error
+        """
+        if not ESCPOS_AVAILABLE:
+            print("❌ Error: python-escpos no está instalado")
+            return False
+        
+        try:
+            # Conectar a la impresora térmica con perfil configurado
+            p = Win32Raw(self.thermal_printer_name, profile='POS-5890')
+            
+            # Inicializar impresora
+            p.hw('INIT')
+            
+            # ========== LOGO ==========
+            logo_path = get_resource_path(BUSINESS_INFO['logo_path'])
+            if os.path.exists(logo_path):
+                try:
+                    # Cargar y procesar imagen
+                    img = Image.open(logo_path)
+                    
+                    # Convertir a blanco y negro
+                    img = img.convert('1')
+                    
+                    # Redimensionar para 58mm (384 píxeles de ancho máximo)
+                    max_width = 384
+                    if img.width > max_width:
+                        ratio = max_width / img.width
+                        new_height = int(img.height * ratio)
+                        img = img.resize((max_width, new_height), Image.LANCZOS)
+                    
+                    # Imprimir imagen (sin flag center para evitar error)
+                    # Centramos manualmente calculando espacios
+                    p.image(img, impl='bitImageColumn')
+                    p.text('\n')
+                    
+                except Exception as e:
+                    print(f"⚠ Error al cargar logo: {e}")
+                    # Si falla el logo, imprimir nombre del negocio
+                    p.set(align='center', bold=True, double_width=True, double_height=True)
+                    p.text(f"{BUSINESS_INFO['name']}\n")
+                    p.set(align='center', bold=False, double_width=False, double_height=False)
+                    p.text(f"{BUSINESS_INFO['subtitle']}\n")
+            else:
+                # Sin logo, imprimir nombre
+                p.set(align='center', bold=True, double_width=True, double_height=True)
+                p.text(f"{BUSINESS_INFO['name']}\n")
+                p.set(align='center', bold=False, double_width=False, double_height=False)
+                p.text(f"{BUSINESS_INFO['subtitle']}\n")
+            
+            # ========== INFORMACIÓN DEL NEGOCIO ==========
+            p.set(align='center')
+            p.text(f"{BUSINESS_INFO['address']}\n")
+            p.text(f"{BUSINESS_INFO['city']}\n")
+            p.text(f"Tel: {BUSINESS_INFO['phone']}\n")
+            p.text('\n')
+            
+            # ========== INFORMACIÓN DEL TICKET ==========
+            p.set(align='center', bold=True)
+            p.text(f"Ticket #: {venta_data['numero_venta']}\n")
+            p.set(align='center', bold=False)
+            p.text(f"Fecha: {venta_data['fecha']}\n")
+            
+            if venta_data.get('mesa'):
+                p.text(f"{venta_data['mesa']}\n")
+            
+            p.text('\n')
+            
+            # ========== LÍNEA SEPARADORA ==========
+            p.set(align='center')
+            p.text('================================\n')
+            
+            # ========== PRODUCTOS ==========
+            p.set(align='left', bold=True)
+            # Formato: Cant(6) + Descripcion(18) + Total(8) = 32 caracteres
+            p.text(f"{'Cant.':<6}{'Descripcion':<18}{'Total':>8}\n")
+            p.set(align='left', bold=False)
+            
+            for producto in venta_data['productos']:
+                cant = str(int(producto['cantidad']))
+                nombre = producto['nombre']
+                
+                # Truncar nombre si es muy largo
+                if len(nombre) > 18:
+                    nombre = nombre[:15] + "..."
+                
+                total = format_currency(producto['total'])
+                
+                # Línea del producto
+                p.text(f"{cant:<6}{nombre:<18}{total:>8}\n")
+                
+                # Precio unitario (más pequeño)
+                precio_unit = format_currency(producto['precio'])
+                p.text(f"      {precio_unit} c/u\n")
+            
+            p.text('\n')
+            
+            # ========== LÍNEA SEPARADORA PUNTEADA ==========
+            p.set(align='center')
+            p.text('- - - - - - - - - - - - - - - -\n')
+            p.text('\n')
+            
+            # ========== TOTALES ==========
+            p.set(align='left')
+            
+            # Subtotal (si hay propina)
+            if venta_data.get('propina', 0) > 0:
+                subtotal = format_currency(venta_data['subtotal'])
+                p.text(f"{'Subtotal:':<24}{subtotal:>8}\n")
+                
+                propina = format_currency(venta_data['propina'])
+                p.text(f"{'Propina:':<24}{propina:>8}\n")
+            
+            # Total
+            p.set(bold=True, double_width=True, double_height=True)
+            total = format_currency(venta_data['total'])
+            p.text(f"TOTAL: {total}\n")
+            
+            p.set(bold=False, double_width=False, double_height=False)
+            p.text('\n')
+            
+            # Recibido
+            recibido = format_currency(venta_data['recibido'])
+            p.text(f"{'Recibido:':<24}{recibido:>8}\n")
+            
+            # Cambio
+            cambio = format_currency(venta_data['cambio'])
+            p.text(f"{'Cambio:':<24}{cambio:>8}\n")
+            
+            p.text('\n')
+            
+            # Método de pago
+            p.set(align='center')
+            p.text(f"Metodo de pago: {venta_data['metodo_pago']}\n")
+            
+            # ========== LÍNEA SEPARADORA ==========
+            p.text('================================\n')
+            p.text('\n')
+            
+            # ========== FOOTER ==========
+            p.set(align='center', bold=True)
+            p.text("Gracias por su compra!\n")
+            p.set(align='center', bold=False)
+            p.text("Vuelva pronto\n")
+            
+            # Espacio final y cortar papel
+            p.text('\n\n\n')
+            p.cut()
+            
+            # Cerrar conexión
+            p.close()
+            
+            print("✓ Ticket impreso correctamente en impresora térmica")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error al imprimir en térmica: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def print_ticket(self, venta_data_or_filename):
+        """
+        Método unificado para imprimir tickets.
+        
+        Args:
+            venta_data_or_filename: Puede ser:
+                - dict con venta_data: imprime directamente en térmica
+                - str con filename: carga el PDF y NO hace nada (solo respaldo)
+        
+        Returns:
+            bool: True si se imprimió correctamente
+        """
+        # Si es un diccionario, es venta_data -> imprimir en térmica
+        if isinstance(venta_data_or_filename, dict):
+            return self.print_thermal_ticket(venta_data_or_filename)
+        
+        # Si es string (filename), no hacer nada (el PDF es solo respaldo)
+        # Esta función ya no imprime PDFs, solo genera
+        print("ℹ El PDF se ha generado como respaldo, no se imprime")
+        return True
+    
+    # ========== MÉTODOS PARA GENERACIÓN DE PDF (sin cambios) ==========
+    
     def _estimate_height(self, venta_data):
         """Estima la altura necesaria para el ticket"""
         height = 30 * mm  # Header
@@ -83,8 +283,8 @@ class TicketGenerator:
     
     def _draw_header(self, c, venta_data):
         """Dibuja el encabezado del ticket"""
-        base_path = get_base_path()
-        logo_path = os.path.join(base_path, BUSINESS_INFO['logo_path'])
+        logo_path = get_resource_path(BUSINESS_INFO['logo_path'])
+        
         # Intentar cargar logo
         if os.path.exists(logo_path):
             try:
@@ -245,37 +445,6 @@ class TicketGenerator:
         x = (self.width - text_width) / 2
         
         c.drawString(x, y, text)
-    
-    def print_ticket(self, filename):
-        """
-        Imprime el ticket en una impresora térmica
-        Usa el comando del sistema operativo por defecto
-        """
-        import platform
-        import subprocess
-        
-        system = platform.system()
-        
-        try:
-            # Asegurarse de que la ruta sea absoluta
-            absolute_path = os.path.abspath(filename)
-            if not os.path.exists(absolute_path):
-                raise FileNotFoundError(f"El archivo no se encuentra en la ruta especificada: {absolute_path}")
-
-            if system == "Windows":
-                os.startfile(absolute_path, "print")
-            elif system == "Darwin":  # macOS
-                subprocess.run(["lpr", absolute_path], check=True)
-            else:  # Linux
-                subprocess.run(["lp", absolute_path], check=True)
-            
-            return True
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
-            print(f"Error al imprimir: {e}")
-            return False
-        except Exception as e:
-            print(f"Ocurrió un error inesperado al imprimir: {e}")
-            return False
 
 
 # Instancia global

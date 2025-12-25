@@ -12,15 +12,32 @@ import os
 def get_base_path():
     """
     Obtiene la ruta base para los recursos, compatible con PyInstaller.
-    Si la aplicación está 'congelada' (empaquetada), usa la ruta del ejecutable.
-    De lo contrario, usa la ruta del script principal.
+    Funciona correctamente tanto en desarrollo como en ejecutable empaquetado.
     """
     if getattr(sys, 'frozen', False):
         # Estamos en un ejecutable de PyInstaller
-        return os.path.dirname(sys.executable)
+        # _MEIPASS es la carpeta temporal donde PyInstaller extrae los recursos
+        if hasattr(sys, '_MEIPASS'):
+            return sys._MEIPASS
+        else:
+            return os.path.dirname(sys.executable)
     else:
         # Estamos ejecutando como un script normal
-        return os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+        # Obtener la ruta del directorio donde está el script principal
+        return os.path.abspath(os.path.dirname(__file__))
+
+def get_resource_path(relative_path):
+    """
+    Obtiene la ruta absoluta de un recurso, compatible con PyInstaller.
+    
+    Args:
+        relative_path: Ruta relativa del recurso (ej: 'images/logo.png')
+    
+    Returns:
+        Ruta absoluta del recurso
+    """
+    base_path = get_base_path()
+    return os.path.join(base_path, relative_path)
 
 def format_currency(amount: float) -> str:
     """

@@ -3,3 +3,5 @@ reportlab>=4.0.0
 tkcalendar>=1.6.1
 openpyxl
 pandas
+python-escpos
+pywin32

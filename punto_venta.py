@@ -168,21 +168,80 @@ class PuntoVentaWindow:
         db.set_auto_print(activo)
     
     def imprimir_ultimo_ticket(self):
-        """Imprime el último ticket generado"""
+        """Imprime el último ticket generado EN IMPRESORA TÉRMICA"""
         last_ticket = db.get_last_ticket_path()
-        
+    
         if not last_ticket or not os.path.exists(last_ticket):
             messagebox.showwarning("Sin Ticket", 
-                                  "No hay ningún ticket disponible para imprimir.")
+                              "No hay ningún ticket disponible para imprimir.")
             return
-        
+    
         try:
-            if ticket_generator.print_ticket(last_ticket):
-                messagebox.showinfo("Éxito", "Ticket enviado a impresora")
+            # Cargar los datos de la última venta desde la base de datos
+            # Obtener el número de venta del nombre del archivo
+            import re
+            match = re.search(r'ticket_(\d+)_', os.path.basename(last_ticket))
+        
+            if not match:
+                messagebox.showerror("Error", "No se pudo identificar el número de ticket")
+                return
+        
+            numero_venta = int(match.group(1))
+        
+            # Obtener datos de la venta desde la BD
+            db.cursor.execute('''
+                SELECT numero_venta, fecha, producto, cantidad, precio_unitario, 
+                    total, metodo_pago, mesa, propina
+                FROM ventas 
+                WHERE numero_venta = ?
+                ORDER BY id
+            ''', (numero_venta,))
+        
+            ventas = [dict(row) for row in db.cursor.fetchall()]
+        
+            if not ventas:
+                messagebox.showerror("Error", "No se encontraron datos de la venta")
+                return
+        
+            # Reconstruir venta_data
+            productos = []
+            subtotal = 0
+            propina = ventas[0]['propina'] if ventas[0]['propina'] else 0
+        
+            for venta in ventas:
+                productos.append({
+                    'nombre': venta['producto'],
+                    'cantidad': venta['cantidad'],
+                    'precio': venta['precio_unitario'],
+                    'total': venta['total']
+                })
+                subtotal += venta['total']
+        
+            total = subtotal + propina
+        
+            venta_data = {
+                'numero_venta': numero_venta,
+                'fecha': ventas[0]['fecha'],
+                'productos': productos,
+                'subtotal': subtotal,
+                'propina': propina,
+                'total': total,
+                'recibido': total,  # No tenemos este dato, usar total
+                'cambio': 0,
+                'metodo_pago': ventas[0]['metodo_pago'],
+                'mesa': ventas[0]['mesa']
+            }
+        
+            # Imprimir en térmica
+            if ticket_generator.print_thermal_ticket(venta_data):
+                messagebox.showinfo("Éxito", "Ticket enviado a impresora térmica")
             else:
-                messagebox.showerror("Error", "No se pudo imprimir el ticket")
+                messagebox.showerror("Error", "No se pudo imprimir el ticket en la impresora térmica")
+            
         except Exception as e:
             messagebox.showerror("Error", f"Error al imprimir: {str(e)}")
+
+
     
     def open_mesa(self, mesa):
         """Abre la ventana de venta para una mesa"""
@@ -1411,26 +1470,26 @@ class CobrarVentaWindow:
             self.cambio_var.set("$0.00")
     
     def finalizar_venta(self):
-        """Finaliza la venta"""
+        """Finaliza la venta (MODIFICADO para impresión térmica)"""
         try:
             propina = float(self.propina_var.get()) if self.propina_var.get() else 0
             total = self.subtotal + propina
             recibido = float(self.recibido_var.get()) if self.recibido_var.get() else 0
-            
+        
             # Validar que el dinero recibido sea suficiente
             if recibido < total:
                 messagebox.showerror("Error", 
                                    f"El dinero recibido ({format_currency(recibido)}) es menor al total ({format_currency(total)})")
                 return
-            
+        
             cambio = recibido - total
             metodo_pago = self.metodo_var.get()
-            
+        
             # Guardar venta en base de datos
             numero_venta = db.finalizar_venta(self.productos, metodo_pago, 
-                                             self.mesa, propina)
-            
-            # Generar ticket
+                                            self.mesa, propina)
+        
+            # Preparar datos de la venta
             from datetime import datetime
             venta_data = {
                 'numero_venta': numero_venta,
@@ -1444,37 +1503,38 @@ class CobrarVentaWindow:
                 'metodo_pago': metodo_pago,
                 'mesa': self.mesa
             }
-            
+        
             try:
-                # Generar PDF
+                # 1. Generar PDF como respaldo
                 ticket_path = ticket_generator.generate_ticket_pdf(venta_data)
-                
+            
                 # Guardar ruta del último ticket
                 db.set_last_ticket_path(ticket_path)
-                
-                # Imprimir automáticamente si está activado
-                if db.get_auto_print():
-                    ticket_generator.print_ticket(ticket_path)
-                
-            except Exception as e:
-                messagebox.showerror("Error", f"Error al generar ticket: {str(e)}")
             
+                # 2. Imprimir en térmica si está activada la impresión automática
+                if db.get_auto_print():
+                    ticket_generator.print_thermal_ticket(venta_data)
+            
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al generar/imprimir ticket: {str(e)}")
+        
             # Mostrar resumen
             messagebox.showinfo("Venta Completada", 
-                              f"Venta #{numero_venta} completada exitosamente\n\n"
-                              f"Total: {format_currency(total)}\n"
-                              f"Recibido: {format_currency(recibido)}\n"
-                              f"Cambio: {format_currency(cambio)}")
-            
+                            f"Venta #{numero_venta} completada exitosamente\n\n"
+                            f"Total: {format_currency(total)}\n"
+                            f"Recibido: {format_currency(recibido)}\n"
+                            f"Cambio: {format_currency(cambio)}")
+        
             self.dialog.destroy()
-            
+        
             if self.callback:
                 self.callback()
-            
+        
         except ValueError:
             messagebox.showerror("Error", "Valores inválidos. Verifica propina y dinero recibido.")
         except Exception as e:
             messagebox.showerror("Error", f"Error al finalizar venta: {str(e)}")
+            
 class FinalizarDiaWindow:
     def __init__(self, parent, callback=None):
         self.callback = callback
