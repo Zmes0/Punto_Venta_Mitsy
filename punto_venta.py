@@ -190,12 +190,12 @@ class PuntoVentaWindow:
         
             # Obtener datos de la venta desde la BD
             db.cursor.execute('''
-                SELECT numero_venta, fecha, producto, cantidad, precio_unitario, 
-                    total, metodo_pago, mesa, propina
-                FROM ventas 
-                WHERE numero_venta = ?
-                ORDER BY id
-            ''', (numero_venta,))
+            SELECT numero_venta, fecha, producto, cantidad, precio_unitario, 
+                   total, metodo_pago, mesa, propina, recibido, cambio
+            FROM ventas 
+            WHERE numero_venta = ?
+            ORDER BY id
+        ''', (numero_venta,))
         
             ventas = [dict(row) for row in db.cursor.fetchall()]
         
@@ -207,6 +207,8 @@ class PuntoVentaWindow:
             productos = []
             subtotal = 0
             propina = ventas[0]['propina'] if ventas[0]['propina'] else 0
+            recibido = ventas[0]['recibido'] if ventas[0]['recibido'] else 0
+            cambio = ventas[0]['cambio'] if ventas[0]['cambio'] else 0
         
             for venta in ventas:
                 productos.append({
@@ -226,8 +228,8 @@ class PuntoVentaWindow:
                 'subtotal': subtotal,
                 'propina': propina,
                 'total': total,
-                'recibido': total,  # No tenemos este dato, usar total
-                'cambio': 0,
+                'recibido': recibido,  # ✅ AHORA USA EL VALOR REAL
+                'cambio': cambio,      # ✅ AHORA USA EL VALOR REAL
                 'metodo_pago': ventas[0]['metodo_pago'],
                 'mesa': ventas[0]['mesa']
             }
@@ -1470,7 +1472,7 @@ class CobrarVentaWindow:
             self.cambio_var.set("$0.00")
     
     def finalizar_venta(self):
-        """Finaliza la venta (MODIFICADO para impresión térmica)"""
+        """Finaliza la venta (MODIFICADO para guardar recibido y cambio)"""
         try:
             propina = float(self.propina_var.get()) if self.propina_var.get() else 0
             total = self.subtotal + propina
@@ -1479,15 +1481,15 @@ class CobrarVentaWindow:
             # Validar que el dinero recibido sea suficiente
             if recibido < total:
                 messagebox.showerror("Error", 
-                                   f"El dinero recibido ({format_currency(recibido)}) es menor al total ({format_currency(total)})")
+                                  f"El dinero recibido ({format_currency(recibido)}) es menor al total ({format_currency(total)})")
                 return
         
             cambio = recibido - total
             metodo_pago = self.metodo_var.get()
         
-            # Guardar venta en base de datos
+            # Guardar venta en base de datos (AHORA INCLUYE recibido y cambio)
             numero_venta = db.finalizar_venta(self.productos, metodo_pago, 
-                                            self.mesa, propina)
+                                            self.mesa, propina, recibido, cambio)
         
             # Preparar datos de la venta
             from datetime import datetime
@@ -1534,6 +1536,7 @@ class CobrarVentaWindow:
             messagebox.showerror("Error", "Valores inválidos. Verifica propina y dinero recibido.")
         except Exception as e:
             messagebox.showerror("Error", f"Error al finalizar venta: {str(e)}")
+
             
 class FinalizarDiaWindow:
     def __init__(self, parent, callback=None):

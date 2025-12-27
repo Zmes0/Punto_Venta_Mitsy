@@ -115,7 +115,7 @@ class Database:
             )
         ''')
         
-        # Tabla de Ventas - MODIFICADA con corte_id
+        # Tabla de Ventas - MODIFICADA con recibido y cambio
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS ventas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,11 +129,14 @@ class Database:
                 metodo_pago TEXT DEFAULT 'Efectivo',
                 mesa TEXT,
                 propina REAL DEFAULT 0,
+                recibido REAL DEFAULT 0,
+                cambio REAL DEFAULT 0,
                 corte_id INTEGER DEFAULT NULL,
                 FOREIGN KEY (id_producto) REFERENCES productos(id),
                 FOREIGN KEY (corte_id) REFERENCES cortes(id)
             )
         ''')
+
         
         # Crear índice para búsquedas rápidas por corte_id
         self.cursor.execute('''
@@ -792,20 +795,21 @@ class Database:
     def add_venta(self, numero_venta: int, producto: str, id_producto: int,
                   cantidad: float, precio: float, total: float,
                   metodo_pago: str = 'Efectivo', mesa: str = None, 
-                  propina: float = 0) -> int:
-        """Añade una venta - MODIFICADO para incluir corte_id"""
+                  propina: float = 0, recibido: float = 0, cambio: float = 0) -> int:
+        """Añade una venta - MODIFICADO para incluir recibido y cambio"""
         from utils import get_current_datetime
         fecha = get_current_datetime()
         
-        # NUEVO: Obtener corte activo
+        # Obtener corte activo
         corte_id = self.get_corte_activo_id()
         
         self.cursor.execute('''
             INSERT INTO ventas (numero_venta, fecha, producto, id_producto, cantidad,
-                              precio_unitario, total, metodo_pago, mesa, propina, corte_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              precio_unitario, total, metodo_pago, mesa, propina, 
+                              recibido, cambio, corte_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (numero_venta, fecha, producto, id_producto, cantidad, precio, 
-              total, metodo_pago, mesa, propina, corte_id))
+              total, metodo_pago, mesa, propina, recibido, cambio, corte_id))
         
         self.conn.commit()
         
@@ -817,7 +821,8 @@ class Database:
     def add_imported_venta(self, numero_venta: int, fecha: str, producto: str, id_producto: int,
                            cantidad: float, precio_unitario: float, total: float,
                            metodo_pago: str = 'Efectivo', mesa: str = None,
-                           propina: float = 0, numero_corte: int = None) -> int:
+                           propina: float = 0, recibido: float = 0, cambio: float = 0,
+                           numero_corte: int = None) -> int:
         """Añade una venta importada con fecha específica y número de corte"""
         corte_id = None
         if numero_corte is not None:
@@ -838,17 +843,19 @@ class Database:
 
         self.cursor.execute('''
             INSERT INTO ventas (numero_venta, fecha, producto, id_producto, cantidad,
-                              precio_unitario, total, metodo_pago, mesa, propina, corte_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              precio_unitario, total, metodo_pago, mesa, propina,
+                              recibido, cambio, corte_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (numero_venta, fecha, producto, id_producto, cantidad, precio_unitario,
-              total, metodo_pago, mesa, propina, corte_id))
+              total, metodo_pago, mesa, propina, recibido, cambio, corte_id))
         
         return self.cursor.lastrowid
+
     
     def finalizar_venta(self, productos: list, metodo_pago: str, mesa: str = None,
-                       propina: float = 0) -> int:
+                       propina: float = 0, recibido: float = 0, cambio: float = 0) -> int:
         """
-        Finaliza una venta completa
+        Finaliza una venta completa - MODIFICADO para incluir recibido y cambio
         productos = [{'id': 1, 'nombre': 'Tacos', 'cantidad': 2, 'precio': 15.00, 'total': 30.00}, ...]
         """
         numero_venta = self.get_next_numero_venta()
@@ -856,7 +863,7 @@ class Database:
         for prod in productos:
             self.add_venta(numero_venta, prod['nombre'], prod['id'],
                           prod['cantidad'], prod['precio'], prod['total'],
-                          metodo_pago, mesa, propina)
+                          metodo_pago, mesa, propina, recibido, cambio)
             
             # Descontar inventario si el producto gestiona stock
             producto_db = self.get_producto(prod['id'])

@@ -164,7 +164,7 @@ class TicketGenerator:
             # ========== PRODUCTOS ==========
             p.set(align='left', bold=True)
             # Formato: Cant(6) + Descripcion(18) + Total(8) = 32 caracteres
-            p.text(f"{'Cant.':<6}{'Descripcion':<18}{'Total':>8}\n")
+            p.text(f"{'Cant.':<6}{'Descripción':<18}{'Total':>8}\n")
             p.set(align='left', bold=False)
             
             for producto in venta_data['productos']:
@@ -232,12 +232,10 @@ class TicketGenerator:
             
             # ========== FOOTER ==========
             p.set(align='center', bold=True)
-            p.text("Gracias por su compra!\n")
+            p.text("¡Gracias por su compra!\n")
             p.set(align='center', bold=False)
             p.text("Vuelva pronto\n")
             
-            # Espacio mínimo antes de cortar (solo 1 línea)
-            p.text('\n')
             p.cut()
             
             # Cerrar conexión
