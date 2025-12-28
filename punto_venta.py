@@ -1244,6 +1244,9 @@ class CobrarVentaWindow:
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+
+        # Atajo de teclado para finalizar venta
+        self.dialog.bind('<Return>', lambda event: self.finalizar_venta())
         
         # Centrar ventana
         self.center_dialog()
