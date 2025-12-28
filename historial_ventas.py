@@ -59,10 +59,27 @@ class HistorialVentasWindow:
         """Muestra la vista principal de analytics"""
         self.clear_window()
 
+        # Contenedor principal para la vista
+        view_container = tk.Frame(self.window, bg=COLORS['bg_primary'])
+        view_container.pack(fill=tk.BOTH, expand=True)
+
+        # Botones inferiores (fuera del área de scroll)
+        button_frame = tk.Frame(view_container, bg=COLORS['bg_primary'])
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(10, 20))
+
+        tk.Button(button_frame, text="Cambiar Vista", command=self.show_detail_view,
+                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
+
+        tk.Button(button_frame, text="Regresar", command=self.close_window,
+                  font=FONTS['button'], bg=COLORS['button_bg'],
+                  fg=COLORS['text_primary'], relief=tk.RAISED,
+                  borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
+
         # --- Implementación de Scroll ---
-        # 1. Contenedor principal que aloja el canvas y la scrollbar
-        container = tk.Frame(self.window, bg=COLORS['bg_primary'])
-        container.pack(fill=tk.BOTH, expand=True)
+        # El contenedor del scroll ahora se empaca arriba y llena el espacio restante
+        container = tk.Frame(view_container, bg=COLORS['bg_primary'])
+        container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # 2. Canvas para hacer el contenido desplazable
         canvas = tk.Canvas(container, bg=COLORS['bg_primary'], highlightthickness=0)
@@ -122,19 +139,6 @@ class HistorialVentasWindow:
         
         # Tabla de fechas (Abajo)
         self.setup_dates_table(tables_container)
-        
-        # Botones inferiores
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(fill=tk.X)
-        
-        tk.Button(button_frame, text="Cambiar Vista", command=self.show_detail_view,
-                 font=FONTS['button'], bg=COLORS['accent'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
-        
-        tk.Button(button_frame, text="Regresar", command=self.close_window,
-                 font=FONTS['button'], bg=COLORS['button_bg'],
-                 fg=COLORS['text_primary'], relief=tk.RAISED,
-                 borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
         
         # Cargar datos iniciales
         self.load_analytics_data()
