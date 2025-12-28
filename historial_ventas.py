@@ -565,7 +565,11 @@ class HistorialVentasWindow:
         # Frame de botones de acción
         action_button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         action_button_frame.pack(fill=tk.X, pady=(0, 10))
-        
+
+        # --- Botones de acción normales (a la izquierda) ---
+        left_buttons_frame = tk.Frame(action_button_frame, bg=COLORS['bg_primary'])
+        left_buttons_frame.pack(side=tk.LEFT)
+
         buttons = [
             ("Regresar", self.show_analytics_view),
             ("Modificar Venta", self.modificar_venta),
@@ -574,87 +578,86 @@ class HistorialVentasWindow:
         ]
         
         for text, command in buttons:
-            btn = tk.Button(action_button_frame, text=text, command=command,
+            btn = tk.Button(left_buttons_frame, text=text, command=command,
                           font=FONTS['button'], bg=COLORS['button_bg'],
                           fg=COLORS['text_primary'], relief=tk.RAISED,
                           borderwidth=2, padx=15, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
 
-        tk.Button(action_button_frame, text="Exportar a Excel", 
+        tk.Button(left_buttons_frame, text="Exportar a Excel", 
                   command=self.exportar_ventas_detalle,
                   font=FONTS['button'], bg=COLORS['success'], fg='white',
                   relief=tk.RAISED, borderwidth=2, padx=15, pady=10).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(action_button_frame, text="Importar desde Excel", 
+        tk.Button(left_buttons_frame, text="Importar desde Excel", 
                   command=self.importar_ventas_detalle,
                   font=FONTS['button'], bg=COLORS['accent'], fg='white',
                   relief=tk.RAISED, borderwidth=2, padx=15, pady=10).pack(side=tk.LEFT, padx=5)
         
-        # --- Zona de Peligro ---
-        danger_zone_frame = tk.LabelFrame(main_frame, text="Zona de Peligro", 
-                                          font=FONTS['heading'], fg="red",
-                                          bg=COLORS['bg_primary'], relief=tk.RIDGE, borderwidth=2)
-        danger_zone_frame.pack(fill=tk.X, pady=(20, 0), padx=5)
+        # --- Zona de Peligro (a la derecha) ---
+        danger_zone_frame = tk.Frame(action_button_frame, bg=COLORS['bg_primary'])
+        danger_zone_frame.pack(side=tk.RIGHT, padx=(20, 0))
 
-        tk.Button(danger_zone_frame, text="Reemplazar Base de Datos", 
+        tk.Button(danger_zone_frame, text="Reemplazar BD", 
                   command=self.reemplazar_base_de_datos_ventas,
                   font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
+                  relief=tk.RAISED, borderwidth=2, padx=10, pady=10).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(danger_zone_frame, text="Borrar Toda la Información", 
+        tk.Button(danger_zone_frame, text="Borrar Todo", 
                   command=self.borrar_todas_las_ventas,
                   font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=10, pady=10)
+                  relief=tk.RAISED, borderwidth=2, padx=10, pady=10).pack(side=tk.LEFT, padx=5)
         
         # Cargar datos
         self.load_detail_data()
     
     def setup_detail_filters(self, parent):
         """Configura los filtros para la vista de detalle"""
-        # Frame de filtros superior
+        # Frame de filtros superior (Fila 1)
         filters_top_frame = tk.Frame(parent, bg=COLORS['bg_primary'])
         filters_top_frame.pack(fill=tk.X, pady=(0, 10))
         
         # Búsqueda general
         tk.Label(filters_top_frame, text="Buscar:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
-        
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 5))
         self.detail_search_var = tk.StringVar()
         search_entry = tk.Entry(filters_top_frame, textvariable=self.detail_search_var,
                                font=FONTS['normal'], width=30)
-        search_entry.pack(side=tk.LEFT, padx=(0, 20))
+        search_entry.pack(side=tk.LEFT, padx=(0, 15))
         
         # Fecha Inicio
         tk.Label(filters_top_frame, text="Fecha Inicio:", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 5))
-        
         self.detail_fecha_inicio = DateEntry(filters_top_frame, width=12, 
                                              background='darkblue', foreground='white',
                                              borderwidth=2, date_pattern='dd/mm/yyyy')
-        self.detail_fecha_inicio.pack(side=tk.LEFT, padx=(0, 20))
+        self.detail_fecha_inicio.pack(side=tk.LEFT, padx=(0, 10))
         
         # Fecha Fin
         tk.Label(filters_top_frame, text="Fecha Fin:", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 5))
-        
         self.detail_fecha_fin = DateEntry(filters_top_frame, width=12,
                                           background='darkblue', foreground='white',
                                           borderwidth=2, date_pattern='dd/mm/yyyy')
-        self.detail_fecha_fin.pack(side=tk.LEFT, padx=(0, 20))
+        self.detail_fecha_fin.pack(side=tk.LEFT, padx=(0, 15))
         
         # Botón aplicar filtros
         tk.Button(filters_top_frame, text="Aplicar Filtros", 
                  command=self.aplicar_filtros_detail,
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=15, pady=5).pack(side=tk.LEFT)
+
+        # Limpiar todos los filtros (movido aquí)
+        tk.Button(filters_top_frame, text="Limpiar Filtros", 
+                 command=self.detail_limpiar_filtros,
+                 font=FONTS['button'], bg=COLORS['warning'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=15, pady=5).pack(side=tk.LEFT, padx=15)
         
-        # Frame de botones rápidos
+        # Frame de filtros inferior (Fila 2)
         quick_filters_frame = tk.Frame(parent, bg=COLORS['bg_primary'])
         quick_filters_frame.pack(fill=tk.X, pady=(0, 10))
         
-        tk.Label(quick_filters_frame, text="Rápidos:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
-        
+        # Botones rápidos
         quick_buttons = [
             ("Hoy", self.detail_filtro_hoy),
             ("Ayer", self.detail_filtro_ayer),
@@ -670,8 +673,8 @@ class HistorialVentasWindow:
             btn.pack(side=tk.LEFT, padx=5)
         
         # Separador
-        tk.Label(quick_filters_frame, text="  |  ", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=5)
+        tk.Label(quick_filters_frame, text="|", font=FONTS['normal'],
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
         
         # Filtros por método de pago
         tk.Button(quick_filters_frame, text="Efectivo", 
@@ -683,46 +686,36 @@ class HistorialVentasWindow:
                  command=lambda: self.detail_filtro_metodo_pago('Transferencia'),
                  font=FONTS['normal'], bg=COLORS['accent'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
-        
-        # Frame de filtros adicionales
-        extra_filters_frame = tk.Frame(parent, bg=COLORS['bg_primary'])
-        extra_filters_frame.pack(fill=tk.X, pady=(0, 10))
-        
+
+        # Separador
+        tk.Label(quick_filters_frame, text="|", font=FONTS['normal'],
+                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
+
         # No. Venta
-        tk.Label(extra_filters_frame, text="No. Venta:", font=FONTS['normal'],
+        tk.Label(quick_filters_frame, text="No. Venta:", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 5))
-        
         self.detail_num_venta_var = tk.StringVar()
-        num_venta_entry = tk.Entry(extra_filters_frame, textvariable=self.detail_num_venta_var,
+        num_venta_entry = tk.Entry(quick_filters_frame, textvariable=self.detail_num_venta_var,
                                    font=FONTS['normal'], width=10)
-        num_venta_entry.pack(side=tk.LEFT, padx=(0, 10))
+        num_venta_entry.pack(side=tk.LEFT, padx=(0, 5))
         num_venta_entry.bind('<Return>', lambda e: self.detail_filtro_numero_venta())
-        
-        tk.Button(extra_filters_frame, text="Buscar", 
+        tk.Button(quick_filters_frame, text="Buscar", 
                  command=self.detail_filtro_numero_venta,
                  font=FONTS['normal'], bg=COLORS['button_bg'],
-                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(0, 20))
+                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(0, 10))
         
-        # NUEVO: No. Corte
-        tk.Label(extra_filters_frame, text="No. Corte:", font=FONTS['normal'],
+        # No. Corte
+        tk.Label(quick_filters_frame, text="No. Corte:", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 5))
-        
         self.detail_num_corte_var = tk.StringVar()
-        num_corte_entry = tk.Entry(extra_filters_frame, textvariable=self.detail_num_corte_var,
+        num_corte_entry = tk.Entry(quick_filters_frame, textvariable=self.detail_num_corte_var,
                                    font=FONTS['normal'], width=10)
-        num_corte_entry.pack(side=tk.LEFT, padx=(0, 10))
+        num_corte_entry.pack(side=tk.LEFT, padx=(0, 5))
         num_corte_entry.bind('<Return>', lambda e: self.detail_filtro_numero_corte())
-        
-        tk.Button(extra_filters_frame, text="Buscar", 
+        tk.Button(quick_filters_frame, text="Buscar", 
                  command=self.detail_filtro_numero_corte,
                  font=FONTS['normal'], bg=COLORS['button_bg'],
-                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(0, 20))
-        
-        # Limpiar todos los filtros
-        tk.Button(extra_filters_frame, text="Limpiar Filtros", 
-                 command=self.detail_limpiar_filtros,
-                 font=FONTS['button'], bg=COLORS['warning'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=15, pady=5).pack(side=tk.LEFT)
+                 relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(0, 10))
     
     def load_detail_data(self, ventas=None):
         """Carga las ventas en la tabla de detalle"""
@@ -994,10 +987,11 @@ class HistorialVentasWindow:
         )
 
     def importar_ventas_detalle(self):
-        """Importa ventas desde un archivo Excel"""
+        """Importa ventas desde un archivo Excel, omitiendo duplicados."""
         if not messagebox.askokcancel("Importar Ventas",
-                                      "Se intentarán agregar las ventas desde un archivo Excel.\n\n" 
-                                      "Asegúrate de que el archivo tenga el formato correcto y que los 'ID Producto' existan en la base de datos.\n\n" 
+                                      "Se intentarán agregar las ventas desde un archivo Excel.\n\n"
+                                      "Las ventas que ya existan en la base de datos (misma No. Venta, producto y fecha) serán omitidas.\n\n"
+                                      "Asegúrate de que el archivo tenga el formato correcto y que los 'ID Producto' existan.\n\n"
                                       "Se recomienda hacer un respaldo de la base de datos antes de proceder."):
             return
 
@@ -1007,15 +1001,28 @@ class HistorialVentasWindow:
             return
 
         errores = []
-        exitos = 0
+        nuevas_ventas = 0
+        ventas_omitidas = 0
+
         for venta in ventas_a_importar:
             try:
-                # Verificar si el producto existe
+                # --- Verificación de duplicados ---
+                db.cursor.execute('''
+                    SELECT id FROM ventas 
+                    WHERE numero_venta = ? AND id_producto = ? AND fecha = ?
+                ''', (venta['numero_venta'], venta['id_producto'], venta['fecha']))
+                
+                if db.cursor.fetchone():
+                    ventas_omitidas += 1
+                    continue  # Omite esta venta porque ya existe
+
+                # --- Verificación de producto existente ---
                 db.cursor.execute("SELECT id FROM productos WHERE id = ?", (venta['id_producto'],))
                 if not db.cursor.fetchone():
                     errores.append(f"Venta para producto '{venta['producto']}' (ID: {venta['id_producto']}) omitida: El producto no existe.")
                     continue
 
+                # --- Inserción de nueva venta ---
                 db.add_imported_venta(
                     numero_venta=venta['numero_venta'],
                     fecha=venta['fecha'],
@@ -1028,19 +1035,27 @@ class HistorialVentasWindow:
                     mesa=venta.get('mesa'),
                     numero_corte=venta.get('numero_corte')
                 )
-                exitos += 1
+                nuevas_ventas += 1
             except Exception as e:
                 errores.append(f"Error al importar venta para producto '{venta['producto']}': {e}")
         
-        if exitos > 0:
+        # --- Finalización y reporte ---
+        if nuevas_ventas > 0:
             db.conn.commit()
-            messagebox.showinfo("Importación Parcial/Completa", f"{exitos} venta(s) importada(s) correctamente.")
         else:
-            db.conn.rollback()
+            db.conn.rollback() # No hay nada que guardar si no hubo ventas nuevas
+
+        # Construir mensaje de resumen
+        resumen_msg = f"Importación completada:\n\n" \
+                      f"Ventas nuevas importadas: {nuevas_ventas}\n" \
+                      f"Ventas omitidas (duplicados): {ventas_omitidas}\n" \
+                      f"Registros con errores: {len(errores)}"
+
+        messagebox.showinfo("Resumen de Importación", resumen_msg)
 
         if errores:
             error_str = "\n".join(errores)
-            messagebox.showwarning("Errores de Importación", f"Ocurrieron los siguientes errores:\n\n{error_str}")
+            messagebox.showwarning("Detalle de Errores", f"Ocurrieron los siguientes errores:\n\n{error_str}")
 
         self.load_detail_data()
     
