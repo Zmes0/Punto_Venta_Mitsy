@@ -328,6 +328,9 @@ class VentaMesaWindow:
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.minimizar_ventana)
+
+        # Atajo de teclado para cobrar
+        self.window.bind('<F2>', lambda event: self.cobrar_venta())
         
         # Centrar ventana
         self.center_window()
@@ -651,6 +654,9 @@ class AgregarProductosWindow:
         self.center_dialog()
         self.dialog.deiconify()
         self.search_entry.focus()
+
+        # Vincular Enter a cerrar la ventana
+        self.dialog.bind('<Return>', lambda event: self.close_dialog())
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""

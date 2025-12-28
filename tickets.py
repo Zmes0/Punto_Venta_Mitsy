@@ -223,7 +223,7 @@ class TicketGenerator:
             
             # Método de pago (tamaño normal)
             p.set(align='center')
-            p.text(f"Metodo de pago:\n")
+            p.text(f"Método de pago:\n")
             p.text(f"{venta_data['metodo_pago']}\n")
             
             # ========== LÍNEA SEPARADORA ==========
