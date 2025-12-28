@@ -979,12 +979,25 @@ class HistorialVentasWindow:
         return result['id'] if result else None
     
     def exportar_ventas_detalle(self):
-        """Exporta la tabla de detalle de ventas a Excel"""
-        ExcelManager.exportar_treeview_a_excel(
-            self.detail_tree, 
-            "historial_ventas_detalle", 
-            "Detalle de Ventas"
-        )
+        """Exporta la tabla de detalle de ventas a Excel - CORREGIDO para exportar datos sin formato"""
+        # En lugar de usar exportar_treeview_a_excel, obtenemos los datos originales de la BD
+    
+        # Obtener ventas actuales mostradas en el Treeview
+        db.cursor.execute('''
+            SELECT v.*, c.numero_corte 
+            FROM ventas v
+            LEFT JOIN cortes c ON v.corte_id = c.id
+            ORDER BY v.numero_venta DESC
+        ''')
+        ventas = [dict(row) for row in db.cursor.fetchall()]
+    
+        if not ventas:
+            messagebox.showwarning("Sin datos", "No hay ventas para exportar")
+            return
+    
+        # Usar la función específica de excel_utils que exporta datos sin formato
+        from excel_utils import exportar_ventas_excel
+        exportar_ventas_excel(ventas)
 
     def importar_ventas_detalle(self):
         """Importa ventas desde un archivo Excel, omitiendo duplicados."""

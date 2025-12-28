@@ -325,30 +325,40 @@ def importar_recetas_excel():
 
 
 def exportar_ventas_excel(ventas):
-    """Exporta ventas a Excel"""
-    columnas = ['No. Venta', 'Fecha', 'Producto', 'Cantidad', 
-                'Precio Unitario', 'Total', 'Método', 'Mesa']
+    """Exporta ventas a Excel - Formato simplificado"""
+    columnas = ['No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto',
+                'Cantidad', 'Precio Unitario', 'Total', 'Método']
     
     datos = []
     for v in ventas:
+        # Obtener numero_corte desde corte_id
+        numero_corte = None
+        if v.get('corte_id'):
+            from database import db
+            db.cursor.execute('SELECT numero_corte FROM cortes WHERE id = ?', (v['corte_id'],))
+            result = db.cursor.fetchone()
+            if result:
+                numero_corte = result['numero_corte']
+        
         datos.append((
             v['numero_venta'],
+            numero_corte if numero_corte is not None else '',
             v['fecha'],
             v['producto'],
+            v['id_producto'],
             v['cantidad'],
             v['precio_unitario'],
             v['total'],
-            v['metodo_pago'],
-            v['mesa'] if v['mesa'] else ''
+            v['metodo_pago']
         ))
     
     return ExcelManager.exportar_a_excel(datos, columnas, "historial_ventas", "Ventas")
 
 
 def importar_ventas_excel():
-    """Importa ventas desde Excel"""
-    columnas = ['No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 
-                'Precio Unitario', 'Total', 'Método']
+    """Importa ventas desde Excel - Formato simplificado"""
+    columnas = ['No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 
+                'Cantidad', 'Precio Unitario', 'Total', 'Método']
     
     datos = ExcelManager.importar_desde_excel(columnas, "Importar Ventas")
     
@@ -356,19 +366,28 @@ def importar_ventas_excel():
         ventas_validas = []
         for idx, registro in enumerate(datos, start=2):
             try:
+                # Obtener y validar numero_corte
+                numero_corte = None
+                if registro.get('No. Corte') is not None and pd.notna(registro.get('No. Corte')):
+                    try:
+                        numero_corte = int(registro['No. Corte'])
+                    except ValueError:
+                        pass
+                
                 venta = {
                     'numero_venta': int(registro['No. Venta']),
-                    'numero_corte': int(registro['No. Corte']) if registro.get('No. Corte') is not None and pd.notna(registro['No. Corte']) else None,
+                    'numero_corte': numero_corte,
                     'fecha': str(registro['Fecha']),
                     'producto': str(registro['Producto']).strip(),
                     'id_producto': int(registro['ID Producto']),
                     'cantidad': float(registro['Cantidad']),
                     'precio_unitario': float(registro['Precio Unitario']),
                     'total': float(registro['Total']),
-                    'metodo_pago': str(registro.get('Método', 'Efectivo')),
-                    'mesa': str(registro.get('Mesa', '')) if registro.get('Mesa') else None
+                    'metodo_pago': str(registro['Método']).strip(),
+                    'mesa': None  # No se usa en este formato
                 }
                 
+                # Validaciones
                 if venta['numero_venta'] <= 0:
                     raise ValueError("Número de venta debe ser mayor a 0")
                 if venta['cantidad'] <= 0:
