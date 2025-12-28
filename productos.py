@@ -9,6 +9,7 @@ from config import COLORS, FONTS
 from utils import format_currency, parse_currency, validate_float
 import utils
 from database import db
+from excel_utils import exportar_productos_excel, importar_productos_excel
 
 class ProductosWindow:
     def __init__(self, parent, on_close=None):
@@ -37,46 +38,64 @@ class ProductosWindow:
     
     def setup_ui(self):
         """Configura la interfaz de usuario"""
-        
+    
         # Frame principal
         main_frame = tk.Frame(self.window, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
+    
         # Título
         title_label = tk.Label(main_frame, text="Productos", 
-                              font=FONTS['title'], bg=COLORS['bg_primary'],
-                              fg=COLORS['text_primary'])
+                            font=FONTS['title'], bg=COLORS['bg_primary'],
+                            fg=COLORS['text_primary'])
         title_label.pack(pady=(0, 20))
-        
-        # Frame de búsqueda
-        search_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        search_frame.pack(fill=tk.X, pady=(0, 20))
-        
+    
+        # Frame de búsqueda y botones de Excel
+        top_controls_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        top_controls_frame.pack(fill=tk.X, pady=(0, 20))
+    
+        # Búsqueda (lado izquierdo)
+        search_frame = tk.Frame(top_controls_frame, bg=COLORS['bg_primary'])
+        search_frame.pack(side=tk.LEFT)
+    
         tk.Label(search_frame, text="Buscar:", font=FONTS['normal'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
-        
+            bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
+    
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.search_productos())
         search_entry = tk.Entry(search_frame, textvariable=self.search_var,
-                               font=FONTS['normal'], width=40)
+                           font=FONTS['normal'], width=40)
         search_entry.pack(side=tk.LEFT)
-        
+    
+        # Botones de Excel (lado derecho)
+        excel_frame = tk.Frame(top_controls_frame, bg=COLORS['bg_primary'])
+        excel_frame.pack(side=tk.RIGHT)
+    
+        tk.Button(excel_frame, text="📤 Exportar a Excel", 
+                command=self.exportar_excel,
+                font=FONTS['button'], bg=COLORS['success'], fg='white',
+                relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+    
+        tk.Button(excel_frame, text="📥 Importar desde Excel", 
+                command=self.importar_excel,
+                font=FONTS['button'], bg=COLORS['accent'], fg='white',
+                relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+    
         # Frame con scrollbar para la tabla
         table_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         table_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
-        
+    
         # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
+    
         # Treeview (tabla)
         columns = ('ID', 'Nombre', 'Precio', 'Costo', 'Ganancia', 'U. Medida', 
-                   'Stock', 'Gestión Stock')
-        
+                'Stock', 'Gestión Stock')
+    
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
-                                yscrollcommand=scrollbar.set, selectmode='extended')
+                            yscrollcommand=scrollbar.set, selectmode='extended')
         utils.enable_drag_selection(self.tree)
-        
+    
         # Configurar columnas
         self.tree.heading('ID', text='ID')
         self.tree.heading('Nombre', text='Nombre')
@@ -86,7 +105,7 @@ class ProductosWindow:
         self.tree.heading('U. Medida', text='U. Medida')
         self.tree.heading('Stock', text='Stock Estimado')
         self.tree.heading('Gestión Stock', text='Gestión Stock')
-        
+    
         self.tree.column('ID', width=50, anchor='center')
         self.tree.column('Nombre', width=200)
         self.tree.column('Precio', width=120, anchor='e')
@@ -95,18 +114,18 @@ class ProductosWindow:
         self.tree.column('U. Medida', width=100, anchor='center')
         self.tree.column('Stock', width=120, anchor='e')
         self.tree.column('Gestión Stock', width=120, anchor='center')
-        
+    
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.tree.yview)
-        
+    
         # Configurar colores alternados en filas
         self.tree.tag_configure('evenrow', background=COLORS['table_row_even'])
         self.tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
-        
+    
         # Frame de botones
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         button_frame.pack(fill=tk.X)
-        
+    
         buttons = [
             ("Regresar", self.close_window),
             ("Editar Producto", self.editar_producto),
@@ -114,12 +133,12 @@ class ProductosWindow:
             ("Añadir Producto", self.add_producto_dialog),
             ("Registrar Compra", self.registrar_compra_unitaria)
         ]
-        
+    
         for text, command in buttons:
             btn = tk.Button(button_frame, text=text, command=command,
-                          font=FONTS['button'], bg=COLORS['button_bg'],
-                          fg=COLORS['text_primary'], relief=tk.RAISED,
-                          borderwidth=2, padx=20, pady=10)
+                        font=FONTS['button'], bg=COLORS['button_bg'],
+                        fg=COLORS['text_primary'], relief=tk.RAISED,
+                        borderwidth=2, padx=20, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
     
     def load_productos(self):
@@ -252,6 +271,77 @@ class ProductosWindow:
         if self.on_close_callback:
             self.on_close_callback()
 
+    def exportar_excel(self):
+        """Exporta productos a Excel"""
+        productos = db.get_productos()
+    
+        if not productos:
+            messagebox.showwarning("Sin datos", "No hay productos para exportar")
+            return
+    
+        exportar_productos_excel(productos)
+
+    def importar_excel(self):
+        """Importa productos desde Excel"""
+        productos_importados = importar_productos_excel()
+    
+        if not productos_importados:
+            return
+    
+        # Confirmar importación
+        mensaje = f"Se importarán {len(productos_importados)} productos.\n\n"
+        mensaje += "ADVERTENCIA: Si ya existen productos con los mismos IDs, serán reemplazados.\n\n"
+        mensaje += "¿Desea continuar?"
+    
+        if not messagebox.askyesno("Confirmar Importación", mensaje):
+            return
+    
+        try:
+            # Importar productos
+            productos_creados = 0
+            productos_actualizados = 0
+        
+            for prod in productos_importados:
+                existe = db.id_exists('productos', prod['id'])
+            
+                if existe:
+                    # Actualizar producto existente
+                    db.update_producto(
+                        prod['id'], 
+                        prod['id'],
+                        nombre=prod['nombre'],
+                        precio_unitario=prod['precio_unitario'],
+                        costo=prod['costo'],
+                        unidad_medida=prod['unidad_medida'],
+                        stock_minimo=prod['stock_minimo'],
+                        gestion_stock=1 if prod['gestion_stock'] else 0
+                    )
+                    productos_actualizados += 1
+                else:
+                    # Crear nuevo producto
+                    db.add_producto(
+                        prod['id'],
+                        prod['nombre'],
+                        prod['precio_unitario'],
+                        prod['costo'],
+                        prod['unidad_medida'],
+                        prod['gestion_stock'],
+                        stock_minimo=prod['stock_minimo']
+                    )
+                    productos_creados += 1
+        
+            # Recargar tabla
+            self.load_productos()
+        
+            # Mensaje de éxito
+            mensaje_resultado = f"Importación completada:\n\n"
+            mensaje_resultado += f"✓ Productos creados: {productos_creados}\n"
+            mensaje_resultado += f"✓ Productos actualizados: {productos_actualizados}"
+        
+            messagebox.showinfo("Éxito", mensaje_resultado)
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al importar productos:\n{str(e)}")
 
 class ProductoDialog:
     def __init__(self, parent, producto_id=None, callback=None):

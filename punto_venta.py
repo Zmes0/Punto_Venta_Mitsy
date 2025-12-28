@@ -628,8 +628,9 @@ class AgregarProductosWindow:
         self.callback = callback
         
         self.dialog = tk.Toplevel(parent)
+        self.dialog.withdraw()
         self.dialog.title("Agregar Productos")
-        self.dialog.geometry("1100x700")
+        self.dialog.geometry("1150x700")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -643,11 +644,13 @@ class AgregarProductosWindow:
         # Protocolo de cierre para limpiar eventos
         self.dialog.protocol("WM_DELETE_WINDOW", self.close_dialog)
         
-        # Centrar ventana
-        self.center_dialog()
-        
         self.setup_ui()
         self.load_productos()
+        
+        # Centrar ventana
+        self.center_dialog()
+        self.dialog.deiconify()
+        self.search_entry.focus()
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
@@ -672,9 +675,9 @@ class AgregarProductosWindow:
         
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.search_productos())
-        search_entry = tk.Entry(search_frame, textvariable=self.search_var,
+        self.search_entry = tk.Entry(search_frame, textvariable=self.search_var,
                                font=FONTS['normal'], width=40)
-        search_entry.pack(side=tk.LEFT)
+        self.search_entry.pack(side=tk.LEFT)
         
         # Frame con scrollbar para la galería
         canvas_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
@@ -732,20 +735,17 @@ class AgregarProductosWindow:
             pass
     
     def load_productos(self):
-        """Carga los productos en la galería"""
+        """Carga los productos en la galería."""
         # Limpiar frame
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
         
         productos = db.get_productos()
         
-        # Crear grid de productos (4 columnas)
         row = 0
         col = 0
-        
         for producto in productos:
             self.create_producto_card(producto, row, col)
-            
             col += 1
             if col > 6:  # 7 COLUMNAS
                 col = 0
@@ -823,25 +823,24 @@ class AgregarProductosWindow:
     
     def search_productos(self):
         """Busca productos según el texto ingresado"""
-        query = self.search_var.get()
+        query = self.search_var.get().strip()
         
         # Limpiar frame
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
         
         if not query:
+            # Si la búsqueda está vacía, cargar todos los productos
             self.load_productos()
             return
         
+        # Realizar la búsqueda y mostrar todos los resultados de una vez
         productos = db.search_productos(query)
         
-        # Crear grid
         row = 0
         col = 0
-        
         for producto in productos:
             self.create_producto_card(producto, row, col)
-            
             col += 1
             if col > 6:
                 col = 0
