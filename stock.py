@@ -4,7 +4,7 @@ Módulo de gestión de stock
 import tkinter as tk
 from tkinter import ttk, messagebox
 from config import COLORS, FONTS
-from utils import format_currency
+from utils import format_currency, get_resource_path
 from database import db
 import utils
 
@@ -25,6 +25,8 @@ class StockWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -326,6 +328,8 @@ class StockDialog:
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
+        
         # Centrar ventana
         self.center_dialog()
         
@@ -467,10 +471,12 @@ class RegistrarCompraProductoDialog:
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
+        
         # Centrar ventana
         self.center_dialog()
         
         self.setup_ui()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""

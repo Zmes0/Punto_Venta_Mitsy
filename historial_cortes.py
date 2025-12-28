@@ -6,7 +6,7 @@ from tkinter import ttk, messagebox
 from tkcalendar import DateEntry
 from datetime import datetime, timedelta
 from config import COLORS, FONTS
-from utils import format_currency, get_current_datetime, calculate_week_range, calculate_month_range
+from utils import format_currency, get_current_datetime, calculate_week_range, calculate_month_range, get_resource_path
 import utils
 from database import db
 from excel_utils import ExcelManager, exportar_cortes_excel, importar_cortes_excel
@@ -25,6 +25,8 @@ class CortesWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -577,6 +579,7 @@ class DetallesCorteDialog:
         
         self.center_dialog()
         self.setup_ui()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         self.dialog.update_idletasks()
@@ -701,6 +704,7 @@ class CorteDialog:
         
         self.center_dialog()
         self.setup_ui()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
         
         if self.corte_id:
             self.load_corte_data()

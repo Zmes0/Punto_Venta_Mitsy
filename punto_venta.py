@@ -6,7 +6,7 @@ from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import os
 from config import COLORS, FONTS, MESAS
-from utils import format_currency, parse_currency
+from utils import format_currency, parse_currency, get_resource_path
 from database import db
 from tickets import ticket_generator
 import utils
@@ -27,6 +27,8 @@ class PuntoVentaWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -325,6 +327,8 @@ class VentaMesaWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.minimizar_ventana)
@@ -644,6 +648,8 @@ class AgregarProductosWindow:
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
+        
         # Protocolo de cierre para limpiar eventos
         self.dialog.protocol("WM_DELETE_WINDOW", self.close_dialog)
         
@@ -890,6 +896,7 @@ class CantidadProductoDialog:
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
         
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
         
         self.first_numpad_click = True
         
@@ -1073,6 +1080,8 @@ class EditarCantidadDialog:
         self.center_dialog()
         
         self.setup_ui()
+        
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
@@ -1160,6 +1169,9 @@ class EditarPrecioDialog:
         self.center_dialog()
         
         self.setup_ui()
+        
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
+    
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
@@ -1252,6 +1264,8 @@ class CobrarVentaWindow:
         self.center_dialog()
         
         self.setup_ui()
+        
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
@@ -1284,7 +1298,7 @@ class CobrarVentaWindow:
         propina_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         propina_frame.pack(fill=tk.X, pady=8)
         
-        tk.Label(propina_frame, text="Propina:", font=FONTS['normal'],
+        tk.Label(propina_frame, text="Propina:", font=FONTS['heading'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT)
         
         self.propina_var = tk.StringVar(value="0")
@@ -1297,7 +1311,7 @@ class CobrarVentaWindow:
         recibido_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         recibido_frame.pack(fill=tk.X, pady=8)
         
-        tk.Label(recibido_frame, text="Dinero recibido:", font=FONTS['normal'],
+        tk.Label(recibido_frame, text="Dinero recibido:", font=FONTS['heading'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT)
         
         # Subtotal
@@ -1317,11 +1331,11 @@ class CobrarVentaWindow:
         
         # Total a pagar
         total_frame = tk.Frame(left_frame, bg=COLORS['bg_secondary'],
-                              relief=tk.RAISED, borderwidth=2)
-        total_frame.pack(fill=tk.X, pady=15, padx=10)
+                              relief=tk.RAISED, borderwidth=1)
+        total_frame.pack(fill=tk.X, pady=15, padx=12)
         
-        tk.Label(total_frame, text="Total a pagar:", font=FONTS['heading'],
-                bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=10, pady=12)
+        tk.Label(total_frame, text="Total a pagar:", font=FONTS['subtitle'],
+                bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=10, pady=15)
         
         self.total_var = tk.StringVar(value=format_currency(self.subtotal))
         tk.Label(total_frame, textvariable=self.total_var, 
@@ -1354,12 +1368,12 @@ class CobrarVentaWindow:
         cambio_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         cambio_frame.pack(fill=tk.X, pady=8)
         
-        tk.Label(cambio_frame, text="Cambio:", font=FONTS['heading'],
+        tk.Label(cambio_frame, text="Cambio:", font=FONTS['subtitle'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT)
         
         self.cambio_var = tk.StringVar(value="$0.00")
         tk.Label(cambio_frame, textvariable=self.cambio_var, 
-                font=FONTS['heading'], bg=COLORS['bg_primary'],
+                font=FONTS['subtitle'], bg=COLORS['bg_primary'],
                 fg=COLORS['success']).pack(side=tk.RIGHT)
         
         # Separador
@@ -1584,6 +1598,8 @@ class FinalizarDiaWindow:
         self.denominaciones_cantidad = {}
         
         self.setup_ui()
+        
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""

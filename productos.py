@@ -6,7 +6,7 @@ from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 import os
 from config import COLORS, FONTS
-from utils import format_currency, parse_currency, validate_float
+from utils import format_currency, parse_currency, validate_float, get_resource_path
 import utils
 from database import db
 from excel_utils import exportar_productos_excel, importar_productos_excel
@@ -27,6 +27,8 @@ class ProductosWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -368,6 +370,7 @@ class ProductoDialog:
 
         # Centrar después de crear UI y cargar datos
         self.center_dialog()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
@@ -666,6 +669,8 @@ class IngredienteRecetaDialog:
         self.center_dialog()
         
         self.setup_ui()
+        
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
@@ -775,6 +780,7 @@ class RegistrarCompraUnitariaDialog:
         
         self.setup_ui()
         self.center_dialog()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
 
     def center_dialog(self):
         self.dialog.update_idletasks()

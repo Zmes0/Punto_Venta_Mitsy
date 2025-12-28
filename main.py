@@ -5,12 +5,13 @@ import tkinter as tk
 from tkinter import messagebox
 from config import COLORS, FONTS, WINDOW_CONFIG, DENOMINACIONES
 from database import db
-from utils import get_current_date
+from utils import get_current_date, get_resource_path
 
 class MitsysPOS:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Mitsy's POS")
+        self.root.iconbitmap(get_resource_path('icono.ico'))
         self.root.geometry("600x700")
         self.root.configure(bg=COLORS['bg_primary'])
         
@@ -56,7 +57,7 @@ class MitsysPOS:
         tk.Label(frame, text="Mitsy's Point of Sale", font=('Segoe UI', 32, 'bold'),
                 bg=COLORS['bg_primary'], fg=COLORS['accent']).pack(pady=(0, 20))
         
-        tk.Label(frame, text="By Sebas and Paola", font=('Segoe UI', 16),
+        tk.Label(frame, text="By Seb and Paola", font=('Segoe UI', 16),
                 bg=COLORS['bg_primary'], fg=COLORS['text_secondary']).pack()
         
         # Programar cierre del splash
@@ -235,6 +236,8 @@ class DineroCajaWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Centrar ventana (MÁS ANCHA)
         self.setup_ui()

@@ -6,6 +6,7 @@ from tkinter import ttk, messagebox
 from config import COLORS, FONTS
 from database import db
 import utils
+from utils import get_resource_path
 
 class RecetasWindow:
     def __init__(self, parent, on_close=None):
@@ -23,6 +24,8 @@ class RecetasWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -242,6 +245,7 @@ class RecetaDialog:
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
         self.setup_ui()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
         
         if receta_id:
             self.load_receta_data()

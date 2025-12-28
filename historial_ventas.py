@@ -7,7 +7,7 @@ from tkinter import ttk, messagebox
 from tkcalendar import DateEntry
 from datetime import datetime, timedelta
 from config import COLORS, FONTS
-from utils import format_currency, get_current_datetime, calculate_week_range, calculate_month_range
+from utils import format_currency, get_current_datetime, calculate_week_range, calculate_month_range, get_resource_path
 import utils
 from database import db
 from excel_utils import ExcelManager, importar_ventas_excel
@@ -28,6 +28,8 @@ class HistorialVentasWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -1106,6 +1108,7 @@ class VentaDialog:
         
         self.center_dialog()
         self.setup_ui()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
         
         if venta_id:
             self.load_venta_data()

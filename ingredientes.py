@@ -7,6 +7,8 @@ from config import COLORS, FONTS
 from utils import format_currency, validate_float
 from database import db
 import utils
+from utils import get_resource_path
+
 
 class IngredientesWindow:
     def __init__(self, parent, on_close=None):
@@ -24,6 +26,8 @@ class IngredientesWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
+        
+        self.window.iconbitmap(get_resource_path('icono.ico'))
         
         # Protocolo de cierre
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -261,6 +265,7 @@ class IngredienteDialog:
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
         self.setup_ui()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
         
         if ingrediente_id:
             self.load_ingrediente_data()
@@ -438,6 +443,7 @@ class RegistrarCompraDialog:
         self.center_dialog()
         
         self.setup_ui()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
