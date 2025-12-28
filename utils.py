@@ -39,6 +39,22 @@ def get_resource_path(relative_path):
     base_path = get_base_path()
     return os.path.join(base_path, relative_path)
 
+def get_output_dir(dir_name: str) -> str:
+    """
+    Crea y retorna una ruta a un directorio de salida junto al ejecutable
+    o en la raíz del proyecto durante el desarrollo.
+    """
+    if getattr(sys, 'frozen', False):
+        # En un ejecutable, la base es el directorio del .exe
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # En desarrollo, la base es el directorio raíz del proyecto
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    
+    output_dir = os.path.join(base_path, dir_name)
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
+
 def format_currency(amount: float) -> str:
     """
     Formatea un número como moneda mexicana

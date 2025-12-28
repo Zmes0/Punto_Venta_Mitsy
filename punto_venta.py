@@ -939,7 +939,7 @@ class CantidadProductoDialog:
             if self.producto['imagen'] and os.path.exists(self.producto['imagen']):
                 img = Image.open(self.producto['imagen'])
             else:
-                img = Image.open('images/placeholder.png')
+                img = Image.open(get_resource_path('images/placeholder.png'))
             
             img = img.resize((250, 250), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(img)

@@ -11,7 +11,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 from datetime import datetime
 from config import BUSINESS_INFO, TICKET_CONFIG
-from utils import format_currency, get_resource_path
+from utils import format_currency, get_resource_path, get_output_dir
 from PIL import Image
 
 # Importaciones para ESC/POS
@@ -56,8 +56,7 @@ class TicketGenerator:
         
         # Crear nombre de archivo si no se proporciona
         if not filename:
-            tickets_dir = os.path.join(os.path.dirname(get_resource_path('')), 'tickets')
-            os.makedirs(tickets_dir, exist_ok=True)
+            tickets_dir = get_output_dir('tickets')
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = os.path.join(tickets_dir, f'ticket_{venta_data["numero_venta"]}_{timestamp}.pdf')
         
