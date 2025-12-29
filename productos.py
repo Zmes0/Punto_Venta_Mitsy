@@ -372,6 +372,8 @@ class ProductoDialog:
         self.center_dialog()
         self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
+    IMAGE_DISPLAY_SIZE = (150, 150) # Max width, max height
+
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
@@ -380,6 +382,40 @@ class ProductoDialog:
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"+{x}+{y}")
+
+    def _display_image(self, image_path):
+        """Carga, redimensiona y muestra una imagen en el image_label."""
+        try:
+            if image_path and os.path.exists(image_path):
+                original_image = Image.open(image_path)
+            else:
+                original_image = Image.open(get_resource_path('images/placeholder.png'))
+            
+            # Redimensionar imagen manteniendo el aspecto
+            original_width, original_height = original_image.size
+            ratio = min(self.IMAGE_DISPLAY_SIZE[0] / original_width,
+                        self.IMAGE_DISPLAY_SIZE[1] / original_height)
+            
+            new_width = int(original_width * ratio)
+            new_height = int(original_height * ratio)
+            
+            resized_image = original_image.resize((new_width, new_height), Image.LANCZOS)
+            
+            self.tk_image = ImageTk.PhotoImage(resized_image)
+            self.image_label.config(image=self.tk_image)
+            self.image_label.image = self.tk_image # Mantener referencia
+        except Exception as e:
+            print(f"Error al cargar o mostrar imagen: {e}")
+            # Cargar placeholder si hay error
+            try:
+                placeholder_image = Image.open(get_resource_path('images/placeholder.png'))
+                placeholder_image = placeholder_image.resize(self.IMAGE_DISPLAY_SIZE, Image.LANCZOS)
+                self.tk_image = ImageTk.PhotoImage(placeholder_image)
+                self.image_label.config(image=self.tk_image)
+                self.image_label.image = self.tk_image
+            except Exception as e_placeholder:
+                print(f"Error al cargar placeholder: {e_placeholder}")
+                self.image_label.config(image='') # Limpiar si ni placeholder funciona
 
     def setup_ui(self):
         """Configura la interfaz del diálogo con dos columnas"""
@@ -420,6 +456,11 @@ class ProductoDialog:
         costo_entry.pack(fill=tk.X, pady=(0, 5))
         tk.Label(left_frame, text="(Se calcula si tiene receta)", font=FONTS['small'], bg=COLORS['bg_primary'], fg=COLORS['text_secondary']).pack(anchor='w', pady=(0, 10))
 
+        # Cantidad en stock (opcional)
+        tk.Label(left_frame, text="Cantidad en Stock (opcional):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        self.stock_var = tk.StringVar(value="0")
+        tk.Entry(left_frame, textvariable=self.stock_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
         # --- Columna Derecha ---
         right_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
@@ -443,17 +484,14 @@ class ProductoDialog:
 
         # Imagen del producto
         tk.Label(right_frame, text="Imagen del producto:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        imagen_frame = tk.Frame(right_frame, bg=COLORS['bg_primary'])
-        imagen_frame.pack(fill=tk.X, pady=(0, 10))
         self.imagen_var = tk.StringVar()
-        imagen_entry = tk.Entry(imagen_frame, textvariable=self.imagen_var, font=FONTS['normal'], state='readonly')
-        imagen_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-        tk.Button(imagen_frame, text="Examinar", command=self.browse_image, font=FONTS['button'], bg=COLORS['button_bg'], relief=tk.RAISED, borderwidth=2, padx=10, pady=5).pack(side=tk.LEFT)
 
-        # Cantidad en stock (opcional)
-        tk.Label(right_frame, text="Cantidad en Stock (opcional):", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
-        self.stock_var = tk.StringVar(value="0")
-        tk.Entry(right_frame, textvariable=self.stock_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+        # Área para mostrar la imagen
+        self.image_label = tk.Label(right_frame, bg=COLORS['bg_primary'])
+        self.image_label.pack(pady=(5, 10))
+        self._display_image(None) # Mostrar placeholder inicialmente
+
+        tk.Button(right_frame, text="Examinar", command=self.browse_image, font=FONTS['button'], bg=COLORS['button_bg'], relief=tk.RAISED, borderwidth=2, padx=10, pady=5).pack(pady=(0, 10))
 
         # --- Frame de Ingredientes (oculto inicialmente) ---
         self.ingredientes_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'], relief=tk.SUNKEN, borderwidth=2)
@@ -516,7 +554,8 @@ class ProductoDialog:
             self.update_ingredientes_list()
             
         if producto.get('imagen'):
-            self.imagen_var.set(producto['imagen'])    
+            self.imagen_var.set(producto['imagen'])
+            self._display_image(producto['imagen'])    
     
     def add_ingrediente_dialog(self):
         """Abre diálogo para añadir ingrediente"""
@@ -644,6 +683,7 @@ class ProductoDialog:
             try:
                 shutil.copy2(filename, destino)
                 self.imagen_var.set(destino)
+                self._display_image(destino) # Mostrar la nueva imagen
                 messagebox.showinfo("Éxito", "Imagen cargada correctamente")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al copiar imagen: {str(e)}")
