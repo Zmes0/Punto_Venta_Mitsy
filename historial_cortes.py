@@ -169,9 +169,10 @@ class CortesWindow:
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Treeview (tabla)
+        # Treeview (tabla) - COLUMNAS ACTUALIZADAS
         columns = ('ID', 'No. Corte', 'Fecha', 'Dinero en Caja', 'Corte Final', 
-                   'Corte Esperado', 'Retiros', 'Diferencia', 'Estado', 'Ganancias')
+                   'Corte Esperado', 'Retiros', 'Diferencia', 'Estado', 
+                   'Ventas Efectivo', 'Ventas Transferencia', 'Total Ventas')
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                 yscrollcommand=scrollbar.set, selectmode='extended')
@@ -187,18 +188,22 @@ class CortesWindow:
         self.tree.heading('Retiros', text='Retiros')
         self.tree.heading('Diferencia', text='Diferencia')
         self.tree.heading('Estado', text='Estado')
-        self.tree.heading('Ganancias', text='Ganancias')
+        self.tree.heading('Ventas Efectivo', text='Ventas Efectivo')
+        self.tree.heading('Ventas Transferencia', text='Ventas Transferencia')
+        self.tree.heading('Total Ventas', text='Total Ventas')
         
         self.tree.column('ID', width=0, stretch=tk.NO) # Ocultar ID
         self.tree.column('No. Corte', width=100, anchor='center')
         self.tree.column('Fecha', width=180, anchor='center')
-        self.tree.column('Dinero en Caja', width=140, anchor='e')
-        self.tree.column('Corte Final', width=140, anchor='e')
-        self.tree.column('Corte Esperado', width=140, anchor='e')
-        self.tree.column('Retiros', width=120, anchor='e')
-        self.tree.column('Diferencia', width=120, anchor='e')
+        self.tree.column('Dinero en Caja', width=130, anchor='e')
+        self.tree.column('Corte Final', width=120, anchor='e')
+        self.tree.column('Corte Esperado', width=130, anchor='e')
+        self.tree.column('Retiros', width=100, anchor='e')
+        self.tree.column('Diferencia', width=100, anchor='e')
         self.tree.column('Estado', width=100, anchor='center')
-        self.tree.column('Ganancias', width=140, anchor='e')
+        self.tree.column('Ventas Efectivo', width=130, anchor='e')
+        self.tree.column('Ventas Transferencia', width=150, anchor='e')
+        self.tree.column('Total Ventas', width=120, anchor='e')
         
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.tree.yview)
@@ -223,8 +228,8 @@ class CortesWindow:
             ("Modificar Corte", self.modificar_corte, COLORS['button_bg'], COLORS['text_primary']),
             ("Borrar Corte", self.borrar_corte, COLORS['button_bg'], COLORS['text_primary']),
             ("Agregar Corte", self.agregar_corte, COLORS['button_bg'], COLORS['text_primary']),
-            ("Exportar a Excel", self.exportar_cortes, COLORS['success'], 'white'),  # NUEVO
-            ("Importar desde Excel", self.importar_cortes, COLORS['accent'], 'white')  # NUEVO
+            ("Exportar a Excel", self.exportar_cortes, COLORS['success'], 'white'),
+            ("Importar desde Excel", self.importar_cortes, COLORS['accent'], 'white')
         ]
         
         for text, command, bg, fg in buttons:
@@ -232,8 +237,6 @@ class CortesWindow:
                   font=FONTS['button'], bg=bg, fg=fg,
                   relief=tk.RAISED, borderwidth=2, padx=20, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
-            
-    
     
     def load_cortes(self, cortes=None):
         """Carga los cortes en la tabla"""
@@ -249,6 +252,9 @@ class CortesWindow:
             
             fecha_mostrar = c['fecha_cierre'] if c['fecha_cierre'] else c['fecha_inicio']
             
+            # Calcular total de ventas
+            total_ventas = c.get('ventas_efectivo', 0) + c.get('ventas_transferencia', 0)
+            
             values = (
                 c['id'],
                 c['numero_corte'],
@@ -259,7 +265,9 @@ class CortesWindow:
                 format_currency(c['retiros']),
                 format_currency(c['diferencia']),
                 c['estado'],
-                format_currency(c['ganancias'])
+                format_currency(c.get('ventas_efectivo', 0)),
+                format_currency(c.get('ventas_transferencia', 0)),
+                format_currency(total_ventas)
             )
             
             self.tree.insert('', tk.END, values=values, tags=(tag,))
@@ -692,7 +700,7 @@ class CorteDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Añadir Corte" if not corte_id else "Modificar Corte")
-        self.dialog.geometry("900x700") # Adjusted geometry
+        self.dialog.geometry("900x700")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -700,7 +708,7 @@ class CorteDialog:
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
-        self.dialog.minsize(900, 700) # Adjusted minsize
+        self.dialog.minsize(900, 700)
         
         self.center_dialog()
         self.setup_ui()
@@ -713,8 +721,8 @@ class CorteDialog:
 
     def center_dialog(self):
         self.dialog.update_idletasks()
-        width = 900 # Adjusted width
-        height = 700 # Adjusted height
+        width = 900
+        height = 700
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")

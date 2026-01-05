@@ -644,8 +644,6 @@ class ProductoDialog:
                     db.add_receta(receta_id, producto_id, ing['id'], 
                                 ing['cantidad'], ing['unidad'])
             
-            messagebox.showinfo("Éxito", "Producto guardado correctamente")
-            
             if self.callback:
                 self.callback()
             
