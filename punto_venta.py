@@ -1503,16 +1503,22 @@ class CobrarVentaWindow:
             # Validar que el dinero recibido sea suficiente
             if recibido < total:
                 messagebox.showerror("Error", 
-                                  f"El dinero recibido ({format_currency(recibido)}) es menor al total ({format_currency(total)})")
+                                f"El dinero recibido ({format_currency(recibido)}) es menor al total ({format_currency(total)})")
                 return
-        
+    
             cambio = recibido - total
             metodo_pago = self.metodo_var.get()
-        
-            # Guardar venta en base de datos (AHORA INCLUYE recibido y cambio)
-            numero_venta = db.finalizar_venta(self.productos, metodo_pago, 
-                                            self.mesa, propina, recibido, cambio)
-        
+    
+            # MODIFICADO: Capturar error de stock insuficiente
+            try:
+                # Guardar venta en base de datos (AHORA INCLUYE recibido y cambio)
+                numero_venta = db.finalizar_venta(self.productos, metodo_pago, 
+                                                self.mesa, propina, recibido, cambio)
+            except ValueError as stock_error:
+                # Error de stock insuficiente
+                messagebox.showerror("Stock Insuficiente", str(stock_error))
+                return
+    
             # Preparar datos de la venta
             from datetime import datetime
             venta_data = {
@@ -1527,33 +1533,33 @@ class CobrarVentaWindow:
                 'metodo_pago': metodo_pago,
                 'mesa': self.mesa
             }
-        
+    
             try:
                 # 1. Generar PDF como respaldo
                 ticket_path = ticket_generator.generate_ticket_pdf(venta_data)
-            
+        
                 # Guardar ruta del último ticket
                 db.set_last_ticket_path(ticket_path)
-            
+        
                 # 2. Imprimir en térmica si está activada la impresión automática
                 if db.get_auto_print():
                     ticket_generator.print_thermal_ticket(venta_data)
-            
+        
             except Exception as e:
                 messagebox.showerror("Error", f"Error al generar/imprimir ticket: {str(e)}")
-        
+    
             # Mostrar resumen
             messagebox.showinfo("Venta Completada", 
                             f"Venta #{numero_venta} completada exitosamente\n\n"
                             f"Total: {format_currency(total)}\n"
                             f"Recibido: {format_currency(recibido)}\n"
                             f"Cambio: {format_currency(cambio)}")
-        
+    
             self.dialog.destroy()
-        
+    
             if self.callback:
                 self.callback()
-        
+    
         except ValueError:
             messagebox.showerror("Error", "Valores inválidos. Verifica propina y dinero recibido.")
         except Exception as e:

@@ -380,32 +380,37 @@ class Database:
     
     def reorganize_ids(self, table: str):
         """Reorganiza los IDs de una tabla para que sean continuos"""
-        # Obtener todos los registros ordenados por ID
-        self.cursor.execute(f'SELECT * FROM {table} WHERE activo = 1 ORDER BY id')
+        # CORRECCIÓN: Solo aplicar filtro WHERE activo=1 si la tabla lo tiene
+        if table in ['productos', 'ingredientes']:
+            self.cursor.execute(f'SELECT * FROM {table} WHERE activo = 1 ORDER BY id')
+        else:
+            # Para tablas sin columna "activo" (como recetas)
+            self.cursor.execute(f'SELECT * FROM {table} ORDER BY id')
+    
         registros = [dict(row) for row in self.cursor.fetchall()]
-        
+    
         # Eliminar todos los registros
         self.cursor.execute(f'DELETE FROM {table}')
-        
+    
         # Reinsertar con IDs continuos
         for idx, registro in enumerate(registros, start=1):
             old_id = registro['id']
             registro['id'] = idx
-            
+        
             # Construir query de inserción
             columns = ', '.join(registro.keys())
             placeholders = ', '.join(['?' for _ in registro])
             values = list(registro.values())
-            
+        
             self.cursor.execute(f'INSERT INTO {table} ({columns}) VALUES ({placeholders})', values)
-            
+        
             # Actualizar referencias en otras tablas si es necesario
             if table == 'productos':
                 self.cursor.execute('UPDATE recetas SET id_producto = ? WHERE id_producto = ?', (idx, old_id))
                 self.cursor.execute('UPDATE ventas SET id_producto = ? WHERE id_producto = ?', (idx, old_id))
             elif table == 'ingredientes':
                 self.cursor.execute('UPDATE recetas SET id_ingrediente = ? WHERE id_ingrediente = ?', (idx, old_id))
-        
+    
         self.conn.commit()
     
     # ==================== PRODUCTOS ====================
@@ -562,6 +567,25 @@ class Database:
             
             self.cursor.execute(f'UPDATE ingredientes SET {fields} WHERE id = ?', values)
             self.conn.commit()
+        
+        if 'costo_unitario' in kwargs:
+            ingrediente_id = new_id if new_id else old_id
+        
+            # Obtener productos que usan este ingrediente
+            self.cursor.execute('''
+                SELECT DISTINCT id_producto 
+                FROM recetas 
+                WHERE id_ingrediente = ?
+            ''', (ingrediente_id,))
+        
+            productos_afectados = [row['id_producto'] for row in self.cursor.fetchall()]
+        
+            # Recalcular costo de cada producto
+            for producto_id in productos_afectados:
+                self.recalcular_costo_producto(producto_id)
+        
+            if productos_afectados:
+                print(f"✓ Costos actualizados para {len(productos_afectados)} producto(s) que usan este ingrediente")
     
     def delete_ingrediente(self, id_ingrediente: int):
         """Elimina un ingrediente y reorganiza los IDs"""
@@ -579,6 +603,18 @@ class Database:
             WHERE id = ?
         ''', (cantidad, id_ingrediente))
         self.conn.commit()
+        
+        self.cursor.execute('''
+            SELECT DISTINCT id_producto 
+            FROM recetas 
+            WHERE id_ingrediente = ?
+        ''', (id_ingrediente,))
+    
+        productos_afectados = [row['id_producto'] for row in self.cursor.fetchall()]
+        for producto_id in productos_afectados:
+            self.actualizar_stock_estimado(producto_id)
+    
+        print(f"✓ Stock actualizado para {len(productos_afectados)} producto(s) relacionado(s)")
     
     def get_next_ingrediente_id(self) -> int:
         """Obtiene el siguiente ID disponible para ingredientes"""
@@ -702,19 +738,27 @@ class Database:
         self.conn.commit()
     
     def calcular_stock_estimado(self, id_producto: int) -> float:
-        """Calcula el stock estimado de un producto basado en sus ingredientes"""
+        """Calcula el stock estimado de un producto basado en sus ingredientes que gestionan stock"""
         recetas = self.get_recetas_producto(id_producto)
-        
+    
         if not recetas:
             return 0
-        
+    
         capacidades = []
         for receta in recetas:
-            if receta['cantidad_requerida'] > 0:
-                capacidad = receta['cantidad_stock'] / receta['cantidad_requerida']
-                capacidades.append(capacidad)
-        
-        return int(min(capacidades)) if capacidades else 0
+            # CORRECCIÓN: Solo considerar ingredientes que gestionen stock
+            ingrediente = self.get_ingrediente(receta['id_ingrediente'])
+            if ingrediente and ingrediente['gestion_stock']:
+                if receta['cantidad_requerida'] > 0:
+                    capacidad = receta['cantidad_stock'] / receta['cantidad_requerida']
+                    capacidades.append(capacidad)
+    
+        # CORRECCIÓN: Mantener decimales para mayor precisión
+        # Redondear a 2 decimales en lugar de convertir a entero
+        if capacidades:
+            return round(min(capacidades), 2)
+        else:
+            return 0
     
     def actualizar_stock_estimado(self, id_producto: int):
         """Actualiza el stock estimado de un producto en la base de datos"""
@@ -737,25 +781,28 @@ class Database:
     def descontar_inventario_por_venta(self, id_producto: int, cantidad_vendida: float):
         """
         Descuenta el inventario después de una venta.
-        - Si el producto tiene receta, descuenta los ingredientes.
+        - Si el producto tiene receta, descuenta los ingredientes QUE TENGAN gestion_stock=1
         - Si el producto no tiene receta (es unitario), descuenta el stock del producto mismo.
         """
         recetas = self.get_recetas_producto(id_producto)
-        
+    
         if recetas:
-            # Producto con receta: descontar ingredientes
+            # Producto con receta: descontar ingredientes QUE GESTIONEN STOCK
             for receta in recetas:
-                cantidad_a_descontar = receta['cantidad_requerida'] * cantidad_vendida
+                # CORRECCIÓN: Verificar si el ingrediente tiene gestión de stock
+                ingrediente = self.get_ingrediente(receta['id_ingrediente'])
+                if ingrediente and ingrediente['gestion_stock']:
+                    cantidad_a_descontar = receta['cantidad_requerida'] * cantidad_vendida
                 
-                self.cursor.execute('''
-                    UPDATE ingredientes
-                    SET cantidad_stock = cantidad_stock - ?
-                    WHERE id = ?
-                ''', (cantidad_a_descontar, receta['id_ingrediente']))
-            
+                    self.cursor.execute('''
+                        UPDATE ingredientes
+                        SET cantidad_stock = cantidad_stock - ?
+                        WHERE id = ?
+                    ''', (cantidad_a_descontar, receta['id_ingrediente']))
+        
             # Actualizar stock estimado del producto basado en ingredientes
             self.actualizar_stock_estimado(id_producto)
-        
+    
         else:
             # Producto unitario (sin receta): descontar del propio producto
             self.cursor.execute('''
@@ -766,6 +813,28 @@ class Database:
 
         self.conn.commit()
     
+    def validar_stock_disponible(self, id_producto: int, cantidad_solicitada: float) -> tuple:
+        """
+        Valida si hay suficiente stock para realizar una venta
+        Retorna: (tiene_stock: bool, mensaje_error: str)
+        """
+        producto = self.get_producto(id_producto)
+    
+        if not producto:
+            return False, f"Producto no encontrado"
+    
+        if not producto['gestion_stock']:
+            return True, ""  # No gestiona stock, permitir venta
+    
+        if not self.is_gestion_stock_active():
+            return True, ""  # Sistema de stock desactivado globalmente
+    
+        stock_disponible = producto['stock_estimado']
+    
+        if stock_disponible < cantidad_solicitada:
+            return False, f"Stock insuficiente para '{producto['nombre']}'.\nDisponible: {stock_disponible:.2f}, Solicitado: {cantidad_solicitada:.2f}"
+    
+        return True, ""
     # ==================== VENTAS (continuación) ====================
     
     def get_next_numero_venta(self) -> int:
@@ -858,6 +927,16 @@ class Database:
         Finaliza una venta completa - MODIFICADO para incluir recibido y cambio
         productos = [{'id': 1, 'nombre': 'Tacos', 'cantidad': 2, 'precio': 15.00, 'total': 30.00}, ...]
         """
+        if self.is_gestion_stock_active():
+            errores_stock = []
+            for prod in productos:
+                tiene_stock, mensaje = self.validar_stock_disponible(prod['id'], prod['cantidad'])
+                if not tiene_stock:
+                    errores_stock.append(mensaje)
+        
+            if errores_stock:
+                raise ValueError("\n\n".join(errores_stock))
+            
         numero_venta = self.get_next_numero_venta()
         
         for prod in productos:
