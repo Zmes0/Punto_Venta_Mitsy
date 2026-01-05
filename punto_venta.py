@@ -1615,6 +1615,7 @@ class FinalizarDiaWindow:
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        self.dialog.resizable(False, False)
     
     def setup_ui(self):
         """Configura la interfaz del diálogo"""
@@ -1674,6 +1675,18 @@ class FinalizarDiaWindow:
         # Crear un frame para la sección inferior
         bottom_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         bottom_section_frame.pack(fill=tk.X, pady=(10, 0))
+
+        # Entrada manual de total
+        manual_entry_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
+        manual_entry_frame.pack(pady=(5, 5))
+        
+        tk.Label(manual_entry_frame, text="Ingresar total manualmente:", 
+                 font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.manual_total_var = tk.StringVar(value="0")
+        manual_entry = tk.Entry(manual_entry_frame, textvariable=self.manual_total_var, 
+                                font=FONTS['normal'], width=15, justify='center')
+        manual_entry.pack(side=tk.LEFT)
         
         # Egresos/Retiros
         egresos_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
@@ -1743,6 +1756,15 @@ class FinalizarDiaWindow:
         """Calcula el total del corte"""
         total = 0
         
+        # Si se está usando la entrada manual, no calcular desde denominaciones
+        try:
+            manual_total = float(self.manual_total_var.get())
+            if manual_total > 0:
+                self.total_var.set(format_currency(manual_total))
+                return
+        except ValueError:
+            pass
+
         for key, data in self.denominaciones_cantidad.items():
             try:
                 cantidad = int(data['var'].get())
@@ -1756,19 +1778,31 @@ class FinalizarDiaWindow:
     def finalizar_dia(self):
         """Finaliza el día y realiza el corte - MODIFICADO con nuevo resumen"""
         try:
-            # Calcular corte final
-            corte_final = 0
+            # Calcular corte final desde denominaciones
+            denominacion_total = 0
             for key, data in self.denominaciones_cantidad.items():
                 try:
                     cantidad = int(data['var'].get())
                     if cantidad >= 0:
-                        corte_final += cantidad * data['denominacion']
+                        denominacion_total += cantidad * data['denominacion']
                     else:
                         messagebox.showerror("Error", "Las cantidades no pueden ser negativas")
                         return
                 except ValueError:
                     messagebox.showerror("Error", "Todas las cantidades deben ser números enteros")
                     return
+
+            # Verificar si se usó la entrada manual
+            try:
+                manual_total = float(self.manual_total_var.get())
+            except ValueError:
+                manual_total = 0
+
+            # Decidir qué total usar
+            if denominacion_total == 0 and manual_total > 0:
+                corte_final = manual_total
+            else:
+                corte_final = denominacion_total
             
             # Obtener egresos
             try:

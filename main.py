@@ -247,6 +247,7 @@ class DineroCajaWindow:
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")
+        self.window.resizable(False, False)
     
     def setup_ui(self):
         """Configura la interfaz"""
@@ -308,6 +309,18 @@ class DineroCajaWindow:
         bottom_section_frame.pack(fill=tk.X, pady=(10, 0))
         # --- FIN DE MODIFICACIÓN ---
 
+        # Entrada manual de total
+        manual_entry_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
+        manual_entry_frame.pack(pady=(10, 5))
+        
+        tk.Label(manual_entry_frame, text="Ingresar total manualmente:", 
+                 font=FONTS['normal'], bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.manual_total_var = tk.StringVar(value="0")
+        manual_entry = tk.Entry(manual_entry_frame, textvariable=self.manual_total_var, 
+                                font=FONTS['normal'], width=15, justify='center')
+        manual_entry.pack(side=tk.LEFT)
+
         # Total calculado
         self.total_var = tk.StringVar(value="$0.00")
         total_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary']) # Se empaqueta en el frame inferior
@@ -356,6 +369,15 @@ class DineroCajaWindow:
         """Calcula el total de dinero ingresado"""
         total = 0
         
+        # Si se está usando la entrada manual, no calcular desde denominaciones
+        try:
+            manual_total = float(self.manual_total_var.get())
+            if manual_total > 0:
+                self.total_var.set(format_currency(manual_total))
+                return
+        except ValueError:
+            pass
+
         for key, data in self.denominaciones_cantidad.items():
             try:
                 cantidad = int(data['var'].get())
@@ -371,12 +393,13 @@ class DineroCajaWindow:
         """Acepta y guarda el dinero en caja"""
         total = 0
         
-        # Calcular total
+        # Calcular total desde denominaciones
+        denominacion_total = 0
         for key, data in self.denominaciones_cantidad.items():
             try:
                 cantidad = int(data['var'].get())
                 if cantidad >= 0:
-                    total += cantidad * data['denominacion']
+                    denominacion_total += cantidad * data['denominacion']
                 else:
                     messagebox.showerror("Error", 
                                        "Las cantidades no pueden ser negativas")
@@ -385,6 +408,18 @@ class DineroCajaWindow:
                 messagebox.showerror("Error", 
                                    "Todas las cantidades deben ser números enteros válidos")
                 return
+
+        # Verificar si se usó la entrada manual
+        try:
+            manual_total = float(self.manual_total_var.get())
+        except ValueError:
+            manual_total = 0
+
+        # Decidir qué total usar
+        if denominacion_total == 0 and manual_total > 0:
+            total = manual_total
+        else:
+            total = denominacion_total
         
         if total == 0:
             if not messagebox.askyesno("Confirmar", 
@@ -395,15 +430,23 @@ class DineroCajaWindow:
             # Guardar en base de datos
             fecha = get_current_date()
             
-            for key, data in self.denominaciones_cantidad.items():
-                cantidad = int(data['var'].get())
-                if cantidad > 0:
-                    db.cursor.execute('''
-                        INSERT INTO dinero_caja 
-                        (fecha, tipo, denominacion, cantidad, total, tipo_registro)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (fecha, data['tipo'], data['denominacion'], cantidad,
-                          cantidad * data['denominacion'], 'apertura'))
+            # Si el total vino de la entrada manual, no hay desglose que guardar
+            if total == manual_total and manual_total > 0:
+                db.cursor.execute('''
+                    INSERT INTO dinero_caja
+                    (fecha, tipo, denominacion, cantidad, total, tipo_registro)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (fecha, 'manual', 0, 1, total, 'apertura'))
+            else:
+                for key, data in self.denominaciones_cantidad.items():
+                    cantidad = int(data['var'].get())
+                    if cantidad > 0:
+                        db.cursor.execute('''
+                            INSERT INTO dinero_caja 
+                            (fecha, tipo, denominacion, cantidad, total, tipo_registro)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', (fecha, data['tipo'], data['denominacion'], cantidad,
+                              cantidad * data['denominacion'], 'apertura'))
             
             db.conn.commit()
             
