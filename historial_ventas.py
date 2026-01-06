@@ -526,13 +526,14 @@ class HistorialVentasWindow:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Treeview (tabla) - AGREGAR columna "No. Corte"
-        columns = ('No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método')
+        columns = ('ID Venta', 'No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método')
         
         self.detail_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                        yscrollcommand=scrollbar.set, selectmode='extended')
         utils.enable_drag_selection(self.detail_tree)
         
         # Configurar columnas
+        self.detail_tree.heading('ID Venta', text='ID Venta')
         self.detail_tree.heading('No. Venta', text='No. Venta')
         self.detail_tree.heading('No. Corte', text='No. Corte')  # NUEVO
         self.detail_tree.heading('Fecha', text='Fecha')
@@ -543,6 +544,7 @@ class HistorialVentasWindow:
         self.detail_tree.heading('Total', text='Total')
         self.detail_tree.heading('Método', text='Método')
         
+        self.detail_tree.column('ID Venta', width=80, anchor='center')
         self.detail_tree.column('No. Venta', width=100, anchor='center')
         self.detail_tree.column('No. Corte', width=90, anchor='center')  # NUEVO
         self.detail_tree.column('Fecha', width=160, anchor='center')
@@ -729,7 +731,7 @@ class HistorialVentasWindow:
                 SELECT v.*, c.numero_corte 
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
-                ORDER BY v.numero_venta DESC
+                ORDER BY v.id DESC
             ''')
             ventas = [dict(row) for row in db.cursor.fetchall()]
         
@@ -749,8 +751,9 @@ class HistorialVentasWindow:
                 numero_corte = 'Legacy'
             
             values = (
+                v['id'],
                 v['numero_venta'],
-                numero_corte,  # NUEVO
+                numero_corte,
                 v['fecha'],
                 v['producto'],
                 v['id_producto'],
@@ -787,7 +790,7 @@ class HistorialVentasWindow:
                    BETWEEN ? AND ?'''
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
-        sql += ' ORDER BY v.numero_venta DESC'
+        sql += ' ORDER BY v.id DESC'
         
         # Ejecutar query
         db.cursor.execute(sql, params)
@@ -813,7 +816,7 @@ class HistorialVentasWindow:
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
                 WHERE c.numero_corte = ? 
-                ORDER BY v.numero_venta DESC
+                ORDER BY v.id DESC
             ''', (num_corte,))
             ventas = [dict(row) for row in db.cursor.fetchall()]
             
@@ -866,7 +869,7 @@ class HistorialVentasWindow:
             FROM ventas v
             LEFT JOIN cortes c ON v.corte_id = c.id
             WHERE v.metodo_pago = ? 
-            ORDER BY v.numero_venta DESC
+            ORDER BY v.id DESC
         ''', (metodo,))
         ventas = [dict(row) for row in db.cursor.fetchall()]
         self.load_detail_data(ventas)
@@ -885,7 +888,7 @@ class HistorialVentasWindow:
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
                 WHERE v.numero_venta = ? 
-                ORDER BY v.numero_venta DESC
+                ORDER BY v.id DESC
             ''', (num_venta,))
             ventas = [dict(row) for row in db.cursor.fetchall()]
             
@@ -963,20 +966,8 @@ class HistorialVentasWindow:
         VentaDialog(self.window, callback=self.load_detail_data)
     
     def get_venta_id_from_values(self, values):
-        """Obtiene el ID de la venta desde los valores mostrados"""
-        numero_venta = values[0]
-        # MODIFICADO: fecha ahora está en índice 2 (antes era 1)
-        fecha = values[2]
-        producto = values[3]
-        
-        db.cursor.execute('''
-            SELECT id FROM ventas 
-            WHERE numero_venta = ? AND fecha = ? AND producto = ?
-            LIMIT 1
-        ''', (numero_venta, fecha, producto))
-        
-        result = db.cursor.fetchone()
-        return result['id'] if result else None
+        """Obtiene el ID de la venta directamente desde los valores de la fila."""
+        return values[0]
     
     def exportar_ventas_detalle(self):
         """Exporta la tabla de detalle de ventas a Excel - CORREGIDO para exportar datos sin formato"""
@@ -987,7 +978,7 @@ class HistorialVentasWindow:
             SELECT v.*, c.numero_corte 
             FROM ventas v
             LEFT JOIN cortes c ON v.corte_id = c.id
-            ORDER BY v.numero_venta DESC
+            ORDER BY v.id DESC
         ''')
         ventas = [dict(row) for row in db.cursor.fetchall()]
     
@@ -1002,9 +993,9 @@ class HistorialVentasWindow:
     def importar_ventas_detalle(self):
         """Importa ventas desde un archivo Excel, omitiendo duplicados."""
         if not messagebox.askokcancel("Importar Ventas",
-                                      "Se intentarán agregar las ventas desde un archivo Excel.\n\n"
-                                      "Las ventas que ya existan en la base de datos (misma No. Venta, producto y fecha) serán omitidas.\n\n"
-                                      "Asegúrate de que el archivo tenga el formato correcto y que los 'ID Producto' existan.\n\n"
+                                      "Se intentarán agregar las ventas desde un archivo Excel.\n\n" 
+                                      "Las ventas que ya existan en la base de datos (misma No. Venta, producto y fecha) serán omitidas.\n\n" 
+                                      "Asegúrate de que el archivo tenga el formato correcto y que los 'ID Producto' existan.\n\n" 
                                       "Se recomienda hacer un respaldo de la base de datos antes de proceder."):
             return
 
