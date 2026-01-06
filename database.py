@@ -485,8 +485,14 @@ class Database:
             self.conn.commit()
     
     def delete_producto(self, id_producto: int):
-        """Elimina un producto y reorganiza los IDs"""
+        """Marca un producto como inactivo."""
         self.cursor.execute('UPDATE productos SET activo = 0 WHERE id = ?', (id_producto,))
+        self.conn.commit()
+
+    def delete_productos(self, ids_productos: List[int]):
+        """Marca una lista de productos como inactivos y reorganiza los IDs."""
+        for id_producto in ids_productos:
+            self.cursor.execute('UPDATE productos SET activo = 0 WHERE id = ?', (id_producto,))
         self.conn.commit()
         
         # Reorganizar IDs para que sean continuos
@@ -925,8 +931,7 @@ class Database:
                        propina: float = 0, recibido: float = 0, cambio: float = 0) -> int:
         """
         Finaliza una venta completa - MODIFICADO para incluir recibido y cambio
-        productos = [{'id': 1, 'nombre': 'Tacos', 'cantidad': 2, 'precio': 15.00, 'total': 30.00}, ...]
-        """
+        productos = [{'id': 1, 'nombre': 'Tacos', 'cantidad': 2, 'precio': 15.00, 'total': 30.00}, ...]        """
         if self.is_gestion_stock_active():
             errores_stock = []
             for prod in productos:

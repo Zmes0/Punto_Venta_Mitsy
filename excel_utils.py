@@ -5,6 +5,9 @@ import pandas as pd
 from tkinter import filedialog, messagebox
 from datetime import datetime
 import os
+import zipfile
+import tempfile
+import shutil
 
 
 class ExcelManager:
@@ -145,13 +148,21 @@ class ExcelManager:
 # Funciones específicas para cada módulo
 
 def exportar_productos_excel(productos):
-    """Exporta productos a Excel"""
+    """Exporta productos a un archivo ZIP con Excel e imágenes."""
     columnas = ['ID', 'Nombre', 'Precio Unitario', 'Costo', 'Ganancia', 
-                'Unidad Medida', 'Stock Estimado', 'Stock Mínimo', 'Gestión Stock']
+                'Unidad Medida', 'Stock Estimado', 'Stock Mínimo', 'Gestión Stock', 'Imagen']
     
-    datos = []
+    datos_excel = []
+    rutas_imagenes = []
+    
     for p in productos:
-        datos.append((
+        nombre_imagen = None
+        if p.get('imagen'):
+            if os.path.exists(p['imagen']):
+                nombre_imagen = os.path.basename(p['imagen'])
+                rutas_imagenes.append(p['imagen'])
+        
+        datos_excel.append((
             p['id'],
             p['nombre'],
             p['precio_unitario'],
@@ -160,52 +171,145 @@ def exportar_productos_excel(productos):
             p['unidad_medida'],
             p['stock_estimado'],
             p['stock_minimo'],
-            'Sí' if p['gestion_stock'] else 'No'
+            'Sí' if p['gestion_stock'] else 'No',
+            nombre_imagen
         ))
     
-    return ExcelManager.exportar_a_excel(datos, columnas, "productos", "Productos")
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        nombre_default = f"exportacion_productos_{timestamp}.zip"
+        
+        zip_filename = filedialog.asksaveasfilename(
+            defaultextension=".zip",
+            filetypes=[("ZIP files", "*.zip")],
+            initialfile=nombre_default,
+            title="Guardar exportación de productos"
+        )
+        
+        if not zip_filename:
+            return False
+            
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 1. Guardar el archivo Excel
+            excel_path = os.path.join(temp_dir, "productos.xlsx")
+            df = pd.DataFrame(datos_excel, columns=columnas)
+            df.to_excel(excel_path, sheet_name="Productos", index=False)
+            
+            # 2. Copiar imágenes
+            imagenes_dir = os.path.join(temp_dir, "imagenes_productos")
+            os.makedirs(imagenes_dir, exist_ok=True)
+            
+            for ruta_img in rutas_imagenes:
+                shutil.copy(ruta_img, imagenes_dir)
+            
+            # 3. Crear el archivo ZIP
+            with zipfile.ZipFile(zip_filename, 'w') as zipf:
+                zipf.write(excel_path, arcname="productos.xlsx")
+                for ruta_img in rutas_imagenes:
+                    nombre_img = os.path.basename(ruta_img)
+                    zipf.write(os.path.join(imagenes_dir, nombre_img), arcname=f"imagenes_productos/{nombre_img}")
+
+        messagebox.showinfo("Éxito", f"Productos exportados correctamente a:\n{zip_filename}")
+        return True
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Error al exportar productos:\n{str(e)}")
+        return False
 
 
 def importar_productos_excel():
-    """Importa productos desde Excel"""
-    columnas = ['ID', 'Nombre', 'Precio Unitario', 'Costo', 'Unidad Medida', 
-                'Stock Mínimo', 'Gestión Stock']
+    """Importa productos desde un archivo ZIP."""
+    columnas_esperadas = ['ID', 'Nombre', 'Precio Unitario', 'Costo', 'Unidad Medida', 
+                          'Stock Mínimo', 'Gestión Stock'] # Imagen es opcional
     
-    datos = ExcelManager.importar_desde_excel(columnas, "Importar Productos")
+    zip_filename = filedialog.askopenfilename(
+        filetypes=[("ZIP files", "*.zip")],
+        title="Importar Productos desde ZIP"
+    )
     
-    if datos:
-        # Validar y convertir datos
-        productos_validos = []
-        for idx, registro in enumerate(datos, start=2):  # Empieza en 2 por el header
-            try:
-                producto = {
-                    'id': int(registro['ID']),
-                    'nombre': str(registro['Nombre']).strip(),
-                    'precio_unitario': float(registro['Precio Unitario']),
-                    'costo': float(registro.get('Costo', 0)),
-                    'unidad_medida': str(registro.get('Unidad Medida', 'Pza')),
-                    'stock_minimo': float(registro.get('Stock Mínimo', 0)),
-                    'gestion_stock': str(registro.get('Gestión Stock', 'No')).lower() in ['sí', 'si', 'yes', '1', 'true']
-                }
-                
-                # Validaciones
-                if producto['id'] <= 0:
-                    raise ValueError("ID debe ser mayor a 0")
-                if not producto['nombre']:
-                    raise ValueError("Nombre es obligatorio")
-                if producto['precio_unitario'] < 0:
-                    raise ValueError("Precio no puede ser negativo")
-                
-                productos_validos.append(producto)
-                
-            except Exception as e:
-                messagebox.showerror("Error en fila", 
-                    f"Error en fila {idx}: {str(e)}\n\nLa importación se detendrá.")
-                return None
+    if not zip_filename:
+        return None
         
-        return productos_validos
-    
-    return None
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 1. Extraer el ZIP
+            with zipfile.ZipFile(zip_filename, 'r') as zipf:
+                zipf.extractall(temp_dir)
+            
+            # 2. Encontrar el archivo Excel
+            excel_path = None
+            for file in os.listdir(temp_dir):
+                if file.endswith(".xlsx"):
+                    excel_path = os.path.join(temp_dir, file)
+                    break
+            
+            if not excel_path:
+                messagebox.showerror("Error", "No se encontró un archivo .xlsx en el ZIP.")
+                return None
+
+            # 3. Leer el Excel
+            df = pd.read_excel(excel_path, engine='openpyxl')
+            
+            # 4. Validar columnas
+            columnas_reales = set(df.columns)
+            if not set(columnas_esperadas).issubset(columnas_reales):
+                faltantes = set(columnas_esperadas) - columnas_reales
+                messagebox.showerror("Error de formato", f"Columnas requeridas faltantes: {', '.join(faltantes)}")
+                return None
+
+            datos = df.to_dict('records')
+            
+            # 5. Procesar registros
+            productos_validos = []
+            for idx, registro in enumerate(datos, start=2):
+                try:
+                    producto = {
+                        'id': int(registro['ID']),
+                        'nombre': str(registro['Nombre']).strip(),
+                        'precio_unitario': float(registro['Precio Unitario']),
+                        'costo': float(registro.get('Costo', 0)),
+                        'unidad_medida': str(registro.get('Unidad Medida', 'Pza')),
+                        'stock_minimo': float(registro.get('Stock Mínimo', 0)),
+                        'gestion_stock': str(registro.get('Gestión Stock', 'No')).lower() in ['sí', 'si', 'yes', '1', 'true'],
+                        'imagen': None
+                    }
+                    
+                    # Procesar imagen si existe
+                    if 'Imagen' in registro and registro['Imagen'] and pd.notna(registro['Imagen']):
+                        nombre_imagen = str(registro['Imagen'])
+                        ruta_imagen_origen = os.path.join(temp_dir, "imagenes_productos", nombre_imagen)
+                        
+                        if os.path.exists(ruta_imagen_origen):
+                            # Crear carpeta de destino si no existe
+                            dest_folder = "images/productos"
+                            os.makedirs(dest_folder, exist_ok=True)
+                            
+                            # Crear un nombre de archivo único para evitar colisiones
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            nombre_base, extension = os.path.splitext(nombre_imagen)
+                            nuevo_nombre = f"producto_{timestamp}_{idx}{extension}"
+                            ruta_imagen_destino = os.path.join(dest_folder, nuevo_nombre)
+                            
+                            shutil.copy(ruta_imagen_origen, ruta_imagen_destino)
+                            producto['imagen'] = ruta_imagen_destino
+                    
+                    # Validaciones
+                    if producto['id'] <= 0: raise ValueError("ID debe ser mayor a 0")
+                    if not producto['nombre']: raise ValueError("Nombre es obligatorio")
+                    if producto['precio_unitario'] < 0: raise ValueError("Precio no puede ser negativo")
+                    
+                    productos_validos.append(producto)
+                    
+                except Exception as e:
+                    messagebox.showerror("Error en fila", f"Error en fila {idx}: {str(e)}\n\nLa importación se detendrá.")
+                    return None
+            
+            messagebox.showinfo("Éxito", f"Se importaron {len(productos_validos)} productos correctamente.")
+            return productos_validos
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Error al importar productos desde ZIP:\n{str(e)}")
+        return None
 
 
 def exportar_ingredientes_excel(ingredientes):

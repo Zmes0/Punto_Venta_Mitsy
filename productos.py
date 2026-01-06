@@ -72,12 +72,12 @@ class ProductosWindow:
         excel_frame = tk.Frame(top_controls_frame, bg=COLORS['bg_primary'])
         excel_frame.pack(side=tk.RIGHT)
     
-        tk.Button(excel_frame, text="📤 Exportar a Excel", 
+        tk.Button(excel_frame, text="\ud83d\udcbe Exportar a Excel", 
                 command=self.exportar_excel,
                 font=FONTS['button'], bg=COLORS['success'], fg='white',
                 relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.LEFT, padx=5)
     
-        tk.Button(excel_frame, text="📥 Importar desde Excel", 
+        tk.Button(excel_frame, text="\udec5 Importar desde Excel", 
                 command=self.importar_excel,
                 font=FONTS['button'], bg=COLORS['accent'], fg='white',
                 relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.LEFT, padx=5)
@@ -236,9 +236,9 @@ class ProductosWindow:
                                    f"¿Estás seguro de borrar {len(selection)} producto(s)?"):
             return
         
-        for item in selection:
-            producto_id = self.tree.item(item)['values'][0]
-            db.delete_producto(producto_id)
+        ids_a_borrar = [self.tree.item(item)['values'][0] for item in selection]
+        
+        db.delete_productos(ids_a_borrar)
         
         messagebox.showinfo("Éxito", "Producto(s) eliminado(s) correctamente")
         self.load_productos()
@@ -316,7 +316,8 @@ class ProductosWindow:
                         costo=prod['costo'],
                         unidad_medida=prod['unidad_medida'],
                         stock_minimo=prod['stock_minimo'],
-                        gestion_stock=1 if prod['gestion_stock'] else 0
+                        gestion_stock=1 if prod['gestion_stock'] else 0,
+                        imagen=prod.get('imagen')
                     )
                     productos_actualizados += 1
                 else:
@@ -328,7 +329,8 @@ class ProductosWindow:
                         prod['costo'],
                         prod['unidad_medida'],
                         prod['gestion_stock'],
-                        stock_minimo=prod['stock_minimo']
+                        stock_minimo=prod['stock_minimo'],
+                        imagen=prod.get('imagen')
                     )
                     productos_creados += 1
         
@@ -381,7 +383,7 @@ class ProductoDialog:
         height = self.dialog.winfo_reqheight()
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
-        self.dialog.geometry(f"+{x}+{y}")
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
 
     def _display_image(self, image_path):
         """Carga, redimensiona y muestra una imagen en el image_label."""
@@ -603,10 +605,10 @@ class ProductoDialog:
         
         # Si gestiona inventario y no tiene ingredientes, se asume que es un producto unitario.
         # La validación anterior ha sido eliminada para permitir esto.
-        # if gestion and not self.ingredientes_agregados:
-        #     messagebox.showwarning("Advertencia", 
-        #                           "Si gestiona inventario, debe añadir al menos un ingrediente")
-        #     return
+        if gestion and not self.ingredientes_agregados:
+            messagebox.showwarning("Advertencia", 
+                                   "Si gestiona inventario, debe añadir al menos un ingrediente")
+            return
         
         try:
             if self.producto_id:
