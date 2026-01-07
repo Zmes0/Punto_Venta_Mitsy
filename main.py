@@ -184,6 +184,9 @@ class MitsysPOS:
 
         # Si es empleado y requiere admin, solicitar autorización
         if required_level == 'admin':
+            # NOTA: Este diálogo requiere que el usuario ingrese credenciales de un administrador
+            # para poder continuar. Si solo ve un botón 'Aceptar', es probable que sea un mensaje
+            # de error por credenciales incorrectas o incompletas.
             AdminAuthDialog(self.root, on_success=command,
                         message="Para acceder a esta sección, por favor ingrese las credenciales de un administrador.")
             return
@@ -241,6 +244,7 @@ class MitsysPOS:
     
     def open_configuracion(self):
         """Abre el módulo de configuración"""
+        print("DEBUG: open_configuracion ha sido llamado.")
         self.root.withdraw()
         from configuracion import ConfiguracionWindow
         ConfiguracionWindow(self.root, on_close=self.on_module_close)

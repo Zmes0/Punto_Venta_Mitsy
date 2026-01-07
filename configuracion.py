@@ -12,12 +12,9 @@ class ConfiguracionWindow:
     def __init__(self, parent, on_close=None):
         self.on_close_callback = on_close
         
-        if not session.is_admin():
-            messagebox.showerror("Acceso Denegado", 
-                               "Esta sección requiere permisos de administrador")
-            if on_close:
-                on_close()
-            return
+        # La verificación de permisos de administrador se realiza en main.py (check_access)
+        # antes de que esta ventana sea instanciada. Por lo tanto, no es necesario
+        # repetir la verificación aquí.
         
         self.window = tk.Toplevel(parent)
         self.window.title("Configuración del Sistema - Mitsy's POS")
