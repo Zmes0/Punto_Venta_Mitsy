@@ -13,16 +13,9 @@ import os
 from datetime import datetime
 
 class ConfiguracionWindow:
-    def __init__(self, parent, on_close=None):
+    def __init__(self, parent, on_close=None, authorized_admin_id=None):
         self.on_close_callback = on_close
-        
-        # Verificar que el usuario actual sea admin
-        if not session.is_admin():
-            messagebox.showerror("Acceso Denegado", 
-                               "Esta sección requiere permisos de administrador")
-            if on_close:
-                on_close()
-            return
+        self.authorized_admin_id = authorized_admin_id
         
         self.window = tk.Toplevel(parent)
         self.window.title("Configuración del Sistema - Mitsy's POS")
@@ -191,15 +184,16 @@ class ConfiguracionWindow:
         
         if enabled:
             messagebox.showinfo("Sistema de Autenticación", 
-                              "Sistema de autenticación activado.\n\n"
+                              "Sistema de autenticación activado.\n\n" 
                               "Los usuarios deberán iniciar sesión al abrir la aplicación.")
         else:
             messagebox.showinfo("Sistema de Autenticación", 
-                              "Sistema de autenticación desactivado.\n\n"
+                              "Sistema de autenticación desactivado.\n\n" 
                               "No se solicitará inicio de sesión al abrir la aplicación.")
         
         # Registrar en auditoría
-        db.add_auditoria(session.get_current_user()['id'], 'config_auth', 
+        auditor_id = session.get_current_user()['id'] if session.is_logged_in() else self.authorized_admin_id
+        db.add_auditoria(auditor_id, 'config_auth', 
                        f"Sistema de autenticación {'activado' if enabled else 'desactivado'}")
     
     def update_timeout(self):

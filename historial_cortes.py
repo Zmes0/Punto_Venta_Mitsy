@@ -12,8 +12,9 @@ from database import db
 from excel_utils import ExcelManager, exportar_cortes_excel, importar_cortes_excel
 
 class CortesWindow:
-    def __init__(self, parent, on_close=None):
+    def __init__(self, parent, on_close=None, authorized_admin_id=None):
         self.on_close_callback = on_close
+        self.authorized_admin_id = authorized_admin_id
         
         self.window = tk.Toplevel(parent)
         self.window.title("Cortes - Mitsy's POS")

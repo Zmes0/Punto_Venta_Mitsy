@@ -215,7 +215,7 @@ class MitsysPOS:
     
         # Si es empleado y requiere admin, solicitar autorización
         if required_level == 'admin':
-            AdminAuthDialog(self.root, on_success=command,
+            AdminAuthDialog(self.root, on_success=lambda admin_id: command(admin_id),
                         message="Para acceder a esta sección, por favor ingrese las credenciales de un administrador.")
             return
     
@@ -236,47 +236,47 @@ class MitsysPOS:
         from punto_venta import PuntoVentaWindow
         PuntoVentaWindow(self.root, on_close=self.on_module_close)
     
-    def open_productos(self):
+    def open_productos(self, authorized_admin_id=None):
         """Abre el módulo de productos"""
         self.root.withdraw()  # Ocultar menú
         from productos import ProductosWindow
-        ProductosWindow(self.root, on_close=self.on_module_close)
+        ProductosWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
     
-    def open_ingredientes(self):
+    def open_ingredientes(self, authorized_admin_id=None):
         """Abre el módulo de ingredientes"""
         self.root.withdraw()
         from ingredientes import IngredientesWindow
-        IngredientesWindow(self.root, on_close=self.on_module_close)
+        IngredientesWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
     
-    def open_recetas(self):
+    def open_recetas(self, authorized_admin_id=None):
         """Abre el módulo de recetas"""
         self.root.withdraw()
         from recetas import RecetasWindow
-        RecetasWindow(self.root, on_close=self.on_module_close)
+        RecetasWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
     
-    def open_stock(self):
+    def open_stock(self, authorized_admin_id=None):
         """Abre el módulo de stock"""
         self.root.withdraw()
         from stock import StockWindow
-        StockWindow(self.root, on_close=self.on_module_close)
+        StockWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
     
-    def open_historial(self):
+    def open_historial(self, authorized_admin_id=None):
         """Abre el módulo de historial de ventas"""
         self.root.withdraw()
         from historial_ventas import HistorialVentasWindow
-        HistorialVentasWindow(self.root, on_close=self.on_module_close)
+        HistorialVentasWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
     
-    def open_cortes(self):
+    def open_cortes(self, authorized_admin_id=None):
         """Abre el módulo de cortes"""
         self.root.withdraw()
         from historial_cortes import CortesWindow
-        CortesWindow(self.root, on_close=self.on_module_close)
+        CortesWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
     
-    def open_configuracion(self):
+    def open_configuracion(self, authorized_admin_id=None):
         """Abre el módulo de configuración"""
         self.root.withdraw()
         from configuracion import ConfiguracionWindow
-        ConfiguracionWindow(self.root, on_close=self.on_module_close)
+        ConfiguracionWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
     
     def on_module_close(self):
         """Callback cuando se cierra un módulo - vuelve a mostrar el menú"""

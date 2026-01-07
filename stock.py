@@ -9,8 +9,9 @@ from database import db
 import utils
 
 class StockWindow:
-    def __init__(self, parent, on_close=None):
+    def __init__(self, parent, on_close=None, authorized_admin_id=None):
         self.on_close_callback = on_close
+        self.authorized_admin_id = authorized_admin_id
         
         self.window = tk.Toplevel(parent)
         self.window.title("Gestión de Stock - Mitsy's POS")

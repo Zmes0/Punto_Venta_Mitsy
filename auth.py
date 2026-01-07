@@ -29,7 +29,7 @@ class SessionManager:
         # Registrar en auditoría
         db.add_auditoria(user_data['id'], 'login', f"Inicio de sesión: {user_data['username']}")
         
-        print(f"✓ Usuario '{user_data['username']}' ha iniciado sesión")
+        print(f">> Usuario '{user_data['username']}' ha iniciado sesión")
     
     def logout(self):
         """Cierra la sesión actual"""
@@ -43,7 +43,7 @@ class SessionManager:
             
             self.current_user = None
             self.last_activity = None
-            print(f"✓ Usuario '{username}' ha cerrado sesión")
+            print(f">> Usuario '{username}' ha cerrado sesión")
     
     def is_logged_in(self):
         """Verifica si hay una sesión activa"""
@@ -93,7 +93,7 @@ class LoginWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Iniciar Sesión - Mitsy's POS")
-        self.window.geometry("450x500")
+        self.window.geometry("450x550")
         self.window.configure(bg=COLORS['bg_primary'])
         self.window.transient(parent)
         self.window.grab_set()
@@ -121,7 +121,7 @@ class LoginWindow:
         """Centra la ventana en la pantalla"""
         self.window.update_idletasks()
         width = 450
-        height = 500
+        height = 550
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")
@@ -229,7 +229,7 @@ class AdminAuthDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Autorización Requerida")
-        self.dialog.geometry("450x400")
+        self.dialog.geometry("450x600")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -254,7 +254,7 @@ class AdminAuthDialog:
         """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
         width = 450
-        height = 400
+        height = 600
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -332,7 +332,7 @@ class AdminAuthDialog:
             self.dialog.destroy()
             
             if self.on_success:
-                self.on_success()
+                self.on_success(user['id']) # Pass the admin user's ID
         else:
             messagebox.showerror("Error", "Credenciales incorrectas o usuario sin permisos de administrador", parent=self.dialog)
             self.password_var.set("")

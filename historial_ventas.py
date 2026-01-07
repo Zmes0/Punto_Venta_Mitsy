@@ -12,9 +12,10 @@ import utils
 from database import db
 from excel_utils import ExcelManager, importar_ventas_excel
 
-class HistorialVentasWindow:
-    def __init__(self, parent, on_close=None):
+class RecetasWindow:
+    def __init__(self, parent, on_close=None, authorized_admin_id=None):
         self.on_close_callback = on_close
+        self.authorized_admin_id = authorized_admin_id
         
         self.window = tk.Toplevel(parent)
         self.window.title("Historial de Ventas - Mitsy's POS")
