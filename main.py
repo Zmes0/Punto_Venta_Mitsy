@@ -1,5 +1,5 @@
 """
-Aplicación principal de Mitsy's POS
+Aplicación principal de Mitsy's POS - CORREGIDO
 """
 import tkinter as tk
 from tkinter import messagebox
@@ -14,9 +14,6 @@ class MitsysPOS:
         self.root.iconbitmap(get_resource_path('icono.ico'))
         self.root.geometry("600x700")
         self.root.configure(bg=COLORS['bg_primary'])
-        
-        # NO OCULTAR LA VENTANA - Dejarla visible pero vacía
-        # La llenaremos después del splash
         
         # Centrar ventana principal
         self.center_window(self.root, 600, 700)
@@ -33,21 +30,15 @@ class MitsysPOS:
     
     def show_splash(self):
         """Muestra la pantalla de bienvenida"""
-        # Ocultar el root temporalmente
         self.root.withdraw()
         
         self.splash = tk.Toplevel(self.root)
         self.splash.title("")
-        
-        # Sin bordes y siempre al frente
         self.splash.overrideredirect(True)
         self.splash.attributes('-topmost', True)
-        
-        # Configurar
         self.splash.configure(bg=COLORS['bg_primary'])
         self.center_window(self.splash, 600, 400)
         
-        # Contenido
         frame = tk.Frame(self.splash, bg=COLORS['bg_primary'])
         frame.pack(expand=True)
         
@@ -60,7 +51,6 @@ class MitsysPOS:
         tk.Label(frame, text="By Seb and Paola", font=('Segoe UI', 16),
                 bg=COLORS['bg_primary'], fg=COLORS['text_secondary']).pack()
         
-        # Programar cierre del splash
         self.splash.after(WINDOW_CONFIG['splash_duration'], self.close_splash)
     
     def close_splash(self):
@@ -70,33 +60,25 @@ class MitsysPOS:
         except:
             pass
     
-        # Mostrar root de nuevo
         self.root.deiconify()
     
-        # Verificar si el sistema de autenticación está activado
         if db.is_auth_enabled():
-            # Mostrar login
             from auth import LoginWindow
             LoginWindow(self.root, on_success=self.after_login)
         else:
-            # Continuar sin login
             self.after_login()
 
     def after_login(self):
-        """Continúa después del login (o sin login si está desactivado)"""
-        # Verificar dinero en caja
+        """Continúa después del login"""
         self.check_dinero_caja()
     
     def check_dinero_caja(self):
-        """Verifica si se debe ingresar dinero en caja - MODIFICADO para verificar corte activo"""
-        # NUEVO: Verificar si hay un corte activo
+        """Verifica si se debe ingresar dinero en caja"""
         corte_activo_id = db.get_corte_activo_id()
     
         if not corte_activo_id:
-            # No hay corte activo, solicitar dinero inicial
             self.show_dinero_caja_window()
         else:
-            # Ya hay un corte activo, continuar al menú
             self.show_main_menu()
     
     def show_dinero_caja_window(self):
@@ -105,33 +87,26 @@ class MitsysPOS:
     
     def show_main_menu(self):
         """Muestra el menú principal"""
-        # Limpiar ventana principal
         for widget in self.root.winfo_children():
             widget.destroy()
     
-        # Asegurar que el root está visible
         self.root.deiconify()
     
-        # Configurar ventana (más pequeña)
         new_width = 450
-        new_height = 700  # Más alto para botón de Configuración
+        new_height = 700
         self.root.title("Mitsy's POS - Menú Principal")
     
-        # Forzar al frente
         self.root.lift()
         self.root.attributes('-topmost', True)
         self.root.after(100, lambda: self.root.attributes('-topmost', False))
         self.root.focus_force()
     
-        # Frame principal
         main_frame = tk.Frame(self.root, bg=COLORS['bg_primary'])
         main_frame.pack(expand=True, fill=tk.BOTH)
     
-        # Contenedor centrado
         center_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         center_frame.place(relx=0.5, rely=0.5, anchor='center')
     
-        # Mostrar usuario si está logueado
         from auth import session
         if session.is_logged_in():
             user = session.get_current_user()
@@ -139,11 +114,9 @@ class MitsysPOS:
             tk.Label(center_frame, text=user_text, font=FONTS['small'],
                     bg=COLORS['bg_primary'], fg=COLORS['text_secondary']).pack(pady=(0, 10))
     
-        # Título
         tk.Label(center_frame, text="Sistema POS", font=FONTS['title'],
                 bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 20))
     
-        # Botones del menú
         menu_options = [
             ("Punto de Venta", self.open_punto_venta, None),
             ("Productos", self.open_productos, 'admin'),
@@ -157,7 +130,6 @@ class MitsysPOS:
         ]
     
         for text, command, required_level in menu_options:
-            # Color especial para botones específicos
             if text == "Salir":
                 bg_color = COLORS['danger']
                 fg_color = 'white'
@@ -175,56 +147,51 @@ class MitsysPOS:
                         cursor='hand2')
             btn.pack(pady=6)
         
-            # Efecto hover (solo para botones normales)
             if text not in ["Salir", "Configuración"]:
                 btn.bind('<Enter>', lambda e, b=btn: b.config(bg=COLORS['button_hover']))
                 btn.bind('<Leave>', lambda e, b=btn: b.config(bg=COLORS['button_bg']))
     
-        # Centrar la ventana DESPUÉS de añadir todos los widgets
         self.center_window(self.root, new_width, new_height)
         self.root.minsize(400, 650)
     
     def check_access(self, command, required_level):
-        """Verifica el acceso antes de ejecutar un comando"""
+        """Verifica el acceso antes de ejecutar un comando - CORREGIDO"""
         from auth import session, AdminAuthDialog
-    
-        # Actualizar actividad
+
         if session.is_logged_in():
             session.update_activity()
-    
+
         # Si no requiere nivel específico, ejecutar directamente
         if not required_level:
             command()
             return
-    
+
         # Si el sistema de auth está desactivado, permitir acceso
         if not db.is_auth_enabled():
             command()
             return
-    
+
         # Verificar sesión activa
         if not session.is_logged_in():
             from auth import LoginWindow
             LoginWindow(self.root, on_success=lambda: self.check_access(command, required_level))
             return
-    
+
         # Si es admin, permitir acceso directo
         if session.is_admin():
             command()
             return
-    
+
         # Si es empleado y requiere admin, solicitar autorización
         if required_level == 'admin':
-            AdminAuthDialog(self.root, on_success=lambda admin_id: command(admin_id),
+            AdminAuthDialog(self.root, on_success=command,
                         message="Para acceder a esta sección, por favor ingrese las credenciales de un administrador.")
             return
-    
-        # En cualquier otro caso, permitir acceso
-        command()
 
+        command()
+        
     def open_punto_venta(self):
         """Abre el módulo de punto de venta"""
-        # NUEVO: Verificar que hay un corte activo
         corte_activo_id = db.get_corte_activo_id()
 
         if not corte_activo_id:
@@ -236,50 +203,50 @@ class MitsysPOS:
         from punto_venta import PuntoVentaWindow
         PuntoVentaWindow(self.root, on_close=self.on_module_close)
     
-    def open_productos(self, authorized_admin_id=None):
+    def open_productos(self):
         """Abre el módulo de productos"""
-        self.root.withdraw()  # Ocultar menú
+        self.root.withdraw()
         from productos import ProductosWindow
-        ProductosWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
+        ProductosWindow(self.root, on_close=self.on_module_close)
     
-    def open_ingredientes(self, authorized_admin_id=None):
+    def open_ingredientes(self):
         """Abre el módulo de ingredientes"""
         self.root.withdraw()
         from ingredientes import IngredientesWindow
-        IngredientesWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
+        IngredientesWindow(self.root, on_close=self.on_module_close)
     
-    def open_recetas(self, authorized_admin_id=None):
+    def open_recetas(self):
         """Abre el módulo de recetas"""
         self.root.withdraw()
         from recetas import RecetasWindow
-        RecetasWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
+        RecetasWindow(self.root, on_close=self.on_module_close)
     
-    def open_stock(self, authorized_admin_id=None):
+    def open_stock(self):
         """Abre el módulo de stock"""
         self.root.withdraw()
         from stock import StockWindow
-        StockWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
+        StockWindow(self.root, on_close=self.on_module_close)
     
-    def open_historial(self, authorized_admin_id=None):
-        """Abre el módulo de historial de ventas"""
+    def open_historial(self):
+        """Abre el módulo de historial de ventas - CORREGIDO"""
         self.root.withdraw()
         from historial_ventas import HistorialVentasWindow
-        HistorialVentasWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
+        HistorialVentasWindow(self.root, on_close=self.on_module_close)
     
-    def open_cortes(self, authorized_admin_id=None):
+    def open_cortes(self):
         """Abre el módulo de cortes"""
         self.root.withdraw()
         from historial_cortes import CortesWindow
-        CortesWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
+        CortesWindow(self.root, on_close=self.on_module_close)
     
-    def open_configuracion(self, authorized_admin_id=None):
+    def open_configuracion(self):
         """Abre el módulo de configuración"""
         self.root.withdraw()
         from configuracion import ConfiguracionWindow
-        ConfiguracionWindow(self.root, on_close=self.on_module_close, authorized_admin_id=authorized_admin_id)
+        ConfiguracionWindow(self.root, on_close=self.on_module_close)
     
     def on_module_close(self):
-        """Callback cuando se cierra un módulo - vuelve a mostrar el menú"""
+        """Callback cuando se cierra un módulo"""
         self.show_main_menu()
     
     def salir(self):
@@ -304,17 +271,15 @@ class DineroCajaWindow:
         self.window.transient(parent)
         self.window.grab_set()
         
-        # Forzar al frente
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
         
         self.window.iconbitmap(get_resource_path('icono.ico'))
         
-        # Centrar ventana (MÁS ANCHA)
         self.setup_ui()
         self.window.update_idletasks()
-        width = 650  # Aumentado para alinear horizontalmente
+        width = 650
         height = 550
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
@@ -326,18 +291,13 @@ class DineroCajaWindow:
         main_frame = tk.Frame(self.window, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
         
-        # Título
         tk.Label(main_frame, text="Ingresa el dinero en caja", 
                 font=FONTS['title'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 30))
 
-        # --- INICIO DE MODIFICACIÓN ---
-        # Crear un frame para la sección superior (tablas)
         top_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        # MODIFICACIÓN: Se quita la expansión vertical para reducir el espacio.
         top_section_frame.pack(fill=tk.X)
 
-        # Frame scrollable
         canvas = tk.Canvas(top_section_frame, bg=COLORS['bg_primary'],
                           highlightthickness=0, height=200)
         scrollbar = tk.Scrollbar(top_section_frame, orient="vertical", command=canvas.yview)
@@ -351,7 +311,6 @@ class DineroCajaWindow:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # Frame para billetes
         billetes_frame = tk.LabelFrame(scrollable_frame, text="Billetes", 
                                        font=FONTS['heading'],
                                        bg=COLORS['bg_secondary'],
@@ -362,7 +321,6 @@ class DineroCajaWindow:
         for denominacion in DENOMINACIONES['billetes']:
             self.create_denominacion_row(billetes_frame, denominacion, 'billete')
         
-        # Frame para monedas
         monedas_frame = tk.LabelFrame(scrollable_frame, text="Monedas", 
                                       font=FONTS['heading'],
                                       bg=COLORS['bg_secondary'],
@@ -376,12 +334,9 @@ class DineroCajaWindow:
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Crear un frame para la sección inferior (total y botón)
         bottom_section_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         bottom_section_frame.pack(fill=tk.X, pady=(10, 0))
-        # --- FIN DE MODIFICACIÓN ---
 
-        # Entrada manual de total
         manual_entry_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
         manual_entry_frame.pack(pady=(10, 5))
         
@@ -393,9 +348,8 @@ class DineroCajaWindow:
                                 font=FONTS['normal'], width=15, justify='center')
         manual_entry.pack(side=tk.LEFT)
 
-        # Total calculado
         self.total_var = tk.StringVar(value="$0.00")
-        total_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary']) # Se empaqueta en el frame inferior
+        total_frame = tk.Frame(bottom_section_frame, bg=COLORS['bg_primary'])
         total_frame.pack(pady=(10, 20))
         
         tk.Label(total_frame, text="Dinero en caja:", font=FONTS['heading'],
@@ -404,8 +358,7 @@ class DineroCajaWindow:
         tk.Label(total_frame, textvariable=self.total_var, font=FONTS['heading'],
                 bg=COLORS['bg_primary'], fg=COLORS['accent']).pack(side=tk.LEFT)
         
-        # Botón aceptar
-        tk.Button(bottom_section_frame, text="Aceptar", command=self.accept, # Se empaqueta en el frame inferior
+        tk.Button(bottom_section_frame, text="Aceptar", command=self.accept,
                  font=FONTS['button'], bg=COLORS['success'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=40, pady=15,
                  cursor='hand2').pack(pady=20)
@@ -415,13 +368,11 @@ class DineroCajaWindow:
         row_frame = tk.Frame(parent, bg=COLORS['bg_secondary'])
         row_frame.pack(fill=tk.X, padx=15, pady=5)
         
-        # Etiqueta de denominación
         from utils import format_currency
         tk.Label(row_frame, text=format_currency(denominacion), 
                 font=FONTS['normal'], bg=COLORS['bg_secondary'],
                 width=15, anchor='w').pack(side=tk.LEFT, padx=5)
         
-        # Entry para cantidad
         cantidad_var = tk.StringVar(value="0")
         cantidad_var.trace('w', lambda *args: self.calculate_total())
         
@@ -429,7 +380,6 @@ class DineroCajaWindow:
                         font=FONTS['normal'], width=10, justify='center')
         entry.pack(side=tk.LEFT, padx=5)
         
-        # Guardar referencia
         key = f"{tipo}_{denominacion}"
         self.denominaciones_cantidad[key] = {
             'var': cantidad_var,
@@ -441,10 +391,10 @@ class DineroCajaWindow:
         """Calcula el total de dinero ingresado"""
         total = 0
         
-        # Si se está usando la entrada manual, no calcular desde denominaciones
         try:
             manual_total = float(self.manual_total_var.get())
             if manual_total > 0:
+                from utils import format_currency
                 self.total_var.set(format_currency(manual_total))
                 return
         except ValueError:
@@ -465,7 +415,6 @@ class DineroCajaWindow:
         """Acepta y guarda el dinero en caja"""
         total = 0
         
-        # Calcular total desde denominaciones
         denominacion_total = 0
         for key, data in self.denominaciones_cantidad.items():
             try:
@@ -481,13 +430,11 @@ class DineroCajaWindow:
                                    "Todas las cantidades deben ser números enteros válidos")
                 return
 
-        # Verificar si se usó la entrada manual
         try:
             manual_total = float(self.manual_total_var.get())
         except ValueError:
             manual_total = 0
 
-        # Decidir qué total usar
         if denominacion_total == 0 and manual_total > 0:
             total = manual_total
         else:
@@ -499,10 +446,8 @@ class DineroCajaWindow:
                 return
         
         try:
-            # Guardar en base de datos
             fecha = get_current_date()
             
-            # Si el total vino de la entrada manual, no hay desglose que guardar
             if total == manual_total and manual_total > 0:
                 db.cursor.execute('''
                     INSERT INTO dinero_caja
@@ -524,15 +469,11 @@ class DineroCajaWindow:
             
             corte_id = db.crear_nuevo_corte(total) 
             
-            # Marcar como ingresado hoy
             db.mark_dinero_ingresado()
-            
-            # Guardar el total como configuración
             db.set_config('dinero_inicial_dia', str(total))
             
             from utils import format_currency
             
-            # NUEVO: Obtener el número de corte recién creado
             db.cursor.execute('SELECT numero_corte FROM cortes WHERE id = ?', (corte_id,))
             result = db.cursor.fetchone()
             numero_corte = result['numero_corte'] if result else 'N/A'
