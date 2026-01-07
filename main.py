@@ -216,24 +216,25 @@ class MitsysPOS:
         # Si es empleado y requiere admin, solicitar autorización
         if required_level == 'admin':
             AdminAuthDialog(self.root, on_success=command,
-                        message="Esta sección requiere autorización de administrador")
+                        message="Para acceder a esta sección, por favor ingrese las credenciales de un administrador.")
             return
     
         # En cualquier otro caso, permitir acceso
         command()
-        def open_punto_venta(self):
-            """Abre el módulo de punto de venta"""
-            # NUEVO: Verificar que hay un corte activo
-            corte_activo_id = db.get_corte_activo_id()
+
+    def open_punto_venta(self):
+        """Abre el módulo de punto de venta"""
+        # NUEVO: Verificar que hay un corte activo
+        corte_activo_id = db.get_corte_activo_id()
+
+        if not corte_activo_id:
+            messagebox.showerror("Error", 
+                        "No hay ningún corte activo. Primero debes ingresar el dinero inicial en caja.")
+            return
     
-            if not corte_activo_id:
-                messagebox.showerror("Error", 
-                            "No hay ningún corte activo. Primero debes ingresar el dinero inicial en caja.")
-                return
-        
-            self.root.withdraw()
-            from punto_venta import PuntoVentaWindow
-            PuntoVentaWindow(self.root, on_close=self.on_module_close)
+        self.root.withdraw()
+        from punto_venta import PuntoVentaWindow
+        PuntoVentaWindow(self.root, on_close=self.on_module_close)
     
     def open_productos(self):
         """Abre el módulo de productos"""
