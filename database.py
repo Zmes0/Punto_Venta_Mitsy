@@ -1,7 +1,4 @@
-"""
-Gestor de base de datos SQLite para Mitsy's POS
-ACTUALIZADO: Sistema de cortes independientes con corte_id
-"""
+"Gestor de base de datos SQLite para Mitsy's POS ACTUALIZADO: Sistema de cortes independientes con corte_id"
 import sqlite3
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -47,6 +44,32 @@ class Database:
                 clave TEXT UNIQUE NOT NULL,
                 valor TEXT,
                 fecha_modificacion TEXT
+            )
+        ''')
+        
+        # Tabla de Usuarios
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                nombre_completo TEXT,
+                nivel TEXT DEFAULT 'empleado',
+                activo INTEGER DEFAULT 1,
+                fecha_creacion TEXT,
+                ultimo_acceso TEXT
+            )
+        ''')
+
+        # Tabla de Auditoría
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS auditoria (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha TEXT NOT NULL,
+                usuario_id INTEGER,
+                accion TEXT NOT NULL,
+                detalle TEXT,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
             )
         ''')
         
@@ -111,7 +134,9 @@ class Database:
                 estado_corte TEXT DEFAULT 'abierto',
                 ganancias REAL NOT NULL,
                 ventas_efectivo REAL DEFAULT 0,
-                ventas_transferencia REAL DEFAULT 0
+                ventas_transferencia REAL DEFAULT 0,
+                usuario_id INTEGER DEFAULT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
             )
         ''')
         
@@ -132,8 +157,10 @@ class Database:
                 recibido REAL DEFAULT 0,
                 cambio REAL DEFAULT 0,
                 corte_id INTEGER DEFAULT NULL,
+                usuario_id INTEGER DEFAULT NULL,
                 FOREIGN KEY (id_producto) REFERENCES productos(id),
-                FOREIGN KEY (corte_id) REFERENCES cortes(id)
+                FOREIGN KEY (corte_id) REFERENCES cortes(id),
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
             )
         ''')
 
@@ -177,17 +204,23 @@ class Database:
             ('dinero_ingresado_hoy', '0'),
             ('ultimo_numero_venta', '0'),
             ('ultimo_numero_corte', '0'),
-            ('corte_activo_id', None),  # NUEVO: ID del corte activo
-            ('dinero_inicial_dia', '0')
+            ('corte_activo_id', None),
+            ('dinero_inicial_dia', '0'),
+            ('auth_enabled', '0'),  # Sistema de autenticación desactivado por defecto
+            ('session_timeout', '30'),  # Timeout de sesión en minutos
+            ('default_admin_created', '0')  # Flag para crear admin por defecto
         ]
-        
+    
         for clave, valor in configs:
             self.cursor.execute('''
                 INSERT OR IGNORE INTO configuracion (clave, valor, fecha_modificacion)
                 VALUES (?, ?, ?)
             ''', (clave, valor, datetime.now().strftime('%d/%m/%Y %H:%M:%S')))
-        
+    
         self.conn.commit()
+    
+        # Crear usuario admin por defecto
+        self.create_default_admin()
     
     def migrate_legacy_data(self):
         """Migra datos antiguos sin corte_id a un corte legacy"""
@@ -229,7 +262,7 @@ class Database:
             ''', (corte_legacy_id,))
             
             self.conn.commit()
-            print(f"✓ Migración completada: {result['count']} ventas asignadas al corte legacy")
+            print(f">> Migración completada: {result['count']} ventas asignadas al corte legacy")
     
     # ==================== CONFIGURACIÓN ====================
     
@@ -277,27 +310,33 @@ class Database:
         """Crea un nuevo corte y lo marca como activo"""
         numero_corte = self.get_next_numero_corte()
         fecha_inicio = get_current_datetime()
-        
+    
+        # Obtener usuario actual (si el sistema de auth está activo)
+        from auth import session
+        usuario_id = None
+        if self.is_auth_enabled() and session.is_logged_in():
+            usuario_id = session.get_current_user()['id']
+    
         self.cursor.execute('''
             INSERT INTO cortes (
                 numero_corte, fecha_inicio, dinero_en_caja, 
                 corte_final, corte_esperado, retiros, diferencia, 
                 estado, estado_corte, ganancias,
-                ventas_efectivo, ventas_transferencia
+                ventas_efectivo, ventas_transferencia, usuario_id
             )
-            VALUES (?, ?, ?, 0, 0, 0, 0, 'Abierto', 'abierto', 0, 0, 0)
-        ''', (numero_corte, fecha_inicio, dinero_inicial))
-        
+            VALUES (?, ?, ?, 0, 0, 0, 0, 'Abierto', 'abierto', 0, 0, 0, ?)
+        ''', (numero_corte, fecha_inicio, dinero_inicial, usuario_id))
+    
         corte_id = self.cursor.lastrowid
-        
+    
         # Marcar como corte activo
         self.set_config('corte_activo_id', str(corte_id))
         self.set_config('dinero_inicial_dia', str(dinero_inicial))
         self.set_config('ultimo_numero_corte', str(numero_corte))
-        
+    
         self.conn.commit()
-        
-        print(f"✓ Nuevo corte #{numero_corte} creado (ID: {corte_id})")
+    
+        print(f">> Nuevo corte #{numero_corte} creado (ID: {corte_id})")
         return corte_id
     
     def cerrar_corte_activo(self, corte_final: float, retiros: float) -> Optional[int]:
@@ -368,7 +407,7 @@ class Database:
         
         self.conn.commit()
         
-        print(f"✓ Corte #{numero_corte} cerrado exitosamente")
+        print(f">> Corte #{numero_corte} cerrado exitosamente")
         return numero_corte
     
     # ==================== VALIDACIÓN DE IDs ====================
@@ -591,7 +630,7 @@ class Database:
                 self.recalcular_costo_producto(producto_id)
         
             if productos_afectados:
-                print(f"✓ Costos actualizados para {len(productos_afectados)} producto(s) que usan este ingrediente")
+                print(f">> Costos actualizados para {len(productos_afectados)} producto(s) que usan este ingrediente")
     
     def delete_ingrediente(self, id_ingrediente: int):
         """Elimina un ingrediente y reorganiza los IDs"""
@@ -620,7 +659,7 @@ class Database:
         for producto_id in productos_afectados:
             self.actualizar_stock_estimado(producto_id)
     
-        print(f"✓ Stock actualizado para {len(productos_afectados)} producto(s) relacionado(s)")
+        print(f">> Stock actualizado para {len(productos_afectados)} producto(s) relacionado(s)")
     
     def get_next_ingrediente_id(self) -> int:
         """Obtiene el siguiente ID disponible para ingredientes"""
@@ -868,29 +907,35 @@ class Database:
         return numero_mas_alto + 1
     
     def add_venta(self, numero_venta: int, producto: str, id_producto: int,
-                  cantidad: float, precio: float, total: float,
-                  metodo_pago: str = 'Efectivo', mesa: str = None, 
-                  propina: float = 0, recibido: float = 0, cambio: float = 0) -> int:
-        """Añade una venta - MODIFICADO para incluir recibido y cambio"""
+                cantidad: float, precio: float, total: float,
+                metodo_pago: str = 'Efectivo', mesa: str = None, 
+                propina: float = 0, recibido: float = 0, cambio: float = 0) -> int:
+        """Añade una venta - MODIFICADO para incluir recibido, cambio y usuario"""
         from utils import get_current_datetime
         fecha = get_current_datetime()
-        
+    
         # Obtener corte activo
         corte_id = self.get_corte_activo_id()
-        
+    
+        # Obtener usuario actual (si el sistema de auth está activo)
+        from auth import session
+        usuario_id = None
+        if self.is_auth_enabled() and session.is_logged_in():
+            usuario_id = session.get_current_user()['id']
+    
         self.cursor.execute('''
             INSERT INTO ventas (numero_venta, fecha, producto, id_producto, cantidad,
-                              precio_unitario, total, metodo_pago, mesa, propina, 
-                              recibido, cambio, corte_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            precio_unitario, total, metodo_pago, mesa, propina, 
+                            recibido, cambio, corte_id, usuario_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (numero_venta, fecha, producto, id_producto, cantidad, precio, 
-              total, metodo_pago, mesa, propina, recibido, cambio, corte_id))
-        
+            total, metodo_pago, mesa, propina, recibido, cambio, corte_id, usuario_id))
+    
         self.conn.commit()
-        
+    
         # Actualizar último número de venta
         self.set_config('ultimo_numero_venta', str(numero_venta))
-        
+    
         return self.cursor.lastrowid
     
     def add_imported_venta(self, numero_venta: int, fecha: str, producto: str, id_producto: int,
@@ -1146,6 +1191,259 @@ class Database:
     def set_last_ticket_path(self, path: str):
         """Guarda la ruta del último ticket generado"""
         self.set_config('last_ticket_path', path)
+
+    
+    # ==================== GESTIÓN DE USUARIOS ====================
+    
+    def create_default_admin(self):
+        """Crea el usuario admin por defecto si no existe"""
+        already_created = self.get_config('default_admin_created')
+        if already_created == '1':
+            return
+        
+        # Verificar si ya existe el usuario mitsy
+        self.cursor.execute('SELECT id FROM usuarios WHERE username = ?', ('mitsy',))
+        if self.cursor.fetchone():
+            self.set_config('default_admin_created', '1')
+            return
+        
+        # Crear usuario admin por defecto
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        self.cursor.execute('''
+            INSERT INTO usuarios (username, password, nombre_completo, nivel, activo, fecha_creacion)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', ('mitsy', '3213', 'Administrador', 'admin', 1, fecha))
+    
+        self.conn.commit()
+        self.set_config('default_admin_created', '1')
+        print(">> Usuario administrador por defecto creado: mitsy / 3213")
+    
+    def authenticate_user(self, username: str, password: str) -> Optional[Dict]:
+        """Autentica un usuario y retorna sus datos"""
+        self.cursor.execute('''
+            SELECT * FROM usuarios WHERE username = ? AND password = ?
+        ''', (username, password))
+        
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+    
+    def is_auth_enabled(self) -> bool:
+        """Verifica si el sistema de autenticación está activo"""
+        valor = self.get_config('auth_enabled')
+        return valor == '1'
+    
+    def toggle_auth_system(self, enabled: bool):
+        """Activa/desactiva el sistema de autenticación"""
+        self.set_config('auth_enabled', '1' if enabled else '0')
+    
+    def get_usuarios(self) -> List[Dict]:
+        """Obtiene todos los usuarios"""
+        self.cursor.execute('SELECT * FROM usuarios ORDER BY id')
+        return [dict(row) for row in self.cursor.fetchall()]
+    
+    def get_usuario(self, user_id: int) -> Optional[Dict]:
+        """Obtiene un usuario por ID"""
+        self.cursor.execute('SELECT * FROM usuarios WHERE id = ?', (user_id,))
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+    
+    def add_usuario(self, username: str, password: str, nombre_completo: str = None,
+                   nivel: str = 'empleado') -> int:
+        """Añade un nuevo usuario"""
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        self.cursor.execute('''
+            INSERT INTO usuarios (username, password, nombre_completo, nivel, activo, fecha_creacion)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (username, password, nombre_completo, nivel, 1, fecha))
+        
+        self.conn.commit()
+        return self.cursor.lastrowid
+    
+    def update_usuario(self, user_id: int, **kwargs):
+        """Actualiza un usuario"""
+        if kwargs:
+            fields = ', '.join([f"{k} = ?" for k in kwargs.keys()])
+            values = list(kwargs.values()) + [user_id]
+            
+            self.cursor.execute(f'UPDATE usuarios SET {fields} WHERE id = ?', values)
+            self.conn.commit()
+    
+    def delete_usuario(self, user_id: int):
+        """Desactiva un usuario (no elimina físicamente)"""
+        self.cursor.execute('UPDATE usuarios SET activo = 0 WHERE id = ?', (user_id,))
+        self.conn.commit()
+    
+    def username_exists(self, username: str, exclude_id: int = None) -> bool:
+        """Verifica si un nombre de usuario ya existe"""
+        if exclude_id:
+            self.cursor.execute('SELECT id FROM usuarios WHERE username = ? AND id != ?', 
+                              (username, exclude_id))
+        else:
+            self.cursor.execute('SELECT id FROM usuarios WHERE username = ?', (username,))
+        
+        return self.cursor.fetchone() is not None
+    
+    # ==================== AUDITORÍA ====================
+    
+    def add_auditoria(self, usuario_id: int, accion: str, detalle: str = None):
+        """Registra una acción en la auditoría"""
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        self.cursor.execute('''
+            INSERT INTO auditoria (fecha, usuario_id, accion, detalle)
+            VALUES (?, ?, ?, ?)
+        ''', (fecha, usuario_id, accion, detalle))
+        
+        self.conn.commit()
+    
+    def get_auditoria(self, limit: int = 100, usuario_id: int = None) -> List[Dict]:
+        """Obtiene registros de auditoría"""
+        if usuario_id:
+            self.cursor.execute('''
+                SELECT a.*, u.username, u.nombre_completo 
+                FROM auditoria a
+                JOIN usuarios u ON a.usuario_id = u.id
+                WHERE a.usuario_id = ?
+                ORDER BY a.id DESC
+                LIMIT ?
+            ''', (usuario_id, limit))
+        else:
+            self.cursor.execute('''
+                SELECT a.*, u.username, u.nombre_completo 
+                FROM auditoria a
+                JOIN usuarios u ON a.usuario_id = u.id
+                ORDER BY a.id DESC
+                LIMIT ?
+            ''', (limit,))
+        
+        return [dict(row) for row in self.cursor.fetchall()]
+
+    # ==================== GESTIÓN DE USUARIOS ====================
+
+    def create_default_admin(self):
+        """Crea el usuario admin por defecto si no existe"""
+        already_created = self.get_config('default_admin_created')
+        if already_created == '1':
+            return
+    
+        # Verificar si ya existe el usuario mitsy
+        self.cursor.execute('SELECT id FROM usuarios WHERE username = ?', ('mitsy',))
+        if self.cursor.fetchone():
+            self.set_config('default_admin_created', '1')
+            return
+    
+        # Crear usuario admin por defecto
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        self.cursor.execute('''
+            INSERT INTO usuarios (username, password, nombre_completo, nivel, activo, fecha_creacion)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', ('mitsy', '3213', 'Administrador', 'admin', 1, fecha))
+    
+        self.conn.commit()
+        self.set_config('default_admin_created', '1')
+        print(">> Usuario administrador por defecto creado: mitsy / 3213")
+
+    def authenticate_user(self, username: str, password: str) -> Optional[Dict]:
+        """Autentica un usuario y retorna sus datos"""
+        self.cursor.execute('''
+            SELECT * FROM usuarios WHERE username = ? AND password = ?
+        ''', (username, password))
+    
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+
+    def is_auth_enabled(self) -> bool:
+        """Verifica si el sistema de autenticación está activo"""
+        valor = self.get_config('auth_enabled')
+        return valor == '1'
+
+    def toggle_auth_system(self, enabled: bool):
+        """Activa/desactiva el sistema de autenticación"""
+        self.set_config('auth_enabled', '1' if enabled else '0')
+
+    def get_usuarios(self) -> List[Dict]:
+        """Obtiene todos los usuarios"""
+        self.cursor.execute('SELECT * FROM usuarios ORDER BY id')
+        return [dict(row) for row in self.cursor.fetchall()]
+
+    def get_usuario(self, user_id: int) -> Optional[Dict]:
+        """Obtiene un usuario por ID"""
+        self.cursor.execute('SELECT * FROM usuarios WHERE id = ?', (user_id,))
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+
+    def add_usuario(self, username: str, password: str, nombre_completo: str = None,
+                nivel: str = 'empleado') -> int:
+        """Añade un nuevo usuario"""
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    
+        self.cursor.execute('''
+            INSERT INTO usuarios (username, password, nombre_completo, nivel, activo, fecha_creacion)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (username, password, nombre_completo, nivel, 1, fecha))
+    
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def update_usuario(self, user_id: int, **kwargs):
+        """Actualiza un usuario"""
+        if kwargs:
+            fields = ', '.join([f"{k} = ?" for k in kwargs.keys()])
+            values = list(kwargs.values()) + [user_id]
+        
+            self.cursor.execute(f'UPDATE usuarios SET {fields} WHERE id = ?', values)
+            self.conn.commit()
+
+    def delete_usuario(self, user_id: int):
+        """Desactiva un usuario (no elimina físicamente)"""
+        self.cursor.execute('UPDATE usuarios SET activo = 0 WHERE id = ?', (user_id,))
+        self.conn.commit()
+
+    def username_exists(self, username: str, exclude_id: int = None) -> bool:
+        """Verifica si un nombre de usuario ya existe"""
+        if exclude_id:
+            self.cursor.execute('SELECT id FROM usuarios WHERE username = ? AND id != ?', 
+                              (username, exclude_id))
+        else:
+            self.cursor.execute('SELECT id FROM usuarios WHERE username = ?', (username,))
+    
+        return self.cursor.fetchone() is not None
+
+# ==================== AUDITORÍA ====================
+
+    def add_auditoria(self, usuario_id: int, accion: str, detalle: str = None):
+        """Registra una acción en la auditoría"""
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    
+        self.cursor.execute('''
+            INSERT INTO auditoria (fecha, usuario_id, accion, detalle)
+            VALUES (?, ?, ?, ?)
+        ''', (fecha, usuario_id, accion, detalle))
+    
+        self.conn.commit()
+
+    def get_auditoria(self, limit: int = 100, usuario_id: int = None) -> List[Dict]:
+        """Obtiene registros de auditoría"""
+        if usuario_id:
+            self.cursor.execute('''
+                SELECT a.*, u.username, u.nombre_completo 
+                FROM auditoria a
+                JOIN usuarios u ON a.usuario_id = u.id
+                WHERE a.usuario_id = ?
+                ORDER BY a.id DESC
+                LIMIT ?
+            ''', (usuario_id, limit))
+        else:
+            self.cursor.execute('''
+                SELECT a.*, u.username, u.nombre_completo 
+                FROM auditoria a
+                JOIN usuarios u ON a.usuario_id = u.id
+                ORDER BY a.id DESC
+                LIMIT ?
+            ''', (limit,))
+    
+        return [dict(row) for row in self.cursor.fetchall()]
 
 # Instancia global de la base de datos
 db = Database()

@@ -69,10 +69,21 @@ class MitsysPOS:
             self.splash.destroy()
         except:
             pass
-        
+    
         # Mostrar root de nuevo
         self.root.deiconify()
-        
+    
+        # Verificar si el sistema de autenticación está activado
+        if db.is_auth_enabled():
+            # Mostrar login
+            from auth import LoginWindow
+            LoginWindow(self.root, on_success=self.after_login)
+        else:
+            # Continuar sin login
+            self.after_login()
+
+    def after_login(self):
+        """Continúa después del login (o sin login si está desactivado)"""
         # Verificar dinero en caja
         self.check_dinero_caja()
     
@@ -97,78 +108,132 @@ class MitsysPOS:
         # Limpiar ventana principal
         for widget in self.root.winfo_children():
             widget.destroy()
-        
+    
         # Asegurar que el root está visible
         self.root.deiconify()
-        
+    
         # Configurar ventana (más pequeña)
         new_width = 450
-        new_height = 650
+        new_height = 700  # Más alto para botón de Configuración
         self.root.title("Mitsy's POS - Menú Principal")
-        
+    
         # Forzar al frente
         self.root.lift()
         self.root.attributes('-topmost', True)
         self.root.after(100, lambda: self.root.attributes('-topmost', False))
         self.root.focus_force()
-        
+    
         # Frame principal
         main_frame = tk.Frame(self.root, bg=COLORS['bg_primary'])
         main_frame.pack(expand=True, fill=tk.BOTH)
-        
+    
         # Contenedor centrado
         center_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         center_frame.place(relx=0.5, rely=0.5, anchor='center')
-        
+    
+        # Mostrar usuario si está logueado
+        from auth import session
+        if session.is_logged_in():
+            user = session.get_current_user()
+            user_text = f"Usuario: {user['username']} ({user['nivel'].capitalize()})"
+            tk.Label(center_frame, text=user_text, font=FONTS['small'],
+                    bg=COLORS['bg_primary'], fg=COLORS['text_secondary']).pack(pady=(0, 10))
+    
         # Título
         tk.Label(center_frame, text="Sistema POS", font=FONTS['title'],
                 bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 20))
-        
+    
         # Botones del menú
         menu_options = [
-            ("Punto de Venta", self.open_punto_venta),
-            ("Productos", self.open_productos),
-            ("Materia Prima", self.open_ingredientes),
-            ("Recetas", self.open_recetas),
-            ("Stock", self.open_stock),
-            ("Historial de Ventas", self.open_historial),
-            ("Cortes", self.open_cortes),
-            ("Salir", self.salir)
+            ("Punto de Venta", self.open_punto_venta, None),
+            ("Productos", self.open_productos, 'admin'),
+            ("Materia Prima", self.open_ingredientes, 'admin'),
+            ("Recetas", self.open_recetas, 'admin'),
+            ("Stock", self.open_stock, 'admin'),
+            ("Historial de Ventas", self.open_historial, 'admin'),
+            ("Cortes", self.open_cortes, 'admin'),
+            ("Configuración", self.open_configuracion, 'admin'),
+            ("Salir", self.salir, None)
         ]
+    
+        for text, command, required_level in menu_options:
+            # Color especial para botones específicos
+            if text == "Salir":
+                bg_color = COLORS['danger']
+                fg_color = 'white'
+            elif text == "Configuración":
+                bg_color = COLORS['accent']
+                fg_color = 'white'
+            else:
+                bg_color = COLORS['button_bg']
+                fg_color = COLORS['text_primary']
         
-        for text, command in menu_options:
-            # Color especial para el botón Salir
-            bg_color = COLORS['danger'] if text == "Salir" else COLORS['button_bg']
-            fg_color = 'white' if text == "Salir" else COLORS['text_primary']
-            
-            btn = tk.Button(center_frame, text=text, command=command,
-                          font=FONTS['button'], bg=bg_color, fg=fg_color,
-                          relief=tk.RAISED, borderwidth=2, width=20, pady=8,
-                          cursor='hand2')
+            btn = tk.Button(center_frame, text=text, 
+                        command=lambda c=command, r=required_level: self.check_access(c, r),
+                        font=FONTS['button'], bg=bg_color, fg=fg_color,
+                        relief=tk.RAISED, borderwidth=2, width=20, pady=8,
+                        cursor='hand2')
             btn.pack(pady=6)
-            
-            # Efecto hover (solo para botones que no sean "Salir")
-            if text != "Salir":
+        
+            # Efecto hover (solo para botones normales)
+            if text not in ["Salir", "Configuración"]:
                 btn.bind('<Enter>', lambda e, b=btn: b.config(bg=COLORS['button_hover']))
                 btn.bind('<Leave>', lambda e, b=btn: b.config(bg=COLORS['button_bg']))
-        
-        # MODIFICACIÓN: Centrar la ventana DESPUÉS de añadir todos los widgets
+    
+        # Centrar la ventana DESPUÉS de añadir todos los widgets
         self.center_window(self.root, new_width, new_height)
-        self.root.minsize(400, 600)
+        self.root.minsize(400, 650)
     
-    def open_punto_venta(self):
-        """Abre el módulo de punto de venta"""
-        # NUEVO: Verificar que hay un corte activo
-        corte_activo_id = db.get_corte_activo_id()
+    def check_access(self, command, required_level):
+        """Verifica el acceso antes de ejecutar un comando"""
+        from auth import session, AdminAuthDialog
     
-        if not corte_activo_id:
-            messagebox.showerror("Error", 
-                           "No hay ningún corte activo. Primero debes ingresar el dinero inicial en caja.")
+        # Actualizar actividad
+        if session.is_logged_in():
+            session.update_activity()
+    
+        # Si no requiere nivel específico, ejecutar directamente
+        if not required_level:
+            command()
             return
+    
+        # Si el sistema de auth está desactivado, permitir acceso
+        if not db.is_auth_enabled():
+            command()
+            return
+    
+        # Verificar sesión activa
+        if not session.is_logged_in():
+            from auth import LoginWindow
+            LoginWindow(self.root, on_success=lambda: self.check_access(command, required_level))
+            return
+    
+        # Si es admin, permitir acceso directo
+        if session.is_admin():
+            command()
+            return
+    
+        # Si es empleado y requiere admin, solicitar autorización
+        if required_level == 'admin':
+            AdminAuthDialog(self.root, on_success=command,
+                        message="Esta sección requiere autorización de administrador")
+            return
+    
+        # En cualquier otro caso, permitir acceso
+        command()
+        def open_punto_venta(self):
+            """Abre el módulo de punto de venta"""
+            # NUEVO: Verificar que hay un corte activo
+            corte_activo_id = db.get_corte_activo_id()
+    
+            if not corte_activo_id:
+                messagebox.showerror("Error", 
+                            "No hay ningún corte activo. Primero debes ingresar el dinero inicial en caja.")
+                return
         
-        self.root.withdraw()
-        from punto_venta import PuntoVentaWindow
-        PuntoVentaWindow(self.root, on_close=self.on_module_close)
+            self.root.withdraw()
+            from punto_venta import PuntoVentaWindow
+            PuntoVentaWindow(self.root, on_close=self.on_module_close)
     
     def open_productos(self):
         """Abre el módulo de productos"""
@@ -205,6 +270,12 @@ class MitsysPOS:
         self.root.withdraw()
         from historial_cortes import CortesWindow
         CortesWindow(self.root, on_close=self.on_module_close)
+    
+    def open_configuracion(self):
+        """Abre el módulo de configuración"""
+        self.root.withdraw()
+        from configuracion import ConfiguracionWindow
+        ConfiguracionWindow(self.root, on_close=self.on_module_close)
     
     def on_module_close(self):
         """Callback cuando se cierra un módulo - vuelve a mostrar el menú"""
