@@ -377,7 +377,11 @@ class CambiarPasswordDialog:
             db.add_auditoria(session.get_current_user()['id'], 'password_change', 
                            f"Contraseña cambiada para: {self.usuario['username']}")
             
+             # CORREGIDO: Mostrar mensaje ANTES de destruir el diálogo
             messagebox.showinfo("Éxito", "Contraseña actualizada correctamente", parent=self.dialog)
+    
+            # CORREGIDO: Destruir diálogo DESPUÉS del mensaje
             self.dialog.destroy()
+            
         except Exception as e:
             messagebox.showerror("Error", f"Error al cambiar contraseña: {str(e)}", parent=self.dialog)

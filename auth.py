@@ -89,7 +89,7 @@ class LoginWindow:
         
         self.window = tk.Toplevel(parent)
         self.window.title("Iniciar Sesión - Mitsy's POS")
-        self.window.geometry("450x500")
+        self.window.geometry("450x550")
         self.window.configure(bg=COLORS['bg_primary'])
         self.window.transient(parent)
         self.window.grab_set()
@@ -112,7 +112,7 @@ class LoginWindow:
         """Centra la ventana en la pantalla"""
         self.window.update_idletasks()
         width = 450
-        height = 500
+        height = 550
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")

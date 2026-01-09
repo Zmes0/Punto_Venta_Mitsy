@@ -180,6 +180,12 @@ class ConfiguracionWindow:
                               "Sistema de autenticación desactivado.\n\n"
                               "No se solicitará inicio de sesión al abrir la aplicación.")
         
+        # CORREGIDO: Verificar que hay un usuario activo antes de registrar auditoría
+        current_user = session.get_current_user()
+        if current_user:
+            db.add_auditoria(current_user['id'], 'config_auth', 
+                        f"Sistema de autenticación {'activado' if enabled else 'desactivado'}")
+        
         db.add_auditoria(session.get_current_user()['id'], 'config_auth', 
                        f"Sistema de autenticación {'activado' if enabled else 'desactivado'}")
     
@@ -188,6 +194,12 @@ class ConfiguracionWindow:
         timeout = self.timeout_var.get()
         db.set_config('session_timeout', str(timeout))
         session.set_timeout(timeout)
+        
+        # CORREGIDO: Verificar que hay un usuario activo antes de registrar auditoría
+        current_user = session.get_current_user()
+        if current_user:
+            db.add_auditoria(current_user['id'], 'config_timeout', 
+                   f"Timeout de sesión actualizado a {timeout} minutos")
         
         db.add_auditoria(session.get_current_user()['id'], 'config_timeout', 
                        f"Timeout de sesión actualizado a {timeout} minutos")
