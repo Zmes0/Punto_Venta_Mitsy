@@ -47,6 +47,29 @@ class Database:
             )
         ''')
         
+        #Tabla de Información del Negocio
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS negocio (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                name TEXT DEFAULT 'Nombre de negocio',
+                subtitle TEXT DEFAULT 'Subtitulo',
+                logo_path TEXT DEFAULT 'images/logo_thermal.png',
+                direccion TEXT DEFAULT 'Calle Principal #123',
+                ciudad TEXT DEFAULT 'Ciudad',
+                telefono TEXT DEFAULT 'XX-XXXX-XXXX',
+                mensaje_final TEXT DEFAULT '¡Gracias por su compra!\nVuelva pronto',
+                fecha_modificacion TEXT
+            )
+        ''')
+        
+        #Inicializar registro único (solo si no existe)
+        self.cursor.execute('''
+            INSERT OR IGNORE INTO negocio (id, fecha_modificacion)
+                VALUES (1, ?)
+            ''', (datetime.now().strftime('%d/%m/%Y %H:%M:%S'),))
+        self.conn.commit()
+
+        
         # Tabla de Usuarios
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS usuarios (
@@ -299,6 +322,23 @@ class Database:
         """Marca que se ingresó el dinero en caja para el turno actual"""
         self.set_config('dinero_ingresado_hoy', '1')
     
+    def get_negocio_info(self) -> Dict:
+        """Obtiene la información del negocio"""
+        self.cursor.execute('SELECT * FROM negocio WHERE id = 1')
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+    
+    def update_negocio_info(self, **kwargs):
+        """Actualiza la información del negocio"""
+        if kwargs:
+        # Añadir fecha de modificación
+            kwargs['fecha_modificacion'] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            fields = ', '.join([f"{k} = ?" for k in kwargs.keys()])
+            values = list(kwargs.values())
+    
+        self.cursor.execute(f'UPDATE negocio SET {fields} WHERE id = 1', values)
+        self.conn.commit()
+        
     # ==================== GESTIÓN DE CORTES ====================
     
     def get_corte_activo_id(self) -> Optional[int]:

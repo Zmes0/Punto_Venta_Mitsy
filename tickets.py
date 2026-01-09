@@ -10,7 +10,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 from datetime import datetime
-from config import BUSINESS_INFO, TICKET_CONFIG
+from config import TICKET_CONFIG
+from database import db
 from utils import format_currency, get_resource_path, get_output_dir
 from PIL import Image
 
@@ -32,6 +33,25 @@ class TicketGenerator:
         
         # Configuración de impresora térmica
         self.thermal_printer_name = "POS-58"
+    
+    def _get_business_info(self):
+        """Obtiene información del negocio desde la base de datos"""
+        negocio = db.get_negocio_info()
+        
+        if negocio:
+            return {
+                'name': negocio['name'],
+                'subtitle': negocio['subtitle'],
+                'logo_path': negocio['logo_path'],
+                'address': negocio['direccion'],
+                'city': negocio['ciudad'],
+                'phone': negocio['telefono'],
+                'mensaje_final': negocio['mensaje_final']
+            }
+        else:
+            # Fallback a config.py si no hay datos en BD
+            from config import BUSINESS_INFO
+            return BUSINESS_INFO
         
     def generate_ticket_pdf(self, venta_data, filename=None):
         """
@@ -102,8 +122,11 @@ class TicketGenerator:
             # Inicializar impresora
             p.hw('INIT')
             
+            # Obtener información del negocio
+            business_info = self._get_business_info()
+            
             # ========== LOGO ==========
-            logo_path = get_resource_path(BUSINESS_INFO['logo_path'])
+            logo_path = get_resource_path(business_info['logo_path'])
             if os.path.exists(logo_path):
                 try:
                     # Cargar y procesar imagen
@@ -128,21 +151,21 @@ class TicketGenerator:
                     print(f"⚠ Error al cargar logo: {e}")
                     # Si falla el logo, imprimir nombre del negocio
                     p.set(align='center', bold=True)
-                    p.text(f"{BUSINESS_INFO['name']}\n")
+                    p.text(f"{business_info['name']}\n")
                     p.set(align='center', bold=False)
-                    p.text(f"{BUSINESS_INFO['subtitle']}\n")
+                    p.text(f"{business_info['subtitle']}\n")
             else:
                 # Sin logo, imprimir nombre
                 p.set(align='center', bold=True)
-                p.text(f"{BUSINESS_INFO['name']}\n")
+                p.text(f"{business_info['name']}\n")
                 p.set(align='center', bold=False)
-                p.text(f"{BUSINESS_INFO['subtitle']}\n")
+                p.text(f"{business_info['subtitle']}\n")
             
             # ========== INFORMACIÓN DEL NEGOCIO ==========
             p.set(align='center')
-            p.text(f"{BUSINESS_INFO['address']}\n")
-            p.text(f"{BUSINESS_INFO['city']}\n")
-            p.text(f"Tel: {BUSINESS_INFO['phone']}\n")
+            p.text(f"{business_info['address']}\n")
+            p.text(f"{business_info['city']}\n")
+            p.text(f"Tel: {business_info['phone']}\n")
             p.text('\n')
             
             # ========== INFORMACIÓN DEL TICKET ==========
@@ -230,10 +253,13 @@ class TicketGenerator:
             p.text('\n')
             
             # ========== FOOTER ==========
+            # Dividir mensaje_final por saltos de línea
+            mensaje_lineas = business_info['mensaje_final'].split('\n')
             p.set(align='center', bold=True)
-            p.text("¡Gracias por su compra!\n")
-            p.set(align='center', bold=False)
-            p.text("Vuelva pronto\n")
+            p.text(f"{mensaje_lineas[0]}\n")
+            if len(mensaje_lineas) > 1:
+                p.set(align='center', bold=False)
+                p.text(f"{mensaje_lineas[1]}\n")
             
             p.cut()
             
@@ -270,7 +296,7 @@ class TicketGenerator:
         print("ℹ El PDF se ha generado como respaldo, no se imprime")
         return True
     
-    # ========== MÉTODOS PARA GENERACIÓN DE PDF (sin cambios) ==========
+    # ========== MÉTODOS PARA GENERACIÓN DE PDF ==========
     
     def _estimate_height(self, venta_data):
         """Estima la altura necesaria para el ticket"""
@@ -282,7 +308,8 @@ class TicketGenerator:
     
     def _draw_header(self, c, venta_data):
         """Dibuja el encabezado del ticket"""
-        logo_path = get_resource_path(BUSINESS_INFO['logo_path'])
+        business_info = self._get_business_info()
+        logo_path = get_resource_path(business_info['logo_path'])
         
         # Intentar cargar logo
         if os.path.exists(logo_path):
@@ -299,17 +326,17 @@ class TicketGenerator:
                 self.current_y -= (logo_height + 2 * mm)
             except:
                 # Si falla, mostrar texto
-                self._draw_centered_text(c, BUSINESS_INFO['name'], 12, bold=True)
-                self._draw_centered_text(c, BUSINESS_INFO['subtitle'], 9)
+                self._draw_centered_text(c, business_info['name'], 12, bold=True)
+                self._draw_centered_text(c, business_info['subtitle'], 9)
         else:
             # Sin logo, mostrar texto
-            self._draw_centered_text(c, BUSINESS_INFO['name'], 12, bold=True)
-            self._draw_centered_text(c, BUSINESS_INFO['subtitle'], 9)
+            self._draw_centered_text(c, business_info['name'], 12, bold=True)
+            self._draw_centered_text(c, business_info['subtitle'], 9)
         
         # Información del negocio
-        self._draw_centered_text(c, BUSINESS_INFO['address'], 7)
-        self._draw_centered_text(c, BUSINESS_INFO['city'], 7)
-        self._draw_centered_text(c, f"Tel: {BUSINESS_INFO['phone']}", 7)
+        self._draw_centered_text(c, business_info['address'], 7)
+        self._draw_centered_text(c, business_info['city'], 7)
+        self._draw_centered_text(c, f"Tel: {business_info['phone']}", 7)
         
         self.current_y -= 2 * mm
         
@@ -417,12 +444,17 @@ class TicketGenerator:
     def _draw_footer(self, c):
         """Dibuja el pie del ticket"""
         self.current_y -= 2 * mm
+        
+        business_info = self._get_business_info()
+        mensaje_lineas = business_info['mensaje_final'].split('\n')
+        
         c.setFont("Helvetica-Bold", 9)
-        self._draw_centered_text_at(c, "¡Gracias por su compra!", self.current_y, 9)
+        self._draw_centered_text_at(c, mensaje_lineas[0], self.current_y, 9)
         self.current_y -= 3 * mm
         
-        c.setFont("Helvetica", 8)
-        self._draw_centered_text_at(c, "Vuelva pronto", self.current_y, 8)
+        if len(mensaje_lineas) > 1:
+            c.setFont("Helvetica", 8)
+            self._draw_centered_text_at(c, mensaje_lineas[1], self.current_y, 8)
     
     def _draw_centered_text(self, c, text, size, bold=False):
         """Dibuja texto centrado y actualiza current_y"""

@@ -158,8 +158,93 @@ class ConfiguracionWindow:
     
     def setup_negocio_tab(self):
         """Configura la pestaña de información del negocio"""
-        tk.Label(self.negocio_frame, text="Próximamente: Configuración de información del negocio", 
-                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(pady=50)
+        main_container = tk.Frame(self.negocio_frame, bg=COLORS['bg_primary'])
+        main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    
+        # Título
+        tk.Label(main_container, text="Información del Negocio", 
+                font=FONTS['subtitle'], bg=COLORS['bg_primary'],
+                fg=COLORS['text_primary']).pack(pady=(0, 20))
+    
+        # Frame con scroll
+        canvas = tk.Canvas(main_container, bg=COLORS['bg_primary'], highlightthickness=0)
+        scrollbar = tk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
+    
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+    
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+    
+        # Cargar datos actuales
+        negocio_info = db.get_negocio_info()
+    
+        # Nombre del Negocio
+        tk.Label(scrollable_frame, text="Nombre del Negocio:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        self.name_var = tk.StringVar(value=negocio_info['name'] if negocio_info else '')
+        tk.Entry(scrollable_frame, textvariable=self.name_var, 
+                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+    
+        # Subtítulo
+        tk.Label(scrollable_frame, text="Subtítulo:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        self.subtitle_var = tk.StringVar(value=negocio_info['subtitle'] if negocio_info else '')
+        tk.Entry(scrollable_frame, textvariable=self.subtitle_var, 
+                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+    
+        # Dirección
+        tk.Label(scrollable_frame, text="Dirección:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        self.direccion_var = tk.StringVar(value=negocio_info['direccion'] if negocio_info else '')
+        tk.Entry(scrollable_frame, textvariable=self.direccion_var, 
+                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+    
+        # Ciudad
+        tk.Label(scrollable_frame, text="Ciudad:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        self.ciudad_var = tk.StringVar(value=negocio_info['ciudad'] if negocio_info else '')
+        tk.Entry(scrollable_frame, textvariable=self.ciudad_var, 
+                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+    
+        # Teléfono
+        tk.Label(scrollable_frame, text="Teléfono:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        self.telefono_var = tk.StringVar(value=negocio_info['telefono'] if negocio_info else '')
+        tk.Entry(scrollable_frame, textvariable=self.telefono_var, 
+                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+    
+        # Mensaje Final
+        tk.Label(scrollable_frame, text="Mensaje Final del Ticket:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        self.mensaje_var = tk.StringVar(value=negocio_info['mensaje_final'] if negocio_info else '')
+        tk.Entry(scrollable_frame, textvariable=self.mensaje_var, 
+                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+    
+        # Logo actual
+        tk.Label(scrollable_frame, text="Logo Actual:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        self.logo_path_var = tk.StringVar(value=negocio_info['logo_path'] if negocio_info else '')
+        tk.Entry(scrollable_frame, textvariable=self.logo_path_var, 
+                font=FONTS['normal'], width=50, state='readonly').pack(fill=tk.X, pady=(0, 10))
+    
+        # Botón Preparar Logo
+        tk.Button(scrollable_frame, text="Preparar Logo para Impresora Térmica", 
+                command=self.preparar_logo_termico,
+                font=FONTS['button'], bg=COLORS['accent'], fg='white',
+                relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(pady=10)
+    
+        # Botón Guardar
+        tk.Button(scrollable_frame, text="Guardar Cambios", 
+                command=self.guardar_negocio_info,
+                font=FONTS['button'], bg=COLORS['success'], fg='white',
+                relief=tk.RAISED, borderwidth=2, padx=40, pady=15).pack(pady=20)
+    
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
     def setup_database_tab(self):
         """Configura la pestaña de base de datos"""
@@ -344,6 +429,83 @@ class ConfiguracionWindow:
                 self.load_usuarios()
             except Exception as e:
                 messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}")
+    
+    def preparar_logo_termico(self):
+        """Procesa una imagen para convertirla en logo apto para impresora térmica"""
+        from tkinter import filedialog
+        from PIL import Image
+        import os
+    
+        # Abrir selector de archivo
+        filename = filedialog.askopenfilename(
+            title="Seleccionar imagen para procesar",
+            filetypes=[
+                ("Imágenes", "*.png *.jpg *.jpeg *.bmp *.gif"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+    
+        if not filename:
+            return
+    
+        try:
+            # Configuración
+            target_width = 300  # Ancho ideal para 58mm
+            output_path = get_resource_path('images/logo_thermal.png')
+        
+            # Crear carpeta si no existe
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+            # 1. Abrir imagen
+            img = Image.open(filename)
+        
+            # 2. Convertir a escala de grises
+            img = img.convert('L')
+        
+            # 3. Redimensionar manteniendo proporciones
+            width_percent = (target_width / float(img.size[0]))
+            height_size = int((float(img.size[1]) * float(width_percent)))
+            img = img.resize((target_width, height_size), Image.LANCZOS)
+        
+            # 4. Convertir a BLANCO Y NEGRO PURO
+            img = img.point(lambda x: 0 if x < 128 else 255, '1')
+        
+            # 5. Guardar
+            img.save(output_path)
+        
+            # Actualizar campo
+            self.logo_path_var.set('images/logo_thermal.png')
+        
+            messagebox.showinfo("Éxito", 
+                            f"Logo procesado correctamente.\n\n"
+                            f"Guardado en: {output_path}\n\n"
+                            f"Recuerda hacer clic en 'Guardar Cambios' para aplicarlo.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar la imagen: {str(e)}")
+
+    def guardar_negocio_info(self):
+        """Guarda la información del negocio"""
+        try:
+            db.update_negocio_info(
+                name=self.name_var.get().strip(),
+                subtitle=self.subtitle_var.get().strip(),
+                direccion=self.direccion_var.get().strip(),
+                ciudad=self.ciudad_var.get().strip(),
+                telefono=self.telefono_var.get().strip(),
+                mensaje_final=self.mensaje_var.get().strip(),
+                logo_path=self.logo_path_var.get().strip()
+            )
+        
+            # Registrar en auditoría
+            db.add_auditoria(session.get_current_user()['id'], 'config_negocio', 
+                        'Información del negocio actualizada')
+        
+            messagebox.showinfo("Éxito", "Información del negocio actualizada correctamente.\n\n"
+                            "Los cambios se aplicarán en los próximos tickets generados.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar: {str(e)}")
     
     def close_window(self):
         """Cierra la ventana"""
