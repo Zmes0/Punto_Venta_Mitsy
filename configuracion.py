@@ -159,92 +159,149 @@ class ConfiguracionWindow:
     def setup_negocio_tab(self):
         """Configura la pestaña de información del negocio"""
         main_container = tk.Frame(self.negocio_frame, bg=COLORS['bg_primary'])
-        main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        main_container.pack(fill=tk.BOTH, expand=True, padx=40, pady=30)
     
         # Título
         tk.Label(main_container, text="Información del Negocio", 
                 font=FONTS['subtitle'], bg=COLORS['bg_primary'],
-                fg=COLORS['text_primary']).pack(pady=(0, 20))
+                fg=COLORS['text_primary']).pack(pady=(0, 30))
     
-        # Frame con scroll
-        canvas = tk.Canvas(main_container, bg=COLORS['bg_primary'], highlightthickness=0)
-        scrollbar = tk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
+        # Frame principal con 2 columnas
+        content_frame = tk.Frame(main_container, bg=COLORS['bg_primary'])
+        content_frame.pack(fill=tk.BOTH, expand=True)
     
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        # COLUMNA IZQUIERDA
+        left_column = tk.Frame(content_frame, bg=COLORS['bg_primary'])
+        left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
     
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # COLUMNA DERECHA
+        right_column = tk.Frame(content_frame, bg=COLORS['bg_primary'])
+        right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(20, 0))
     
         # Cargar datos actuales
         negocio_info = db.get_negocio_info()
     
+        # ========== COLUMNA IZQUIERDA ==========
+    
         # Nombre del Negocio
-        tk.Label(scrollable_frame, text="Nombre del Negocio:", 
-                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        tk.Label(left_column, text="Nombre del Negocio:", 
+                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
         self.name_var = tk.StringVar(value=negocio_info['name'] if negocio_info else '')
-        tk.Entry(scrollable_frame, textvariable=self.name_var, 
-                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+        tk.Entry(left_column, textvariable=self.name_var, 
+                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
     
         # Subtítulo
-        tk.Label(scrollable_frame, text="Subtítulo:", 
+        tk.Label(left_column, text="Subtítulo:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
         self.subtitle_var = tk.StringVar(value=negocio_info['subtitle'] if negocio_info else '')
-        tk.Entry(scrollable_frame, textvariable=self.subtitle_var, 
-                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+        tk.Entry(left_column, textvariable=self.subtitle_var, 
+                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
     
         # Dirección
-        tk.Label(scrollable_frame, text="Dirección:", 
+        tk.Label(left_column, text="Dirección:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
         self.direccion_var = tk.StringVar(value=negocio_info['direccion'] if negocio_info else '')
-        tk.Entry(scrollable_frame, textvariable=self.direccion_var, 
-                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+        tk.Entry(left_column, textvariable=self.direccion_var, 
+                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
     
         # Ciudad
-        tk.Label(scrollable_frame, text="Ciudad:", 
+        tk.Label(left_column, text="Ciudad:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
         self.ciudad_var = tk.StringVar(value=negocio_info['ciudad'] if negocio_info else '')
-        tk.Entry(scrollable_frame, textvariable=self.ciudad_var, 
-                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+        tk.Entry(left_column, textvariable=self.ciudad_var, 
+                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
     
         # Teléfono
-        tk.Label(scrollable_frame, text="Teléfono:", 
+        tk.Label(left_column, text="Teléfono:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
         self.telefono_var = tk.StringVar(value=negocio_info['telefono'] if negocio_info else '')
-        tk.Entry(scrollable_frame, textvariable=self.telefono_var, 
-                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+        tk.Entry(left_column, textvariable=self.telefono_var, 
+                font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
     
-        # Mensaje Final
-        tk.Label(scrollable_frame, text="Mensaje Final del Ticket:", 
-                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.mensaje_var = tk.StringVar(value=negocio_info['mensaje_final'] if negocio_info else '')
-        tk.Entry(scrollable_frame, textvariable=self.mensaje_var, 
-                font=FONTS['normal'], width=50).pack(fill=tk.X, pady=(0, 15))
+        # ========== COLUMNA DERECHA ==========
     
-        # Logo actual
-        tk.Label(scrollable_frame, text="Logo Actual:", 
-                font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.logo_path_var = tk.StringVar(value=negocio_info['logo_path'] if negocio_info else '')
-        tk.Entry(scrollable_frame, textvariable=self.logo_path_var, 
-                font=FONTS['normal'], width=50, state='readonly').pack(fill=tk.X, pady=(0, 10))
+        # Mensaje Final del Ticket (líneas separadas)
+        mensaje_frame = tk.LabelFrame(right_column, text="Mensaje Final del Ticket", 
+                                    font=FONTS['heading'], bg=COLORS['bg_secondary'],
+                                    fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2)
+        mensaje_frame.pack(fill=tk.X, pady=(0, 20), padx=5, ipady=15)
+    
+        tk.Label(mensaje_frame, text="Cada campo es una línea en el ticket:", 
+                font=FONTS['small'], bg=COLORS['bg_secondary'],
+                fg=COLORS['text_secondary']).pack(anchor='w', padx=10, pady=(5, 10))
+    
+        # Dividir mensaje actual en líneas
+        mensaje_actual = negocio_info['mensaje_final'] if negocio_info else '¡Gracias por su compra!\nVuelva pronto'
+        lineas = mensaje_actual.split('\n')
+    
+        # Línea 1
+        tk.Label(mensaje_frame, text="Línea 1:", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
+        self.mensaje_linea1_var = tk.StringVar(value=lineas[0] if len(lineas) > 0 else '')
+        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea1_var, 
+                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 15))
+    
+        # Línea 2
+        tk.Label(mensaje_frame, text="Línea 2:", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
+        self.mensaje_linea2_var = tk.StringVar(value=lineas[1] if len(lineas) > 1 else '')
+        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea2_var, 
+                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 15))
+    
+        # Línea 3 (opcional)
+        tk.Label(mensaje_frame, text="Línea 3 (opcional):", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
+        self.mensaje_linea3_var = tk.StringVar(value=lineas[2] if len(lineas) > 2 else '')
+        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea3_var, 
+                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 10))
+    
+        # ==== SECCIÓN DE LOGO ====
+        logo_section = tk.LabelFrame(right_column, text="Logo del Negocio", 
+                                    font=FONTS['heading'], bg=COLORS['bg_secondary'],
+                                    fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2)
+        logo_section.pack(fill=tk.BOTH, expand=True, pady=(0, 20), padx=5, ipady=15)
+    
+        # Preview del logo
+        preview_frame = tk.Frame(logo_section, bg='white', relief=tk.SUNKEN, borderwidth=2)
+        preview_frame.pack(pady=(10, 15), padx=10)
+    
+        self.logo_preview_label = tk.Label(preview_frame, text="Sin logo", 
+                                        bg='white', fg='#999999',
+                                        font=FONTS['small'], width=30, height=8)
+        self.logo_preview_label.pack(padx=5, pady=5)
+    
+        # Cargar preview inicial
+        self.logo_path_var = tk.StringVar(value=negocio_info['logo_path'] if negocio_info else 'images/logo_thermal.png')
+        self.update_logo_preview()
     
         # Botón Preparar Logo
-        tk.Button(scrollable_frame, text="Preparar Logo para Impresora Térmica", 
+        tk.Button(logo_section, text="📁 Seleccionar y Preparar Logo", 
                 command=self.preparar_logo_termico,
                 font=FONTS['button'], bg=COLORS['accent'], fg='white',
-                relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(pady=10)
+                relief=tk.RAISED, borderwidth=2, padx=20, pady=12,
+                cursor='hand2').pack(pady=(0, 10), padx=10)
     
-        # Botón Guardar
-        tk.Button(scrollable_frame, text="Guardar Cambios", 
+        tk.Label(logo_section, text="Procesa tu imagen para impresora térmica (58mm)", 
+                font=FONTS['small'], bg=COLORS['bg_secondary'],
+                fg=COLORS['text_secondary']).pack(padx=10, pady=(0, 10))
+    
+        # Logo actual (ruta)
+        tk.Label(logo_section, text="Ruta del archivo:", 
+                font=FONTS['small'], bg=COLORS['bg_secondary'],
+                fg=COLORS['text_secondary']).pack(anchor='w', padx=10, pady=(5, 2))
+        tk.Entry(logo_section, textvariable=self.logo_path_var, 
+                font=FONTS['small'], state='readonly',
+                bg='#f0f0f0').pack(fill=tk.X, padx=10, pady=(0, 10))
+    
+        # ========== BOTÓN GUARDAR (CENTRADO ABAJO) ==========
+        button_frame = tk.Frame(main_container, bg=COLORS['bg_primary'])
+        button_frame.pack(pady=(30, 0))
+    
+        tk.Button(button_frame, text="💾 Guardar Cambios", 
                 command=self.guardar_negocio_info,
                 font=FONTS['button'], bg=COLORS['success'], fg='white',
-                relief=tk.RAISED, borderwidth=2, padx=40, pady=15).pack(pady=20)
-    
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                relief=tk.RAISED, borderwidth=2, padx=50, pady=15,
+                cursor='hand2').pack()
     
     def setup_database_tab(self):
         """Configura la pestaña de base de datos"""
@@ -473,8 +530,9 @@ class ConfiguracionWindow:
             # 5. Guardar
             img.save(output_path)
         
-            # Actualizar campo
+            # Actualizar campo y preview
             self.logo_path_var.set('images/logo_thermal.png')
+            self.update_logo_preview()
         
             messagebox.showinfo("Éxito", 
                             f"Logo procesado correctamente.\n\n"
@@ -484,22 +542,66 @@ class ConfiguracionWindow:
         except Exception as e:
             messagebox.showerror("Error", f"Error al procesar la imagen: {str(e)}")
 
+    def update_logo_preview(self):
+        """Actualiza la previsualización del logo"""
+        import os
+        from PIL import Image
+        try:
+            from PIL import ImageTk
+            logo_path = get_resource_path(self.logo_path_var.get())
+        
+            if os.path.exists(logo_path):
+                
+                # Cargar imagen
+                img = Image.open(logo_path)
+            
+                # Redimensionar para preview (máximo 200x150)
+                img.thumbnail((200, 150), Image.LANCZOS)
+            
+                # Convertir a PhotoImage
+                photo = ImageTk.PhotoImage(img)
+            
+                # Actualizar label
+                self.logo_preview_label.config(image=photo, text="")
+                self.logo_preview_label.image = photo  # Mantener referencia
+            else:
+                self.logo_preview_label.config(image="", text="Logo no encontrado")
+            
+        except Exception as e:
+            self.logo_preview_label.config(image="", text="Error al cargar logo")
+            print(f"Error al cargar preview: {e}")
+            
+    
+    
     def guardar_negocio_info(self):
         """Guarda la información del negocio"""
         try:
+            # Construir mensaje final juntando las líneas
+            mensaje_lineas = []
+            if self.mensaje_linea1_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea1_var.get().strip())
+            if self.mensaje_linea2_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea2_var.get().strip())
+            if self.mensaje_linea3_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea3_var.get().strip())
+        
+            mensaje_final = '\n'.join(mensaje_lineas)
+        
             db.update_negocio_info(
                 name=self.name_var.get().strip(),
                 subtitle=self.subtitle_var.get().strip(),
                 direccion=self.direccion_var.get().strip(),
                 ciudad=self.ciudad_var.get().strip(),
                 telefono=self.telefono_var.get().strip(),
-                mensaje_final=self.mensaje_var.get().strip(),
+                mensaje_final=mensaje_final,
                 logo_path=self.logo_path_var.get().strip()
             )
         
-            # Registrar en auditoría
-            db.add_auditoria(session.get_current_user()['id'], 'config_negocio', 
-                        'Información del negocio actualizada')
+            # Verificar que hay un usuario activo antes de registrar auditoría
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_negocio', 
+                           'Información del negocio actualizada')
         
             messagebox.showinfo("Éxito", "Información del negocio actualizada correctamente.\n\n"
                             "Los cambios se aplicarán en los próximos tickets generados.")

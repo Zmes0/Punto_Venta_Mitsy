@@ -244,7 +244,6 @@ class MitsysPOS:
     
     def open_configuracion(self):
         """Abre el módulo de configuración"""
-        print("DEBUG: open_configuracion ha sido llamado.")
         self.root.withdraw()
         from configuracion import ConfiguracionWindow
         ConfiguracionWindow(self.root, on_close=self.on_module_close)
