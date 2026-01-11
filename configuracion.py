@@ -681,16 +681,27 @@ class ConfiguracionWindow:
                 mensaje_lineas.append(self.mensaje_linea3_var.get().strip())
         
             mensaje_final = '\n'.join(mensaje_lineas)
-        
-            db.update_negocio_info(
-                name=self.name_var.get().strip(),
-                subtitle=self.subtitle_var.get().strip(),
-                direccion=self.direccion_var.get().strip(),
-                ciudad=self.ciudad_var.get().strip(),
-                telefono=self.telefono_var.get().strip(),
-                mensaje_final=mensaje_final,
-                logo_path=self.logo_path_var.get().strip()
-            )
+
+            data_to_save = {
+                'name': self.name_var.get().strip(),
+                'subtitle': self.subtitle_var.get().strip(),
+                'direccion': self.direccion_var.get().strip(),
+                'ciudad': self.ciudad_var.get().strip(),
+                'telefono': self.telefono_var.get().strip(),
+                'mensaje_final': mensaje_final,
+                'logo_path': self.logo_path_var.get().strip(),
+                'mostrar_logo': 1 if self.mostrar_logo_var.get() else 0,
+                'mostrar_total_letras': 1 if self.mostrar_total_letras_var.get() else 0
+            }
+
+            # Añadir líneas extra de header y footer
+            for i, var in enumerate(self.header_vars, 1):
+                data_to_save[f'header_linea{i}'] = var.get().strip()
+            
+            for i, var in enumerate(self.footer_vars, 1):
+                data_to_save[f'footer_linea{i}'] = var.get().strip()
+
+            db.update_negocio_info(**data_to_save)
         
             # Verificar que hay un usuario activo antes de registrar auditoría
             current_user = session.get_current_user()
@@ -698,7 +709,7 @@ class ConfiguracionWindow:
                 db.add_auditoria(current_user['id'], 'config_negocio', 
                            'Información del negocio actualizada')
         
-            messagebox.showinfo("Éxito", "Información del negocio actualizada correctamente.\n\n"
+            messagebox.showinfo("Éxito", "Información del negocio actualizada correctamente.\n\n" 
                             "Los cambios se aplicarán en los próximos tickets generados.")
         
         except Exception as e:
