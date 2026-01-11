@@ -157,134 +157,158 @@ class ConfiguracionWindow:
         self.load_usuarios()
     
     def setup_negocio_tab(self):
-        """Configura la pestaña de información del negocio"""
+        """Configura la pestaña de información del negocio - ACTUALIZADO"""
         main_container = tk.Frame(self.negocio_frame, bg=COLORS['bg_primary'])
         main_container.pack(fill=tk.BOTH, expand=True, padx=40, pady=30)
-    
+
         # Título
         tk.Label(main_container, text="Información del Negocio", 
                 font=FONTS['subtitle'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 30))
+
+        # Frame con scrollbar para todo el contenido
+        canvas_frame = tk.Frame(main_container, bg=COLORS['bg_primary'])
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
     
-        # Frame principal con 2 columnas
-        content_frame = tk.Frame(main_container, bg=COLORS['bg_primary'])
-        content_frame.pack(fill=tk.BOTH, expand=True)
+        canvas = tk.Canvas(canvas_frame, bg=COLORS['bg_primary'], highlightthickness=0)
+        scrollbar = tk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
+        content_scroll_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
     
+        content_scroll_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+    
+        canvas.create_window((0, 0), window=content_scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+    
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+        # Habilitar scroll con rueda del mouse
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Frame principal con 2 columnas dentro del scroll
+        content_frame = tk.Frame(content_scroll_frame, bg=COLORS['bg_primary'])
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=20)
+
         # COLUMNA IZQUIERDA
         left_column = tk.Frame(content_frame, bg=COLORS['bg_primary'])
         left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
-    
+
         # COLUMNA DERECHA
         right_column = tk.Frame(content_frame, bg=COLORS['bg_primary'])
         right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(20, 0))
-    
+
         # Cargar datos actuales
         negocio_info = db.get_negocio_info()
-    
+
         # ========== COLUMNA IZQUIERDA ==========
-    
+
         # Nombre del Negocio
         tk.Label(left_column, text="Nombre del Negocio:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.name_var = tk.StringVar(value=negocio_info['name'] if negocio_info else '')
+        self.name_var = tk.StringVar(value=negocio_info.get('name', '') if negocio_info else '')
         tk.Entry(left_column, textvariable=self.name_var, 
                 font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
-    
+
         # Subtítulo
         tk.Label(left_column, text="Subtítulo:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.subtitle_var = tk.StringVar(value=negocio_info['subtitle'] if negocio_info else '')
+        self.subtitle_var = tk.StringVar(value=negocio_info.get('subtitle', '') if negocio_info else '')
         tk.Entry(left_column, textvariable=self.subtitle_var, 
                 font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
-    
+
         # Dirección
         tk.Label(left_column, text="Dirección:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.direccion_var = tk.StringVar(value=negocio_info['direccion'] if negocio_info else '')
+        self.direccion_var = tk.StringVar(value=negocio_info.get('direccion', '') if negocio_info else '')
         tk.Entry(left_column, textvariable=self.direccion_var, 
                 font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
-    
+
         # Ciudad
         tk.Label(left_column, text="Ciudad:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.ciudad_var = tk.StringVar(value=negocio_info['ciudad'] if negocio_info else '')
+        self.ciudad_var = tk.StringVar(value=negocio_info.get('ciudad', '') if negocio_info else '')
         tk.Entry(left_column, textvariable=self.ciudad_var, 
                 font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
-    
+
         # Teléfono
         tk.Label(left_column, text="Teléfono:", 
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.telefono_var = tk.StringVar(value=negocio_info['telefono'] if negocio_info else '')
+        self.telefono_var = tk.StringVar(value=negocio_info.get('telefono', '') if negocio_info else '')
         tk.Entry(left_column, textvariable=self.telefono_var, 
                 font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
-    
-        # ========== COLUMNA DERECHA ==========
-    
-        # Mensaje Final del Ticket (líneas separadas)
-        mensaje_frame = tk.LabelFrame(right_column, text="Mensaje Final del Ticket", 
+
+        # ========== LÍNEAS EXTRA DEL HEADER ==========
+        header_frame = tk.LabelFrame(left_column, text="Líneas Adicionales del Encabezado (Opcionales)", 
                                     font=FONTS['heading'], bg=COLORS['bg_secondary'],
                                     fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2)
-        mensaje_frame.pack(fill=tk.X, pady=(0, 20), padx=5, ipady=15)
-    
-        tk.Label(mensaje_frame, text="Cada campo es una línea en el ticket:", 
+        header_frame.pack(fill=tk.X, pady=(0, 20), padx=5, ipady=10)
+
+        tk.Label(header_frame, text="Se mostrarán debajo del teléfono:", 
                 font=FONTS['small'], bg=COLORS['bg_secondary'],
                 fg=COLORS['text_secondary']).pack(anchor='w', padx=10, pady=(5, 10))
-    
-        # Dividir mensaje actual en líneas
-        mensaje_actual = negocio_info['mensaje_final'] if negocio_info else '¡Gracias por su compra!\nVuelva pronto'
-        lineas = mensaje_actual.split('\n')
-    
-        # Línea 1
-        tk.Label(mensaje_frame, text="Línea 1:", 
+
+        self.header_vars = []
+        for i in range(1, 6):
+            tk.Label(header_frame, text=f"Línea {i}:", 
                 font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
-        self.mensaje_linea1_var = tk.StringVar(value=lineas[0] if len(lineas) > 0 else '')
-        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea1_var, 
-                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 15))
-    
-        # Línea 2
-        tk.Label(mensaje_frame, text="Línea 2:", 
-                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
-        self.mensaje_linea2_var = tk.StringVar(value=lineas[1] if len(lineas) > 1 else '')
-        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea2_var, 
-                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 15))
-    
-        # Línea 3 (opcional)
-        tk.Label(mensaje_frame, text="Línea 3 (opcional):", 
-                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
-        self.mensaje_linea3_var = tk.StringVar(value=lineas[2] if len(lineas) > 2 else '')
-        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea3_var, 
-                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 10))
-    
+            var = tk.StringVar(value=negocio_info.get(f'header_linea{i}', '') if negocio_info else '')
+            tk.Entry(header_frame, textvariable=var, 
+                    font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 10))
+            self.header_vars.append(var)
+
+        # ========== COLUMNA DERECHA ==========
+
         # ==== SECCIÓN DE LOGO ====
         logo_section = tk.LabelFrame(right_column, text="Logo del Negocio", 
                                     font=FONTS['heading'], bg=COLORS['bg_secondary'],
                                     fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2)
-        logo_section.pack(fill=tk.BOTH, expand=True, pady=(0, 20), padx=5, ipady=15)
-    
+        logo_section.pack(fill=tk.X, pady=(0, 20), padx=5, ipady=15)
+
+        # Interruptor para mostrar/ocultar logo
+        mostrar_logo_frame = tk.Frame(logo_section, bg=COLORS['bg_secondary'])
+        mostrar_logo_frame.pack(pady=(10, 10), padx=10, fill=tk.X)
+
+        tk.Label(mostrar_logo_frame, text="Mostrar logo en tickets:", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=(0, 10))
+
+        self.mostrar_logo_var = tk.BooleanVar(value=negocio_info.get('mostrar_logo', 1) if negocio_info else 1)
+
+        tk.Radiobutton(mostrar_logo_frame, text="Sí", variable=self.mostrar_logo_var,
+                    value=True, font=FONTS['normal'],
+                    bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(mostrar_logo_frame, text="No", variable=self.mostrar_logo_var,
+                    value=False, font=FONTS['normal'],
+                    bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=5)
+
         # Preview del logo
         preview_frame = tk.Frame(logo_section, bg='white', relief=tk.SUNKEN, borderwidth=2)
         preview_frame.pack(pady=(10, 15), padx=10)
-    
+
         self.logo_preview_label = tk.Label(preview_frame, text="Sin logo", 
                                         bg='white', fg='#999999',
                                         font=FONTS['small'], width=30, height=8)
         self.logo_preview_label.pack(padx=5, pady=5)
-    
+
         # Cargar preview inicial
-        self.logo_path_var = tk.StringVar(value=negocio_info['logo_path'] if negocio_info else 'images/logo_thermal.png')
+        self.logo_path_var = tk.StringVar(value=negocio_info.get('logo_path', 'images/logo_thermal.png') if negocio_info else 'images/logo_thermal.png')
         self.update_logo_preview()
-    
+
         # Botón Preparar Logo
         tk.Button(logo_section, text="📁 Seleccionar y Preparar Logo", 
                 command=self.preparar_logo_termico,
                 font=FONTS['button'], bg=COLORS['accent'], fg='white',
                 relief=tk.RAISED, borderwidth=2, padx=20, pady=12,
                 cursor='hand2').pack(pady=(0, 10), padx=10)
-    
+
         tk.Label(logo_section, text="Procesa tu imagen para impresora térmica (58mm)", 
                 font=FONTS['small'], bg=COLORS['bg_secondary'],
                 fg=COLORS['text_secondary']).pack(padx=10, pady=(0, 10))
-    
+
         # Logo actual (ruta)
         tk.Label(logo_section, text="Ruta del archivo:", 
                 font=FONTS['small'], bg=COLORS['bg_secondary'],
@@ -292,11 +316,82 @@ class ConfiguracionWindow:
         tk.Entry(logo_section, textvariable=self.logo_path_var, 
                 font=FONTS['small'], state='readonly',
                 bg='#f0f0f0').pack(fill=tk.X, padx=10, pady=(0, 10))
-    
+
+        # Mensaje Final del Ticket
+        mensaje_frame = tk.LabelFrame(right_column, text="Mensaje de Despedida", 
+                                    font=FONTS['heading'], bg=COLORS['bg_secondary'],
+                                    fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2)
+        mensaje_frame.pack(fill=tk.X, pady=(0, 20), padx=5, ipady=15)
+
+        tk.Label(mensaje_frame, text="Cada campo es una línea en el ticket:", 
+                font=FONTS['small'], bg=COLORS['bg_secondary'],
+                fg=COLORS['text_secondary']).pack(anchor='w', padx=10, pady=(5, 10))
+
+        # Dividir mensaje actual en líneas
+        mensaje_actual = negocio_info.get('mensaje_final', '¡Gracias por su compra!\nVuelva pronto') if negocio_info else '¡Gracias por su compra!\nVuelva pronto'
+        lineas = mensaje_actual.split('\n')
+
+        # Línea 1
+        tk.Label(mensaje_frame, text="Línea 1:", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
+        self.mensaje_linea1_var = tk.StringVar(value=lineas[0] if len(lineas) > 0 else '')
+        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea1_var, 
+                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 15))
+
+        # Línea 2
+        tk.Label(mensaje_frame, text="Línea 2:", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
+        self.mensaje_linea2_var = tk.StringVar(value=lineas[1] if len(lineas) > 1 else '')
+        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea2_var, 
+                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 15))
+
+        # Línea 3 (opcional)
+        tk.Label(mensaje_frame, text="Línea 3 (opcional):", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
+        self.mensaje_linea3_var = tk.StringVar(value=lineas[2] if len(lineas) > 2 else '')
+        tk.Entry(mensaje_frame, textvariable=self.mensaje_linea3_var, 
+                font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        # ========== LÍNEAS EXTRA DEL FOOTER ==========
+        footer_frame = tk.LabelFrame(right_column, text="Líneas Adicionales del Pie (Opcionales)", 
+                                    font=FONTS['heading'], bg=COLORS['bg_secondary'],
+                                    fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2)
+        footer_frame.pack(fill=tk.X, pady=(0, 20), padx=5, ipady=10)
+
+        tk.Label(footer_frame, text="Se mostrarán después del mensaje de despedida:", 
+                font=FONTS['small'], bg=COLORS['bg_secondary'],
+                fg=COLORS['text_secondary']).pack(anchor='w', padx=10, pady=(5, 10))
+
+        self.footer_vars = []
+        for i in range(1, 6):
+            tk.Label(footer_frame, text=f"Línea {i}:", 
+                    font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', padx=10, pady=(0, 5))
+            var = tk.StringVar(value=negocio_info.get(f'footer_linea{i}', '') if negocio_info else '')
+            tk.Entry(footer_frame, textvariable=var, 
+                    font=FONTS['normal']).pack(fill=tk.X, padx=10, pady=(0, 10))
+            self.footer_vars.append(var)
+
+        # Interruptor para mostrar total en letras
+        total_letras_frame = tk.Frame(right_column, bg=COLORS['bg_secondary'], 
+                                    relief=tk.RAISED, borderwidth=2)
+        total_letras_frame.pack(fill=tk.X, pady=(0, 20), padx=5)
+
+        tk.Label(total_letras_frame, text="Mostrar total en letras:", 
+                font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=15, pady=15)
+
+        self.mostrar_total_letras_var = tk.BooleanVar(value=negocio_info.get('mostrar_total_letras', 1) if negocio_info else 1)
+
+        tk.Radiobutton(total_letras_frame, text="Sí", variable=self.mostrar_total_letras_var,
+                    value=True, font=FONTS['normal'],
+                    bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(total_letras_frame, text="No", variable=self.mostrar_total_letras_var,
+                    value=False, font=FONTS['normal'],
+                    bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=5)
+
         # ========== BOTÓN GUARDAR (CENTRADO ABAJO) ==========
         button_frame = tk.Frame(main_container, bg=COLORS['bg_primary'])
-        button_frame.pack(pady=(30, 0))
-    
+        button_frame.pack(pady=(20, 0))
+
         tk.Button(button_frame, text="💾 Guardar Cambios", 
                 command=self.guardar_negocio_info,
                 font=FONTS['button'], bg=COLORS['success'], fg='white',

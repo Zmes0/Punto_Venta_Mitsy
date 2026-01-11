@@ -287,6 +287,8 @@ class Database:
             self.conn.commit()
             print(f">> Migración completada: {result['count']} ventas asignadas al corte legacy")
     
+    
+    
     # ==================== CONFIGURACIÓN ====================
     
     def get_config(self, clave: str) -> Optional[str]:
@@ -331,13 +333,41 @@ class Database:
     def update_negocio_info(self, **kwargs):
         """Actualiza la información del negocio"""
         if kwargs:
-        # Añadir fecha de modificación
+            # Añadir fecha de modificación
             kwargs['fecha_modificacion'] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            
+            # Verificar que la tabla tenga todas las columnas necesarias
+            self.cursor.execute("PRAGMA table_info(negocio)")
+            columns = [row[1] for row in self.cursor.fetchall()]
+            
+            # Agregar columnas faltantes si no existen
+            new_columns = {
+                'header_linea1': 'TEXT DEFAULT ""',
+                'header_linea2': 'TEXT DEFAULT ""',
+                'header_linea3': 'TEXT DEFAULT ""',
+                'header_linea4': 'TEXT DEFAULT ""',
+                'header_linea5': 'TEXT DEFAULT ""',
+                'footer_linea1': 'TEXT DEFAULT ""',
+                'footer_linea2': 'TEXT DEFAULT ""',
+                'footer_linea3': 'TEXT DEFAULT ""',
+                'footer_linea4': 'TEXT DEFAULT ""',
+                'footer_linea5': 'TEXT DEFAULT ""',
+                'mostrar_logo': 'INTEGER DEFAULT 1',
+                'mostrar_total_letras': 'INTEGER DEFAULT 1'
+            }
+            
+            for col_name, col_type in new_columns.items():
+                if col_name not in columns:
+                    self.cursor.execute(f'ALTER TABLE negocio ADD COLUMN {col_name} {col_type}')
+            
+            self.conn.commit()
+            
+            # Actualizar valores
             fields = ', '.join([f"{k} = ?" for k in kwargs.keys()])
             values = list(kwargs.values())
-    
-        self.cursor.execute(f'UPDATE negocio SET {fields} WHERE id = 1', values)
-        self.conn.commit()
+        
+            self.cursor.execute(f'UPDATE negocio SET {fields} WHERE id = 1', values)
+            self.conn.commit()
         
     # ==================== GESTIÓN DE CORTES ====================
     
@@ -1359,131 +1389,7 @@ class Database:
         
         return [dict(row) for row in self.cursor.fetchall()]
 
-    # ==================== GESTIÓN DE USUARIOS ====================
-
-    def create_default_admin(self):
-        """Crea el usuario admin por defecto si no existe"""
-        already_created = self.get_config('default_admin_created')
-        if already_created == '1':
-            return
     
-        # Verificar si ya existe el usuario mitsy
-        self.cursor.execute('SELECT id FROM usuarios WHERE username = ?', ('mitsy',))
-        if self.cursor.fetchone():
-            self.set_config('default_admin_created', '1')
-            return
-    
-        # Crear usuario admin por defecto
-        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-        self.cursor.execute('''
-            INSERT INTO usuarios (username, password, nombre_completo, nivel, activo, fecha_creacion)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', ('mitsy', '3213', 'Administrador', 'admin', 1, fecha))
-    
-        self.conn.commit()
-        self.set_config('default_admin_created', '1')
-        print(">> Usuario administrador por defecto creado: mitsy / 3213")
-
-    def authenticate_user(self, username: str, password: str) -> Optional[Dict]:
-        """Autentica un usuario y retorna sus datos"""
-        self.cursor.execute('''
-            SELECT * FROM usuarios WHERE username = ? AND password = ?
-        ''', (username, password))
-    
-        result = self.cursor.fetchone()
-        return dict(result) if result else None
-
-    def is_auth_enabled(self) -> bool:
-        """Verifica si el sistema de autenticación está activo"""
-        valor = self.get_config('auth_enabled')
-        return valor == '1'
-
-    def toggle_auth_system(self, enabled: bool):
-        """Activa/desactiva el sistema de autenticación"""
-        self.set_config('auth_enabled', '1' if enabled else '0')
-
-    def get_usuarios(self) -> List[Dict]:
-        """Obtiene todos los usuarios"""
-        self.cursor.execute('SELECT * FROM usuarios ORDER BY id')
-        return [dict(row) for row in self.cursor.fetchall()]
-
-    def get_usuario(self, user_id: int) -> Optional[Dict]:
-        """Obtiene un usuario por ID"""
-        self.cursor.execute('SELECT * FROM usuarios WHERE id = ?', (user_id,))
-        result = self.cursor.fetchone()
-        return dict(result) if result else None
-
-    def add_usuario(self, username: str, password: str, nombre_completo: str = None,
-                nivel: str = 'empleado') -> int:
-        """Añade un nuevo usuario"""
-        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    
-        self.cursor.execute('''
-            INSERT INTO usuarios (username, password, nombre_completo, nivel, activo, fecha_creacion)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (username, password, nombre_completo, nivel, 1, fecha))
-    
-        self.conn.commit()
-        return self.cursor.lastrowid
-
-    def update_usuario(self, user_id: int, **kwargs):
-        """Actualiza un usuario"""
-        if kwargs:
-            fields = ', '.join([f"{k} = ?" for k in kwargs.keys()])
-            values = list(kwargs.values()) + [user_id]
-        
-            self.cursor.execute(f'UPDATE usuarios SET {fields} WHERE id = ?', values)
-            self.conn.commit()
-
-    def delete_usuario(self, user_id: int):
-        """Desactiva un usuario (no elimina físicamente)"""
-        self.cursor.execute('UPDATE usuarios SET activo = 0 WHERE id = ?', (user_id,))
-        self.conn.commit()
-
-    def username_exists(self, username: str, exclude_id: int = None) -> bool:
-        """Verifica si un nombre de usuario ya existe"""
-        if exclude_id:
-            self.cursor.execute('SELECT id FROM usuarios WHERE username = ? AND id != ?', 
-                              (username, exclude_id))
-        else:
-            self.cursor.execute('SELECT id FROM usuarios WHERE username = ?', (username,))
-    
-        return self.cursor.fetchone() is not None
-
-# ==================== AUDITORÍA ====================
-
-    def add_auditoria(self, usuario_id: int, accion: str, detalle: str = None):
-        """Registra una acción en la auditoría"""
-        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    
-        self.cursor.execute('''
-            INSERT INTO auditoria (fecha, usuario_id, accion, detalle)
-            VALUES (?, ?, ?, ?)
-        ''', (fecha, usuario_id, accion, detalle))
-    
-        self.conn.commit()
-
-    def get_auditoria(self, limit: int = 100, usuario_id: int = None) -> List[Dict]:
-        """Obtiene registros de auditoría"""
-        if usuario_id:
-            self.cursor.execute('''
-                SELECT a.*, u.username, u.nombre_completo 
-                FROM auditoria a
-                JOIN usuarios u ON a.usuario_id = u.id
-                WHERE a.usuario_id = ?
-                ORDER BY a.id DESC
-                LIMIT ?
-            ''', (usuario_id, limit))
-        else:
-            self.cursor.execute('''
-                SELECT a.*, u.username, u.nombre_completo 
-                FROM auditoria a
-                JOIN usuarios u ON a.usuario_id = u.id
-                ORDER BY a.id DESC
-                LIMIT ?
-            ''', (limit,))
-    
-        return [dict(row) for row in self.cursor.fetchall()]
 
 # Instancia global de la base de datos
 db = Database()
