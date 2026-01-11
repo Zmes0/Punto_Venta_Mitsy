@@ -56,6 +56,10 @@ class ConfiguracionWindow:
         self.notebook.add(self.negocio_frame, text="  Información del Negocio  ")
         self.setup_negocio_tab()
         
+        self.audit_frame = tk.Frame(self.notebook, bg=COLORS['bg_primary'])
+        self.notebook.add(self.audit_frame, text="  Auditoría  ")
+        self.setup_audit_tab()
+        
         self.database_frame = tk.Frame(self.notebook, bg=COLORS['bg_primary'])
         self.notebook.add(self.database_frame, text="  Base de Datos  ")
         self.setup_database_tab()
@@ -343,9 +347,6 @@ class ConfiguracionWindow:
         if current_user:
             db.add_auditoria(current_user['id'], 'config_auth', 
                         f"Sistema de autenticación {'activado' if enabled else 'desactivado'}")
-        
-        db.add_auditoria(session.get_current_user()['id'], 'config_auth', 
-                       f"Sistema de autenticación {'activado' if enabled else 'desactivado'}")
     
     def update_timeout(self):
         """Actualiza el timeout de sesión"""
@@ -358,9 +359,6 @@ class ConfiguracionWindow:
         if current_user:
             db.add_auditoria(current_user['id'], 'config_timeout', 
                    f"Timeout de sesión actualizado a {timeout} minutos")
-        
-        db.add_auditoria(session.get_current_user()['id'], 'config_timeout', 
-                       f"Timeout de sesión actualizado a {timeout} minutos")
     
     def load_usuarios(self):
         """Carga los usuarios en la tabla"""
@@ -636,6 +634,73 @@ class ConfiguracionWindow:
         except Exception as e:
             messagebox.showerror("Error", f"Error al guardar: {str(e)}")
     
+    def setup_audit_tab(self):
+        """Configura la pestaña de auditoría"""
+        main_audit_frame = tk.Frame(self.audit_frame, bg=COLORS['bg_primary'])
+        main_audit_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        tk.Label(main_audit_frame, text="Registro de Auditoría del Sistema", 
+                 font=FONTS['subtitle'], bg=COLORS['bg_primary'],
+                 fg=COLORS['text_primary']).pack(pady=(0, 20))
+
+        controls_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        controls_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Button(controls_frame, text="Recargar Registros", command=self.load_audit_logs,
+                  font=FONTS['button'], bg=COLORS['button_bg'],
+                  fg=COLORS['text_primary']).pack(side=tk.LEFT)
+
+        table_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        columns = ('ID', 'Fecha', 'Usuario', 'Acción', 'Detalle')
+        
+        self.audit_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                       yscrollcommand=scrollbar.set, selectmode='browse')
+        
+        self.audit_tree.heading('ID', text='ID')
+        self.audit_tree.heading('Fecha', text='Fecha y Hora')
+        self.audit_tree.heading('Usuario', text='Usuario')
+        self.audit_tree.heading('Acción', text='Acción')
+        self.audit_tree.heading('Detalle', text='Detalle')
+        
+        self.audit_tree.column('ID', width=60, anchor='center')
+        self.audit_tree.column('Fecha', width=180, anchor='center')
+        self.audit_tree.column('Usuario', width=150)
+        self.audit_tree.column('Acción', width=150)
+        self.audit_tree.column('Detalle', width=400)
+        
+        self.audit_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.audit_tree.yview)
+        
+        self.audit_tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.audit_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+
+        self.load_audit_logs()
+
+    def load_audit_logs(self):
+        """Carga los registros de auditoría en la tabla"""
+        for item in self.audit_tree.get_children():
+            self.audit_tree.delete(item)
+        
+        logs = db.get_auditoria(limit=200) 
+        
+        for idx, log in enumerate(logs):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            values = (
+                log['id'],
+                log['fecha'],
+                log['username'],
+                log['accion'],
+                log['detalle'] or ''
+            )
+            
+            self.audit_tree.insert('', tk.END, values=values, tags=(tag,))
+
     def close_window(self):
         """Cierra la ventana"""
         self.window.destroy()
