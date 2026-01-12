@@ -6,7 +6,7 @@ from tkinter import ttk, messagebox
 from config import COLORS, FONTS
 from utils import get_resource_path
 from database import db
-from auth import session
+from auth import session, AdminAuthDialog
 
 class ConfiguracionWindow:
     def __init__(self, parent, on_close=None):
@@ -329,24 +329,51 @@ class ConfiguracionWindow:
                 font=FONTS['heading'], bg=COLORS['bg_primary']).pack(pady=50)
     
     def toggle_auth_system(self, *args):
-        """Activa/desactiva el sistema de autenticación"""
+        """Activa/desactiva el sistema de autenticación con confirmación de admin."""
         enabled = self.auth_enabled_var.get()
-        db.toggle_auth_system(enabled)
-        
-        if enabled:
+
+        # Si se está intentando desactivar, se requiere autorización de admin
+        if not enabled:
+            # Desvincular temporalmente el trace para evitar recursión
+            trace_id = self.auth_enabled_var.trace_info()[0][1]
+            self.auth_enabled_var.trace_vdelete('w', trace_id)
+
+            auth_successful = [False]
+
+            def on_auth_success():
+                auth_successful[0] = True
+
+            # Crear y esperar al diálogo de autorización
+            auth_dialog = AdminAuthDialog(self.window, on_success=on_auth_success, 
+                                          message="Se requiere autorización de administrador para desactivar el sistema de autenticación.")
+            self.window.wait_window(auth_dialog.dialog)
+
+            # Después de que el diálogo se cierra, verificar si la auth fue exitosa
+            if auth_successful[0]:
+                db.toggle_auth_system(False)
+                messagebox.showinfo("Sistema de Autenticación", 
+                                  "Sistema de autenticación desactivado.\n\n" 
+                                  "No se solicitará inicio de sesión al abrir la aplicación.")
+                current_user = session.get_current_user()
+                if current_user:
+                    db.add_auditoria(current_user['id'], 'config_auth', 
+                                'Sistema de autenticación desactivado')
+            else:
+                # Si la autenticación falla o se cancela, revertir el botón
+                self.auth_enabled_var.set(True)
+
+            # Volver a vincular el trace
+            self.auth_enabled_var.trace('w', self.toggle_auth_system)
+
+        else:  # Si se está activando, no se requiere auth extra
+            db.toggle_auth_system(True)
             messagebox.showinfo("Sistema de Autenticación", 
-                              "Sistema de autenticación activado.\n\n"
+                              "Sistema de autenticación activado.\n\n" 
                               "Los usuarios deberán iniciar sesión al abrir la aplicación.")
-        else:
-            messagebox.showinfo("Sistema de Autenticación", 
-                              "Sistema de autenticación desactivado.\n\n"
-                              "No se solicitará inicio de sesión al abrir la aplicación.")
-        
-        # CORREGIDO: Verificar que hay un usuario activo antes de registrar auditoría
-        current_user = session.get_current_user()
-        if current_user:
-            db.add_auditoria(current_user['id'], 'config_auth', 
-                        f"Sistema de autenticación {'activado' if enabled else 'desactivado'}")
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_auth', 
+                            'Sistema de autenticación activado')
     
     def update_timeout(self):
         """Actualiza el timeout de sesión"""
