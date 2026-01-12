@@ -383,7 +383,7 @@ class VentaMesaWindow:
     def center_window(self):
         """Centra la ventana en la pantalla"""
         self.window.update_idletasks()
-        width = 1000
+        width = 1050
         height = 700
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
@@ -465,6 +465,7 @@ class VentaMesaWindow:
             ("Agregar Productos", self.agregar_productos, COLORS['success']),
             ("Borrar Producto", self.borrar_producto, COLORS['danger']),
             ("Limpiar Venta", self.limpiar_venta, COLORS['warning']),
+            ("Imprimir Cuenta", self.imprimir_cuenta, COLORS['button_bg']),
             ("Cobrar Venta", self.cobrar_venta, COLORS['accent']),
             ("Minimizar Ventana", self.minimizar_ventana, COLORS['button_bg'])
         ]
@@ -665,6 +666,22 @@ class VentaMesaWindow:
         
         if self.callback:
             self.callback()
+
+    def imprimir_cuenta(self):
+        """Imprime una cuenta/pre-cuenta para la mesa actual."""
+        if not self.productos_venta:
+            messagebox.showwarning("Advertencia", "No hay productos en la venta para imprimir la cuenta.")
+            return
+        
+        try:
+            from tickets import ticket_generator
+            if ticket_generator.print_bill_thermal(self.mesa, self.productos_venta):
+                messagebox.showinfo("Éxito", "Cuenta enviada a impresora térmica.")
+            else:
+                messagebox.showerror("Error", "No se pudo imprimir la cuenta en la impresora térmica.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al imprimir la cuenta: {str(e)}")
+
 class AgregarProductosWindow:
     def __init__(self, parent, callback=None):
         self.callback = callback

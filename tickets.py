@@ -330,27 +330,89 @@ class TicketGenerator:
             traceback.print_exc()
             return False
     
-    def print_ticket(self, venta_data_or_filename):
-        """
-        Método unificado para imprimir tickets.
-        
-        Args:
-            venta_data_or_filename: Puede ser:
-                - dict con venta_data: imprime directamente en térmica
-                - str con filename: carga el PDF y NO hace nada (solo respaldo)
-        
-        Returns:
-            bool: True si se imprimió correctamente
-        """
-        # Si es un diccionario, es venta_data -> imprimir en térmica
-        if isinstance(venta_data_or_filename, dict):
-            return self.print_thermal_ticket(venta_data_or_filename)
-        
-        # Si es string (filename), no hacer nada (el PDF es solo respaldo)
+    # Si es string (filename), no hacer nada (el PDF es solo respaldo)
         print("ℹ El PDF se ha generado como respaldo, no se imprime")
         return True
     
-    # ========== MÉTODOS PARA GENERACIÓN DE PDF ==========
+    def print_bill_thermal(self, mesa: str, productos_venta: list):
+        """
+        Imprime una cuenta/pre-cuenta directamente en impresora térmica.
+        """
+        if not ESCPOS_AVAILABLE:
+            print("❌ Error: python-escpos no está instalado")
+            return False
+        
+        try:
+            p = Win32Raw(self.thermal_printer_name, profile='POS-5890')
+            p.hw('INIT')
+            
+            # Header
+            p.set(align='center', bold=True)
+            p.text(f"{mesa.upper()}\n")
+            p.set(align='center', bold=False)
+            p.text(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+            p.text('\n')
+            
+            # Separator
+            p.set(align='center')
+            p.text('================================\n')
+            
+            # Products Header
+            p.set(align='left', bold=True)
+            p.text(f"{'Cant.':<6}{'Descripción':<18}{'Total':>8}\n")
+            p.set(align='left', bold=False)
+            
+            subtotal = 0
+            for producto in productos_venta:
+                cant = str(int(producto['cantidad']))
+                nombre = producto['nombre']
+                
+                # Truncate name if too long
+                if len(nombre) > 18:
+                    nombre = nombre[:15] + "..."
+                
+                total_prod = format_currency(producto['total'])
+                
+                # Product line
+                p.text(f"{cant:<6}{nombre:<18}{total_prod:>8}\n")
+                
+                # Unit price
+                precio_unit = format_currency(producto['precio'])
+                p.text(f"      {precio_unit} c/u\n")
+                subtotal += producto['total']
+            
+            p.text('\n')
+            
+            # Separator
+            p.set(align='center')
+            p.text('--------------------------------\n') # Changed to dashes for bill
+            
+            # Total
+            p.set(align='left', bold=True)
+            total_formatted = format_currency(subtotal)
+            p.text(f"{'TOTAL:':<24}{total_formatted:>8}\n")
+            p.set(bold=False)
+            p.text('\n')
+            
+            # Message
+            p.set(align='center')
+            p.text("Verifique que los datos de la \n")
+            p.text("cuenta sean correctos.\n") 
+            p.text('\n')
+            
+            p.cut()
+            p.close()
+            
+            print("✓ Cuenta impresa correctamente en impresora térmica")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error al imprimir cuenta en térmica: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    # ========== MÉTODOS PARA GENERACIÓN DE PDF ========== 
     
     def _estimate_height(self, venta_data):
         """Estima la altura necesaria para el ticket"""
