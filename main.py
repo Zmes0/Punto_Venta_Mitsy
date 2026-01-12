@@ -6,6 +6,7 @@ from tkinter import messagebox
 from config import COLORS, FONTS, WINDOW_CONFIG, DENOMINACIONES
 from database import db
 from utils import get_current_date, get_resource_path
+from caja import open_cash_drawer
 
 class MitsysPOS:
     def __init__(self):
@@ -288,6 +289,8 @@ class DineroCajaWindow:
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")
         self.window.resizable(False, False)
+        
+        open_cash_drawer()
     
     def setup_ui(self):
         """Configura la interfaz"""
@@ -481,10 +484,10 @@ class DineroCajaWindow:
             result = db.cursor.fetchone()
             numero_corte = result['numero_corte'] if result else 'N/A'
             
-            messagebox.showinfo("Éxito", 
-                              f"Dinero en caja registrado: {format_currency(total)}\n\n"
-                              f"Corte #{numero_corte} iniciado correctamente.\n"
-                              f"Todas las ventas se asociarán a este corte.")
+            messagebox.showinfo("Éxito",
+                              (f"Dinero en caja registrado: {format_currency(total)}\n\n"
+                               f"Corte #{numero_corte} iniciado correctamente.\n"
+                               f"Todas las ventas se asociarán a este corte."))
             
             self.window.destroy()
             

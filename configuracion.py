@@ -596,8 +596,6 @@ class ConfiguracionWindow:
                 mensaje_lineas.append(self.mensaje_linea1_var.get().strip())
             if self.mensaje_linea2_var.get().strip():
                 mensaje_lineas.append(self.mensaje_linea2_var.get().strip())
-            if self.mensaje_linea3_var.get().strip():
-                mensaje_lineas.append(self.mensaje_linea3_var.get().strip())
         
             mensaje_final = '\n'.join(mensaje_lineas)
 

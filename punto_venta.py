@@ -10,6 +10,7 @@ from utils import format_currency, parse_currency, get_resource_path
 from database import db
 from tickets import ticket_generator
 import utils
+from caja import open_cash_drawer
 
 class PuntoVentaWindow:
     def __init__(self, parent, on_close=None):
@@ -1519,6 +1520,10 @@ class CobrarVentaWindow:
                 messagebox.showerror("Stock Insuficiente", str(stock_error))
                 return
     
+            # Abrir caja si el pago es en efectivo
+            if metodo_pago == 'Efectivo':
+                open_cash_drawer()
+
             # Preparar datos de la venta
             from datetime import datetime
             venta_data = {
@@ -1604,6 +1609,8 @@ class FinalizarDiaWindow:
         self.denominaciones_cantidad = {}
         
         self.setup_ui()
+        
+        open_cash_drawer()
         
         self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
