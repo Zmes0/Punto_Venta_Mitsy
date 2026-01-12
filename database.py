@@ -401,7 +401,7 @@ class Database:
         valor = self.get_config('corte_activo_id')
         return int(valor) if valor and valor != 'None' else None
     
-    def crear_nuevo_corte(self, dinero_inicial: float) -> int:
+    def crear_nuevo_corte(self, dinero_inicial: float, usuario_inicio_id: Optional[int] = None) -> int:
         """Crea un nuevo corte y lo marca como activo"""
         numero_corte = self.get_next_numero_corte()
         fecha_inicio = get_current_datetime()

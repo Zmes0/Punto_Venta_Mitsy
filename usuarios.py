@@ -167,7 +167,9 @@ class UsuarioDialog:
                 user_id = db.add_usuario(username, password, nombre, nivel)
                 
                 # Registrar en auditoría
-                db.add_auditoria(session.get_current_user()['id'], 'user_create', 
+                current_user = session.get_current_user()
+                auditoria_user_id = current_user['id'] if current_user else None
+                db.add_auditoria(auditoria_user_id, 'user_create', 
                                f"Usuario creado: {username} ({nivel})")
                 
                 messagebox.showinfo("Éxito", "Usuario creado correctamente")
@@ -183,7 +185,9 @@ class UsuarioDialog:
                                 nivel=nivel)
                 
                 # Registrar en auditoría
-                db.add_auditoria(session.get_current_user()['id'], 'user_update', 
+                current_user = session.get_current_user()
+                auditoria_user_id = current_user['id'] if current_user else None
+                db.add_auditoria(auditoria_user_id, 'user_update', 
                                f"Usuario actualizado: {username}")
                 
                 messagebox.showinfo("Éxito", "Usuario actualizado correctamente")
@@ -374,7 +378,9 @@ class CambiarPasswordDialog:
             db.update_usuario(self.user_id, password=password)
             
             # Registrar en auditoría
-            db.add_auditoria(session.get_current_user()['id'], 'password_change', 
+            current_user = session.get_current_user()
+            auditoria_user_id = current_user['id'] if current_user else None
+            db.add_auditoria(auditoria_user_id, 'password_change', 
                            f"Contraseña cambiada para: {self.usuario['username']}")
             
              # CORREGIDO: Mostrar mensaje ANTES de destruir el diálogo
