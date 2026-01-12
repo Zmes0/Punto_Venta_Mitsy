@@ -11,6 +11,7 @@ from database import db
 from tickets import ticket_generator
 import utils
 from caja import open_cash_drawer
+from auth import AuthDialog
 
 class PuntoVentaWindow:
     def __init__(self, parent, on_close=None):
@@ -264,7 +265,21 @@ class PuntoVentaWindow:
     
     def finalizar_dia(self):
         """Abre ventana para finalizar el día (corte de caja)"""
-        FinalizarDiaWindow(self.window, callback=self.close_window)
+        if not messagebox.askyesno("Confirmar", "¿Estás seguro que deseas finalizar el día y realizar el corte de caja?"):
+            return
+
+        def open_finalizar_dia_window():
+            FinalizarDiaWindow(self.window, callback=self.close_window)
+
+        if db.is_auth_enabled():
+            AuthDialog(
+                self.window,
+                on_success=open_finalizar_dia_window,
+                allowed_roles=['admin', 'empleado'],
+                message="Se requiere autorización para finalizar el día."
+            )
+        else:
+            open_finalizar_dia_window()
     
     def close_window(self):
         """Cierra la ventana y vuelve al menú"""

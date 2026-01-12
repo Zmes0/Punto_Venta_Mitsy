@@ -224,6 +224,120 @@ class LoginWindow:
             sys.exit(0)
 
 
+class AuthDialog:
+    """Diálogo de autenticación genérico para autorizar acciones."""
+    def __init__(self, parent, on_success, allowed_roles=['admin'], message="Se requiere autorización"):
+        self.on_success = on_success
+        self.allowed_roles = allowed_roles
+        self.message = message
+        self.show_password = False
+        
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Autorización Requerida")
+        self.dialog.geometry("450x550")
+        self.dialog.configure(bg=COLORS['bg_primary'])
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.resizable(False, False)
+        
+        self.dialog.lift()
+        self.dialog.attributes('-topmost', True)
+        self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+        
+        try:
+            self.dialog.iconbitmap(get_resource_path('icono.ico'))
+        except:
+            pass
+        
+        self.center_dialog()
+        self.setup_ui()
+
+    def center_dialog(self):
+        self.dialog.update_idletasks()
+        width, height = 450, 550
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+
+    def setup_ui(self):
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=40, pady=40)
+        
+        tk.Label(main_frame, text="🔑", font=('Segoe UI', 48),
+                bg=COLORS['bg_primary'], fg=COLORS['warning']).pack(pady=(0, 20))
+        
+        tk.Label(main_frame, text=self.message, 
+                font=FONTS['normal'], bg=COLORS['bg_primary'],
+                fg=COLORS['text_primary'], wraplength=350, justify='center').pack(pady=(0, 30))
+        
+        tk.Label(main_frame, text="Usuario:", font=FONTS['heading'],
+                bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        
+        self.username_var = tk.StringVar()
+        username_entry = tk.Entry(main_frame, textvariable=self.username_var, font=FONTS['normal'])
+        username_entry.pack(fill=tk.X, pady=(0, 15))
+        username_entry.focus()
+        
+        tk.Label(main_frame, text="Contraseña:", font=FONTS['heading'],
+                bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        
+        password_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        password_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        self.password_var = tk.StringVar()
+        self.password_entry = tk.Entry(password_frame, textvariable=self.password_var, font=FONTS['normal'], show='●')
+        self.password_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.show_password_btn = tk.Button(password_frame, text="👁", command=self.toggle_password, font=FONTS['normal'], width=3)
+        self.show_password_btn.pack(side=tk.LEFT, padx=(5, 0))
+        
+        username_entry.bind('<Return>', lambda e: self.password_entry.focus())
+        self.password_entry.bind('<Return>', lambda e: self.authorize())
+        
+        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        button_frame.pack(pady=10)
+        
+        tk.Button(button_frame, text="Autorizar", command=self.authorize,
+                 font=FONTS['button'], bg=COLORS['success'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
+                 font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+
+    def toggle_password(self):
+        self.show_password = not self.show_password
+        self.password_entry.config(show='' if self.show_password else '●')
+        self.show_password_btn.config(text='🔒' if self.show_password else '👁')
+
+    def authorize(self):
+        username = self.username_var.get().strip()
+        password = self.password_var.get()
+        
+        if not username or not password:
+            messagebox.showerror("Error", "Por favor ingresa usuario y contraseña", parent=self.dialog)
+            return
+        
+        from database import db
+        user = db.authenticate_user(username, password)
+        
+        if user and user['activo'] and user['nivel'] in self.allowed_roles:
+            messagebox.showinfo("Autorizado", "Autorización concedida", parent=self.dialog)
+            
+            # Registrar en auditoría quién autorizó
+            actor_id = session.get_current_user()['id'] if session.is_logged_in() else None
+            db.add_auditoria(actor_id, 'user_auth', 
+                           f"Acción autorizada por {username} (Rol: {user['nivel']})")
+            
+            self.dialog.destroy()
+            if self.on_success:
+                self.on_success()
+        else:
+            roles_str = " o ".join(self.allowed_roles)
+            messagebox.showerror("Error", f"Credenciales incorrectas o el usuario no tiene el rol de {roles_str}", parent=self.dialog)
+            self.password_var.set("")
+
+
 class AdminAuthDialog:
     """Diálogo para autorización temporal de administrador - MEJORADO"""
     def __init__(self, parent, on_success=None, message="Esta acción requiere autorización de administrador"):
