@@ -520,6 +520,17 @@ class Database:
         print(f">> Corte #{numero_corte} cerrado exitosamente")
         return numero_corte
     
+    def get_last_closed_corte_id(self) -> Optional[int]:
+        """Obtiene el ID del último corte cerrado."""
+        self.cursor.execute('''
+            SELECT id FROM cortes
+            WHERE estado_corte = 'cerrado'
+            ORDER BY numero_corte DESC
+            LIMIT 1
+        ''')
+        result = self.cursor.fetchone()
+        return result['id'] if result else None
+    
     # ==================== VALIDACIÓN DE IDs ====================
     
     def id_exists(self, table: str, id_value: int) -> bool:
@@ -1026,6 +1037,19 @@ class Database:
     
         # Obtener corte activo
         corte_id = self.get_corte_activo_id()
+        
+        # Si no hay corte activo, asignar al último corte cerrado
+        if corte_id is None:
+            corte_id = self.get_last_closed_corte_id()
+            if corte_id is None:
+                # Si no hay ningún corte cerrado, asignar a un corte legacy (0) si existe
+                self.cursor.execute('SELECT id FROM cortes WHERE numero_corte = 0')
+                legacy_corte = self.cursor.fetchone()
+                if legacy_corte:
+                    corte_id = legacy_corte['id']
+                else:
+                    # Si no hay ningún corte, ni activo ni cerrado ni legacy, se asigna NULL
+                    corte_id = None
     
         # Obtener usuario actual (si el sistema de auth está activo)
         from auth import session
