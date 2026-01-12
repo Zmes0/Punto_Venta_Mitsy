@@ -218,6 +218,21 @@ class Database:
             )
         ''')
         
+        # NUEVO: Tabla de Retiros
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS retiros (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha TEXT NOT NULL,
+                monto REAL NOT NULL,
+                motivo TEXT NOT NULL,
+                descripcion TEXT,
+                corte_id INTEGER NOT NULL,
+                usuario_id INTEGER,
+                FOREIGN KEY (corte_id) REFERENCES cortes(id),
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+            )
+        ''')
+        
         self.conn.commit()
     
     def init_config(self):
@@ -409,7 +424,7 @@ class Database:
         print(f">> Nuevo corte #{numero_corte} creado (ID: {corte_id})")
         return corte_id
     
-    def cerrar_corte_activo(self, corte_final: float, retiros: float) -> Optional[int]:
+    def cerrar_corte_activo(self, corte_final: float) -> Optional[int]:
         """Cierra el corte activo y calcula los totales"""
         corte_id = self.get_corte_activo_id()
         
@@ -435,6 +450,11 @@ class Database:
         result = self.cursor.fetchone()
         ventas_efectivo = result['efectivo'] if result['efectivo'] else 0
         ventas_transferencia = result['transferencia'] if result['transferencia'] else 0
+        
+        # NUEVO: Calcular total de retiros para este corte
+        self.cursor.execute('SELECT SUM(monto) as total_retiros FROM retiros WHERE corte_id = ?', (corte_id,))
+        result_retiros = self.cursor.fetchone()
+        retiros = result_retiros['total_retiros'] if result_retiros['total_retiros'] else 0
         
         # CORREGIDO: Solo ventas en efectivo afectan el corte esperado
         corte_esperado = dinero_inicial + ventas_efectivo - retiros
@@ -1236,12 +1256,22 @@ class Database:
         self.set_config('ultimo_numero_corte', str(nuevo_max_num))
 
         self.conn.commit()
+
+    def add_retiro(self, monto: float, motivo: str, descripcion: str, corte_id: int, usuario_id: int) -> int:
+        """Añade un nuevo retiro a la base de datos."""
+        fecha = get_current_datetime()
+        self.cursor.execute('''
+            INSERT INTO retiros (fecha, monto, motivo, descripcion, corte_id, usuario_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (fecha, monto, motivo, descripcion, corte_id, usuario_id))
+        self.conn.commit()
+        return self.cursor.lastrowid
     
     def add_corte(self, dinero_caja: float, corte_final: float, 
                   retiros: float = 0) -> int:
         """Añade un corte de caja - DEPRECADO: Usar cerrar_corte_activo()"""
         # Mantener por compatibilidad pero usar el nuevo sistema
-        return self.cerrar_corte_activo(corte_final, retiros)
+        return self.cerrar_corte_activo(corte_final)
 
     # ==================== CONFIGURACIÓN DE IMPRESIÓN ====================
     
