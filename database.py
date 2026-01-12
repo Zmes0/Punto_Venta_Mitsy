@@ -158,10 +158,20 @@ class Database:
                 ganancias REAL NOT NULL,
                 ventas_efectivo REAL DEFAULT 0,
                 ventas_transferencia REAL DEFAULT 0,
-                usuario_id INTEGER DEFAULT NULL,
-                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+                usuario_inicio_id INTEGER DEFAULT NULL,
+                usuario_cierre_id INTEGER DEFAULT NULL,
+                FOREIGN KEY (usuario_inicio_id) REFERENCES usuarios(id),
+                FOREIGN KEY (usuario_cierre_id) REFERENCES usuarios(id)
             )
         ''')
+        
+        # Add new columns if they don't exist
+        self.cursor.execute("PRAGMA table_info(cortes)")
+        columns = [row[1] for row in self.cursor.fetchall()]
+        if 'usuario_inicio_id' not in columns:
+            self.cursor.execute('ALTER TABLE cortes ADD COLUMN usuario_inicio_id INTEGER DEFAULT NULL REFERENCES usuarios(id)')
+        if 'usuario_cierre_id' not in columns:
+            self.cursor.execute('ALTER TABLE cortes ADD COLUMN usuario_cierre_id INTEGER DEFAULT NULL REFERENCES usuarios(id)')
         
         # Tabla de Ventas - MODIFICADA con recibido y cambio
         self.cursor.execute('''
@@ -398,19 +408,19 @@ class Database:
     
         # Obtener usuario actual (si el sistema de auth está activo)
         from auth import session
-        usuario_id = None
+        usuario_inicio_id = None
         if self.is_auth_enabled() and session.is_logged_in():
-            usuario_id = session.get_current_user()['id']
+            usuario_inicio_id = session.get_current_user()['id']
     
         self.cursor.execute('''
             INSERT INTO cortes (
                 numero_corte, fecha_inicio, dinero_en_caja, 
                 corte_final, corte_esperado, retiros, diferencia, 
                 estado, estado_corte, ganancias,
-                ventas_efectivo, ventas_transferencia, usuario_id
+                ventas_efectivo, ventas_transferencia, usuario_inicio_id
             )
             VALUES (?, ?, ?, 0, 0, 0, 0, 'Abierto', 'abierto', 0, 0, 0, ?)
-        ''', (numero_corte, fecha_inicio, dinero_inicial, usuario_id))
+        ''', (numero_corte, fecha_inicio, dinero_inicial, usuario_inicio_id))
     
         corte_id = self.cursor.lastrowid
     
@@ -481,15 +491,22 @@ class Database:
         
         fecha_cierre = get_current_datetime()
         
+        # Obtener usuario actual para el cierre
+        from auth import session
+        usuario_cierre_id = None
+        if self.is_auth_enabled() and session.is_logged_in():
+            usuario_cierre_id = session.get_current_user()['id']
+
         # Actualizar el corte
         self.cursor.execute('''
             UPDATE cortes 
             SET fecha_cierre = ?, corte_final = ?, corte_esperado = ?,
                 retiros = ?, diferencia = ?, estado = ?, estado_corte = 'cerrado',
-                ganancias = ?, ventas_efectivo = ?, ventas_transferencia = ?
+                ganancias = ?, ventas_efectivo = ?, ventas_transferencia = ?,
+                usuario_cierre_id = ?
             WHERE id = ?
         ''', (fecha_cierre, corte_final, corte_esperado, retiros, diferencia, 
-              estado, ganancias, ventas_efectivo, ventas_transferencia, corte_id))
+              estado, ganancias, ventas_efectivo, ventas_transferencia, usuario_cierre_id, corte_id))
         
         # Desactivar corte activo
         self.set_config('corte_activo_id', 'None')
@@ -497,6 +514,9 @@ class Database:
         
         self.conn.commit()
         
+        # Registrar en auditoría
+        self.add_auditoria(usuario_cierre_id, 'cierre_corte', f"Corte #{numero_corte} cerrado. Estado: {estado}")
+
         print(f">> Corte #{numero_corte} cerrado exitosamente")
         return numero_corte
     

@@ -173,7 +173,8 @@ class CortesWindow:
         # Treeview (tabla) - COLUMNAS ACTUALIZADAS
         columns = ('ID', 'No. Corte', 'Fecha', 'Dinero en Caja', 'Corte Final', 
                    'Corte Esperado', 'Retiros', 'Diferencia', 'Estado', 
-                   'Ventas Efectivo', 'Ventas Transferencia', 'Total Ventas')
+                   'Ventas Efectivo', 'Ventas Transferencia', 'Total Ventas',
+                   'Usuario Inicio', 'Usuario Cierre')
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                 yscrollcommand=scrollbar.set, selectmode='extended')
@@ -192,6 +193,8 @@ class CortesWindow:
         self.tree.heading('Ventas Efectivo', text='Ventas Efectivo')
         self.tree.heading('Ventas Transferencia', text='Ventas Transferencia')
         self.tree.heading('Total Ventas', text='Total Ventas')
+        self.tree.heading('Usuario Inicio', text='Usuario Inicio')
+        self.tree.heading('Usuario Cierre', text='Usuario Cierre')
         
         self.tree.column('ID', width=0, stretch=tk.NO) # Ocultar ID
         self.tree.column('No. Corte', width=100, anchor='center')
@@ -205,6 +208,8 @@ class CortesWindow:
         self.tree.column('Ventas Efectivo', width=130, anchor='e')
         self.tree.column('Ventas Transferencia', width=150, anchor='e')
         self.tree.column('Total Ventas', width=120, anchor='e')
+        self.tree.column('Usuario Inicio', width=120, anchor='center')
+        self.tree.column('Usuario Cierre', width=120, anchor='center')
         
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.tree.yview)
@@ -245,7 +250,13 @@ class CortesWindow:
             self.tree.delete(item)
         
         if cortes is None:
-            db.cursor.execute('SELECT * FROM cortes ORDER BY numero_corte DESC')
+            db.cursor.execute('''
+                SELECT c.*, u_inicio.username AS usuario_inicio_username, u_cierre.username AS usuario_cierre_username
+                FROM cortes c
+                LEFT JOIN usuarios u_inicio ON c.usuario_inicio_id = u_inicio.id
+                LEFT JOIN usuarios u_cierre ON c.usuario_cierre_id = u_cierre.id
+                ORDER BY numero_corte DESC
+            ''')
             cortes = [dict(row) for row in db.cursor.fetchall()]
         
         for idx, c in enumerate(cortes):
@@ -268,7 +279,9 @@ class CortesWindow:
                 c['estado'],
                 format_currency(c.get('ventas_efectivo', 0)),
                 format_currency(c.get('ventas_transferencia', 0)),
-                format_currency(total_ventas)
+                format_currency(total_ventas),
+                c['usuario_inicio_username'] if c['usuario_inicio_username'] else 'N/A',
+                c['usuario_cierre_username'] if c['usuario_cierre_username'] else 'N/A'
             )
             
             self.tree.insert('', tk.END, values=values, tags=(tag,))
@@ -284,19 +297,25 @@ class CortesWindow:
             messagebox.showerror("Error de Fecha", "El formato de fecha no es válido.")
             return
 
-        sql = 'SELECT * FROM cortes WHERE 1=1'
+        sql = '''
+            SELECT c.*, u_inicio.username AS usuario_inicio_username, u_cierre.username AS usuario_cierre_username
+            FROM cortes c
+            LEFT JOIN usuarios u_inicio ON c.usuario_inicio_id = u_inicio.id
+            LEFT JOIN usuarios u_cierre ON c.usuario_cierre_id = u_cierre.id
+            WHERE 1=1
+        '''
         params = []
         
         if query:
-            # Búsqueda genérica sobre estado y número de corte
-            sql += ' AND (LOWER(estado) LIKE ? OR CAST(numero_corte AS TEXT) LIKE ?)'
-            params.extend([f'%{query.lower()}%', f'%{query.lower()}%'])
+            # Búsqueda genérica sobre estado, número de corte, usuario inicio o usuario cierre
+            sql += ' AND (LOWER(c.estado) LIKE ? OR CAST(c.numero_corte AS TEXT) LIKE ? OR LOWER(u_inicio.username) LIKE ? OR LOWER(u_cierre.username) LIKE ?)'
+            params.extend([f'%{query.lower()}%', f'%{query.lower()}%', f'%{query.lower()}%', f'%{query.lower()}%'])
         
         # Siempre filtra por el rango de fechas seleccionado
-        sql += ' AND DATE(SUBSTR(fecha_inicio, 7, 4) || "-" || SUBSTR(fecha_inicio, 4, 2) || "-" || SUBSTR(fecha_inicio, 1, 2)) BETWEEN ? AND ?'
+        sql += ' AND DATE(SUBSTR(c.fecha_inicio, 7, 4) || "-" || SUBSTR(c.fecha_inicio, 4, 2) || "-" || SUBSTR(c.fecha_inicio, 1, 2)) BETWEEN ? AND ?'
         params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
         
-        sql += ' ORDER BY numero_corte DESC'
+        sql += ' ORDER BY c.numero_corte DESC'
         
         db.cursor.execute(sql, params)
         cortes = [dict(row) for row in db.cursor.fetchall()]
@@ -624,6 +643,13 @@ class DetallesCorteDialog:
         if corte['fecha_cierre']:
             self.add_info_row(info_frame, "Fecha Cierre:", corte['fecha_cierre'])
         
+        # Fetch usernames
+        usuario_inicio_username = db.get_usuario(corte['usuario_inicio_id'])['username'] if corte['usuario_inicio_id'] else 'N/A'
+        usuario_cierre_username = db.get_usuario(corte['usuario_cierre_id'])['username'] if corte['usuario_cierre_id'] else 'N/A'
+
+        self.add_info_row(info_frame, "Iniciado por:", usuario_inicio_username)
+        self.add_info_row(info_frame, "Cerrado por:", usuario_cierre_username)
+
         self.add_info_row(info_frame, "Dinero en Caja:", 
                          format_currency(corte['dinero_en_caja']))
         

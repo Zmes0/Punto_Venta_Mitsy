@@ -526,8 +526,8 @@ class HistorialVentasWindow:
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Treeview (tabla) - AGREGAR columna "No. Corte"
-        columns = ('ID Venta', 'No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método')
+        # Treeview (tabla) - AGREGAR columna "No. Corte" y "Usuario"
+        columns = ('ID Venta', 'No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método', 'Usuario')
         
         self.detail_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                        yscrollcommand=scrollbar.set, selectmode='extended')
@@ -536,7 +536,7 @@ class HistorialVentasWindow:
         # Configurar columnas
         self.detail_tree.heading('ID Venta', text='ID Venta')
         self.detail_tree.heading('No. Venta', text='No. Venta')
-        self.detail_tree.heading('No. Corte', text='No. Corte')  # NUEVO
+        self.detail_tree.heading('No. Corte', text='No. Corte')
         self.detail_tree.heading('Fecha', text='Fecha')
         self.detail_tree.heading('Producto', text='Producto')
         self.detail_tree.heading('ID Producto', text='ID Prod.')
@@ -544,10 +544,11 @@ class HistorialVentasWindow:
         self.detail_tree.heading('Precio Unitario', text='Precio Unitario')
         self.detail_tree.heading('Total', text='Total')
         self.detail_tree.heading('Método', text='Método')
+        self.detail_tree.heading('Usuario', text='Usuario')
         
         self.detail_tree.column('ID Venta', width=80, anchor='center')
         self.detail_tree.column('No. Venta', width=100, anchor='center')
-        self.detail_tree.column('No. Corte', width=90, anchor='center')  # NUEVO
+        self.detail_tree.column('No. Corte', width=90, anchor='center')
         self.detail_tree.column('Fecha', width=160, anchor='center')
         self.detail_tree.column('Producto', width=220)
         self.detail_tree.column('ID Producto', width=80, anchor='center')
@@ -555,6 +556,7 @@ class HistorialVentasWindow:
         self.detail_tree.column('Precio Unitario', width=130, anchor='e')
         self.detail_tree.column('Total', width=130, anchor='e')
         self.detail_tree.column('Método', width=110, anchor='center')
+        self.detail_tree.column('Usuario', width=120, anchor='center')
         
         self.detail_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.detail_tree.yview)
@@ -729,9 +731,10 @@ class HistorialVentasWindow:
         # Obtener ventas con JOIN a cortes
         if ventas is None:
             db.cursor.execute('''
-                SELECT v.*, c.numero_corte 
+                SELECT v.*, c.numero_corte, u.username 
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
+                LEFT JOIN usuarios u ON v.usuario_id = u.id
                 ORDER BY v.id DESC
             ''')
             ventas = [dict(row) for row in db.cursor.fetchall()]
@@ -761,7 +764,8 @@ class HistorialVentasWindow:
                 f"{v['cantidad']:.1f}",
                 format_currency(v['precio_unitario']),
                 format_currency(v['total']),
-                v['metodo_pago']
+                v['metodo_pago'],
+                v['username'] if v['username'] else 'N/A'
             )
             
             self.detail_tree.insert('', tk.END, values=values, tags=(tag,))
@@ -774,17 +778,18 @@ class HistorialVentasWindow:
         
         # Construir query SQL con JOIN
         sql = '''
-            SELECT v.*, c.numero_corte 
+            SELECT v.*, c.numero_corte, u.username 
             FROM ventas v
             LEFT JOIN cortes c ON v.corte_id = c.id
+            LEFT JOIN usuarios u ON v.usuario_id = u.id
             WHERE 1=1
         '''
         params = []
         
         # Filtro de búsqueda general
         if query:
-            sql += ' AND (LOWER(v.producto) LIKE ? OR CAST(v.numero_venta AS TEXT) LIKE ?)'
-            params.extend([f'%{query.lower()}%', f'%{query}%'])
+            sql += ' AND (LOWER(v.producto) LIKE ? OR CAST(v.numero_venta AS TEXT) LIKE ? OR LOWER(u.username) LIKE ?)'
+            params.extend([f'%{query.lower()}%', f'%{query}%', f'%{query.lower()}%'])
         
         # Filtro de fechas
         sql += ''' AND DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2)) 

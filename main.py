@@ -7,6 +7,7 @@ from config import COLORS, FONTS, WINDOW_CONFIG, DENOMINACIONES
 from database import db
 from utils import get_current_date, get_resource_path
 from caja import open_cash_drawer
+from auth import session
 
 class MitsysPOS:
     def __init__(self):
@@ -473,7 +474,12 @@ class DineroCajaWindow:
             
             db.conn.commit()
             
-            corte_id = db.crear_nuevo_corte(total) 
+            # Obtener usuario actual (si el sistema de auth está activo)
+            usuario_id = None
+            if db.is_auth_enabled() and session.is_logged_in():
+                usuario_id = session.get_current_user()['id']
+
+            corte_id = db.crear_nuevo_corte(total, usuario_id) 
             
             db.mark_dinero_ingresado()
             db.set_config('dinero_inicial_dia', str(total))
