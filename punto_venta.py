@@ -1446,6 +1446,9 @@ class CobrarVentaWindow:
         tk.Radiobutton(metodo_frame, text="Transferencia", variable=self.metodo_var,
                       value='Transferencia', font=FONTS['normal'],
                       bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
+        tk.Radiobutton(metodo_frame, text="Tarjeta", variable=self.metodo_var,
+                      value='Tarjeta', font=FONTS['normal'],
+                      bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
         
         # Botones
         button_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
@@ -1871,7 +1874,8 @@ VENTAS DEL CORTE:
 ────────────────────────────────────────
 Ventas en Efectivo:      {format_currency(corte['ventas_efectivo'])}
 Ventas por Transferencia: {format_currency(corte['ventas_transferencia'])}
-Total de Ventas:         {format_currency(corte['ventas_efectivo'] + corte['ventas_transferencia'])}
+Ventas con Tarjeta:      {format_currency(corte['ventas_tarjeta'])}
+Total de Ventas:         {format_currency(corte['ventas_efectivo'] + corte['ventas_transferencia'] + corte['ventas_tarjeta'])}
 
 Egresos/Retiros:         {format_currency(corte['retiros'])}
 

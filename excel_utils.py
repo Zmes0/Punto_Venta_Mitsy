@@ -496,8 +496,8 @@ def importar_ventas_excel():
                     raise ValueError("Número de venta debe ser mayor a 0")
                 if venta['cantidad'] <= 0:
                     raise ValueError("Cantidad debe ser mayor a 0")
-                if venta['metodo_pago'] not in ['Efectivo', 'Transferencia']:
-                    raise ValueError("Método debe ser Efectivo o Transferencia")
+                if venta['metodo_pago'] not in ['Efectivo', 'Transferencia', 'Tarjeta']:
+                    raise ValueError("Método debe ser Efectivo, Transferencia o Tarjeta")
                 
                 ventas_validas.append(venta)
                 
@@ -515,14 +515,14 @@ def importar_ventas_excel():
 def exportar_cortes_excel(cortes):
     """Exporta cortes a Excel"""
     columnas = ['No. Corte', 'Fecha Inicio', 'Fecha Cierre', 'Dinero en Caja', 
-                'Ventas Efectivo', 'Ventas Transferencia', 'Total Ventas',
+                'Ventas Efectivo', 'Ventas Transferencia', 'Ventas Tarjeta', 'Total Ventas',
                 'Corte Final', 'Corte Esperado', 'Retiros', 
                 'Diferencia', 'Estado', 'Ganancias']
     
     datos = []
     for c in cortes:
         # Calcular total de ventas
-        total_ventas = c.get('ventas_efectivo', 0) + c.get('ventas_transferencia', 0)
+        total_ventas = c.get('ventas_efectivo', 0) + c.get('ventas_transferencia', 0) + c.get('ventas_tarjeta', 0)
         
         # Usar fecha_cierre si existe, sino fecha_inicio
         fecha_inicio = c.get('fecha_inicio', c.get('fecha', ''))
@@ -535,6 +535,7 @@ def exportar_cortes_excel(cortes):
             c['dinero_en_caja'],
             c.get('ventas_efectivo', 0),
             c.get('ventas_transferencia', 0),
+            c.get('ventas_tarjeta', 0),
             total_ventas,
             c['corte_final'],
             c['corte_esperado'],
@@ -550,7 +551,7 @@ def exportar_cortes_excel(cortes):
 def importar_cortes_excel():
     """Importa cortes desde Excel"""
     columnas = ['No. Corte', 'Fecha Inicio', 'Dinero en Caja', 
-                'Ventas Efectivo', 'Ventas Transferencia', 
+                'Ventas Efectivo', 'Ventas Transferencia', 'Ventas Tarjeta',
                 'Corte Final', 'Retiros', 'Ganancias']
     
     datos = ExcelManager.importar_desde_excel(columnas, "Importar Cortes")
@@ -573,6 +574,7 @@ def importar_cortes_excel():
                     'dinero_en_caja': float(registro['Dinero en Caja']),
                     'ventas_efectivo': float(registro.get('Ventas Efectivo', 0)),
                     'ventas_transferencia': float(registro.get('Ventas Transferencia', 0)),
+                    'ventas_tarjeta': float(registro.get('Ventas Tarjeta', 0)),
                     'corte_final': float(registro['Corte Final']),
                     'retiros': float(registro.get('Retiros', 0)),
                     'ganancias': float(registro.get('Ganancias', 0))

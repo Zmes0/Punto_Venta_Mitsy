@@ -173,7 +173,7 @@ class CortesWindow:
         # Treeview (tabla) - COLUMNAS ACTUALIZADAS
         columns = ('ID', 'No. Corte', 'Fecha', 'Dinero en Caja', 'Corte Final', 
                    'Corte Esperado', 'Retiros', 'Diferencia', 'Estado', 
-                   'Ventas Efectivo', 'Ventas Transferencia', 'Total Ventas',
+                   'Ventas Efectivo', 'Ventas Transferencia', 'Ventas Tarjeta', 'Total Ventas',
                    'Usuario Inicio', 'Usuario Cierre')
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
@@ -207,6 +207,7 @@ class CortesWindow:
         self.tree.column('Estado', width=100, anchor='center')
         self.tree.column('Ventas Efectivo', width=130, anchor='e')
         self.tree.column('Ventas Transferencia', width=150, anchor='e')
+        self.tree.column('Ventas Tarjeta', width=120, anchor='e')
         self.tree.column('Total Ventas', width=120, anchor='e')
         self.tree.column('Usuario Inicio', width=120, anchor='center')
         self.tree.column('Usuario Cierre', width=120, anchor='center')
@@ -265,7 +266,7 @@ class CortesWindow:
             fecha_mostrar = c['fecha_cierre'] if c['fecha_cierre'] else c['fecha_inicio']
             
             # Calcular total de ventas
-            total_ventas = c.get('ventas_efectivo', 0) + c.get('ventas_transferencia', 0)
+            total_ventas = c.get('ventas_efectivo', 0) + c.get('ventas_transferencia', 0) + c.get('ventas_tarjeta', 0)
             
             values = (
                 c['id'],
@@ -279,6 +280,7 @@ class CortesWindow:
                 c['estado'],
                 format_currency(c.get('ventas_efectivo', 0)),
                 format_currency(c.get('ventas_transferencia', 0)),
+                format_currency(c.get('ventas_tarjeta', 0)),
                 format_currency(total_ventas),
                 c['usuario_inicio_username'] if c['usuario_inicio_username'] else 'N/A',
                 c['usuario_cierre_username'] if c['usuario_cierre_username'] else 'N/A'
@@ -465,7 +467,7 @@ class CortesWindow:
         placeholders = ','.join('?' for _ in corte_ids)
         db.cursor.execute(f'''
             SELECT numero_corte, fecha_inicio, fecha_cierre, dinero_en_caja,
-                   ventas_efectivo, ventas_transferencia, corte_final,
+                   ventas_efectivo, ventas_transferencia, ventas_tarjeta, corte_final,
                    corte_esperado, retiros, diferencia, estado, ganancias
             FROM cortes
             WHERE id IN ({placeholders})
@@ -506,6 +508,7 @@ class CortesWindow:
                 dinero_caja = float(corte.get('dinero_en_caja', 0))
                 ventas_efectivo = float(corte.get('ventas_efectivo', 0))
                 ventas_transferencia = float(corte.get('ventas_transferencia', 0))
+                ventas_tarjeta = float(corte.get('ventas_tarjeta', 0))
                 corte_final = float(corte.get('corte_final', 0))
                 retiros = float(corte.get('retiros', 0))
                 ganancias = float(corte.get('ganancias', 0))
@@ -539,10 +542,10 @@ class CortesWindow:
                 db.cursor.execute('''
                     INSERT INTO cortes (
                         numero_corte, fecha_inicio, fecha_cierre, dinero_en_caja,
-                        ventas_efectivo, ventas_transferencia, corte_final,
+                        ventas_efectivo, ventas_transferencia, ventas_tarjeta, corte_final,
                         corte_esperado, retiros, diferencia, estado, ganancias, estado_corte
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cerrado')    
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cerrado')    
                 ''', (
                     corte['numero_corte'],
                     fecha_inicio,  # fecha_inicio
@@ -550,6 +553,7 @@ class CortesWindow:
                     dinero_caja,
                     ventas_efectivo,
                     ventas_transferencia,
+                    ventas_tarjeta,
                     corte_final,
                     corte_esperado,
                     retiros,
@@ -663,7 +667,10 @@ class DetallesCorteDialog:
         self.add_info_row(info_frame, "Ventas por Transferencia:", 
                          format_currency(corte['ventas_transferencia']))
         
-        total_ventas = corte['ventas_efectivo'] + corte['ventas_transferencia']
+        self.add_info_row(info_frame, "Ventas con Tarjeta:", 
+                         format_currency(corte['ventas_tarjeta']))
+        
+        total_ventas = corte['ventas_efectivo'] + corte['ventas_transferencia'] + corte['ventas_tarjeta']
         self.add_info_row(info_frame, "Total de Ventas:", 
                          format_currency(total_ventas), COLORS['accent'])
         
@@ -765,6 +772,7 @@ class CorteDialog:
         self.dinero_caja_var = tk.StringVar(value="0")
         self.ventas_efectivo_var = tk.StringVar(value="0")
         self.ventas_transferencia_var = tk.StringVar(value="0")
+        self.ventas_tarjeta_var = tk.StringVar(value="0")
         self.corte_final_var = tk.StringVar(value="0")
         self.retiros_var = tk.StringVar(value="0")
         self.ganancias_var = tk.StringVar(value="0")
@@ -773,7 +781,7 @@ class CorteDialog:
         self.estado_var = tk.StringVar()
 
         # --- Trace ---
-        for var in [self.dinero_caja_var, self.ventas_efectivo_var, self.retiros_var, self.corte_final_var]:
+        for var in [self.dinero_caja_var, self.ventas_efectivo_var, self.ventas_transferencia_var, self.ventas_tarjeta_var, self.retiros_var, self.corte_final_var]:
             var.trace('w', self.calcular_diferencia)
 
         # --- Input Widgets Frame ---
@@ -808,11 +816,14 @@ class CorteDialog:
         tk.Label(inputs_frame, text="Ventas por Transferencia:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=1, column=2, sticky='w', padx=(20, 5), pady=5)
         tk.Entry(inputs_frame, textvariable=self.ventas_transferencia_var, font=FONTS['normal']).grid(row=1, column=3, sticky='ew', padx=5, pady=5)
 
-        tk.Label(inputs_frame, text="Retiros/Egresos:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=2, column=2, sticky='w', padx=(20, 5), pady=5)
-        tk.Entry(inputs_frame, textvariable=self.retiros_var, font=FONTS['normal']).grid(row=2, column=3, sticky='ew', padx=5, pady=5)
+        tk.Label(inputs_frame, text="Ventas con Tarjeta:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=2, column=2, sticky='w', padx=(20, 5), pady=5)
+        tk.Entry(inputs_frame, textvariable=self.ventas_tarjeta_var, font=FONTS['normal']).grid(row=2, column=3, sticky='ew', padx=5, pady=5)
 
-        tk.Label(inputs_frame, text="Corte Final (Dinero contado):", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=3, column=2, sticky='w', padx=(20, 5), pady=5)
-        tk.Entry(inputs_frame, textvariable=self.corte_final_var, font=FONTS['normal']).grid(row=3, column=3, sticky='ew', padx=5, pady=5)
+        tk.Label(inputs_frame, text="Retiros/Egresos:", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=3, column=2, sticky='w', padx=(20, 5), pady=5)
+        tk.Entry(inputs_frame, textvariable=self.retiros_var, font=FONTS['normal']).grid(row=3, column=3, sticky='ew', padx=5, pady=5)
+
+        tk.Label(inputs_frame, text="Corte Final (Dinero contado):", font=FONTS['normal'], bg=COLORS['bg_primary']).grid(row=4, column=2, sticky='w', padx=(20, 5), pady=5)
+        tk.Entry(inputs_frame, textvariable=self.corte_final_var, font=FONTS['normal']).grid(row=4, column=3, sticky='ew', padx=5, pady=5)
 
         # --- Calculated Fields Frame ---
         calculated_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
@@ -841,6 +852,7 @@ class CorteDialog:
         try:
             dinero_caja = float(self.dinero_caja_var.get() or 0)
             ventas_efectivo = float(self.ventas_efectivo_var.get() or 0)
+            ventas_tarjeta = float(self.ventas_tarjeta_var.get() or 0)
             retiros = float(self.retiros_var.get() or 0)
             corte_final = float(self.corte_final_var.get() or 0)
             
@@ -881,6 +893,7 @@ class CorteDialog:
         self.dinero_caja_var.set(self.corte_data['dinero_en_caja'])
         self.ventas_efectivo_var.set(self.corte_data['ventas_efectivo'])
         self.ventas_transferencia_var.set(self.corte_data['ventas_transferencia'])
+        self.ventas_tarjeta_var.set(self.corte_data['ventas_tarjeta'])
         self.corte_final_var.set(self.corte_data['corte_final'])
         self.retiros_var.set(self.corte_data['retiros'])
         self.ganancias_var.set(self.corte_data['ganancias'])
@@ -894,6 +907,7 @@ class CorteDialog:
             dinero_caja = float(self.dinero_caja_var.get() or 0)
             ventas_efectivo = float(self.ventas_efectivo_var.get() or 0)
             ventas_transferencia = float(self.ventas_transferencia_var.get() or 0)
+            ventas_tarjeta = float(self.ventas_tarjeta_var.get() or 0)
             retiros = float(self.retiros_var.get() or 0)
             corte_final = float(self.corte_final_var.get() or 0)
             ganancias = float(self.ganancias_var.get() or 0)
@@ -916,7 +930,7 @@ class CorteDialog:
             # --- Construir tupla de parámetros ---
             params = (
                 numero_corte, fecha_inicio, fecha_cierre, dinero_caja,
-                ventas_efectivo, ventas_transferencia, corte_final,
+                ventas_efectivo, ventas_transferencia, ventas_tarjeta, corte_final,
                 corte_esperado, retiros, diferencia, estado, ganancias
             )
 
@@ -924,16 +938,16 @@ class CorteDialog:
             if self.corte_id:
                 sql = '''UPDATE cortes SET 
                             numero_corte=?, fecha_inicio=?, fecha_cierre=?, dinero_en_caja=?,
-                            ventas_efectivo=?, ventas_transferencia=?, corte_final=?,
+                            ventas_efectivo=?, ventas_transferencia=?, ventas_tarjeta=?, corte_final=?,
                             corte_esperado=?, retiros=?, diferencia=?, estado=?, ganancias=?
                          WHERE id = ?'''
                 db.cursor.execute(sql, params + (self.corte_id,))
             else:
                 sql = '''INSERT INTO cortes (
                             numero_corte, fecha_inicio, fecha_cierre, dinero_en_caja,
-                            ventas_efectivo, ventas_transferencia, corte_final,
+                            ventas_efectivo, ventas_transferencia, ventas_tarjeta, corte_final,
                             corte_esperado, retiros, diferencia, estado, ganancias, estado_corte
-                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cerrado')'''
+                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cerrado')'''
                 db.cursor.execute(sql, params)
             
             db.conn.commit()

@@ -158,6 +158,7 @@ class Database:
                 ganancias REAL NOT NULL,
                 ventas_efectivo REAL DEFAULT 0,
                 ventas_transferencia REAL DEFAULT 0,
+                ventas_tarjeta REAL DEFAULT 0,
                 usuario_inicio_id INTEGER DEFAULT NULL,
                 usuario_cierre_id INTEGER DEFAULT NULL,
                 FOREIGN KEY (usuario_inicio_id) REFERENCES usuarios(id),
@@ -172,6 +173,8 @@ class Database:
             self.cursor.execute('ALTER TABLE cortes ADD COLUMN usuario_inicio_id INTEGER DEFAULT NULL REFERENCES usuarios(id)')
         if 'usuario_cierre_id' not in columns:
             self.cursor.execute('ALTER TABLE cortes ADD COLUMN usuario_cierre_id INTEGER DEFAULT NULL REFERENCES usuarios(id)')
+        if 'ventas_tarjeta' not in columns:
+            self.cursor.execute('ALTER TABLE cortes ADD COLUMN ventas_tarjeta REAL DEFAULT 0')
         
         # Tabla de Ventas - MODIFICADA con recibido y cambio
         self.cursor.execute('''
@@ -452,7 +455,8 @@ class Database:
         self.cursor.execute('''
             SELECT 
                 SUM(CASE WHEN metodo_pago = 'Efectivo' THEN total ELSE 0 END) as efectivo,
-                SUM(CASE WHEN metodo_pago = 'Transferencia' THEN total ELSE 0 END) as transferencia
+                SUM(CASE WHEN metodo_pago = 'Transferencia' THEN total ELSE 0 END) as transferencia,
+                SUM(CASE WHEN metodo_pago = 'Tarjeta' THEN total ELSE 0 END) as tarjeta
             FROM ventas
             WHERE corte_id = ?
         ''', (corte_id,))
@@ -460,6 +464,7 @@ class Database:
         result = self.cursor.fetchone()
         ventas_efectivo = result['efectivo'] if result['efectivo'] else 0
         ventas_transferencia = result['transferencia'] if result['transferencia'] else 0
+        ventas_tarjeta = result['tarjeta'] if result['tarjeta'] else 0
         
         # NUEVO: Calcular total de retiros para este corte
         self.cursor.execute('SELECT SUM(monto) as total_retiros FROM retiros WHERE corte_id = ?', (corte_id,))
@@ -502,11 +507,11 @@ class Database:
             UPDATE cortes 
             SET fecha_cierre = ?, corte_final = ?, corte_esperado = ?,
                 retiros = ?, diferencia = ?, estado = ?, estado_corte = 'cerrado',
-                ganancias = ?, ventas_efectivo = ?, ventas_transferencia = ?,
+                ganancias = ?, ventas_efectivo = ?, ventas_transferencia = ?, ventas_tarjeta = ?,
                 usuario_cierre_id = ?
             WHERE id = ?
         ''', (fecha_cierre, corte_final, corte_esperado, retiros, diferencia, 
-              estado, ganancias, ventas_efectivo, ventas_transferencia, usuario_cierre_id, corte_id))
+              estado, ganancias, ventas_efectivo, ventas_transferencia, ventas_tarjeta, usuario_cierre_id, corte_id))
         
         # Desactivar corte activo
         self.set_config('corte_activo_id', 'None')
