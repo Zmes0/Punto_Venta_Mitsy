@@ -192,6 +192,7 @@ class CortesWindow:
         self.tree.heading('Estado', text='Estado')
         self.tree.heading('Ventas Efectivo', text='Ventas Efectivo')
         self.tree.heading('Ventas Transferencia', text='Ventas Transferencia')
+        self.tree.heading('Ventas Tarjeta', text='Ventas Tarjeta')
         self.tree.heading('Total Ventas', text='Total Ventas')
         self.tree.heading('Usuario Inicio', text='Usuario Inicio')
         self.tree.heading('Usuario Cierre', text='Usuario Cierre')
@@ -361,7 +362,14 @@ class CortesWindow:
         self.search_var.set("")
         self.num_corte_var.set("")
         
-        sql = 'SELECT * FROM cortes WHERE estado = ? ORDER BY numero_corte DESC'
+        sql = '''
+            SELECT c.*, u_inicio.username AS usuario_inicio_username, u_cierre.username AS usuario_cierre_username
+            FROM cortes c
+            LEFT JOIN usuarios u_inicio ON c.usuario_inicio_id = u_inicio.id
+            LEFT JOIN usuarios u_cierre ON c.usuario_cierre_id = u_cierre.id
+            WHERE c.estado = ? 
+            ORDER BY c.numero_corte DESC
+        '''
         db.cursor.execute(sql, (estado,))
         cortes = [dict(row) for row in db.cursor.fetchall()]
         
@@ -378,7 +386,15 @@ class CortesWindow:
         
         try:
             num_corte_int = int(num_corte)
-            db.cursor.execute('SELECT * FROM cortes WHERE numero_corte = ? ORDER BY fecha_inicio DESC', (num_corte_int,))
+            sql = '''
+                SELECT c.*, u_inicio.username AS usuario_inicio_username, u_cierre.username AS usuario_cierre_username
+                FROM cortes c
+                LEFT JOIN usuarios u_inicio ON c.usuario_inicio_id = u_inicio.id
+                LEFT JOIN usuarios u_cierre ON c.usuario_cierre_id = u_cierre.id
+                WHERE c.numero_corte = ?
+                ORDER BY c.fecha_inicio DESC
+            '''
+            db.cursor.execute(sql, (num_corte_int,))
             cortes = [dict(row) for row in db.cursor.fetchall()]
             
             if not cortes:
@@ -428,19 +444,26 @@ class CortesWindow:
         if not selection:
             messagebox.showwarning("Advertencia", "Por favor selecciona al menos un corte para borrar.")
             return
-        
-        if not messagebox.askyesno("Confirmar", f"¿Estás seguro de borrar {len(selection)} corte(s)? Esta acción no se puede deshacer."):
-            return
-        
+
         ids_to_delete = []
         for item_id in selection:
             item = self.tree.item(item_id)
             corte_id = item['values'][0]
+            
+            db.cursor.execute("SELECT estado_corte FROM cortes WHERE id = ?", (corte_id,))
+            corte = db.cursor.fetchone()
+            if corte and corte['estado_corte'] == 'abierto':
+                messagebox.showerror("Error", "No se puede borrar el corte de caja que está actualmente abierto.")
+                return
+            
             ids_to_delete.append(corte_id)
+
+        if not messagebox.askyesno("Confirmar", f"¿Estás seguro de borrar {len(selection)} corte(s)? Esta acción no se puede deshacer."):
+            return
         
         db.delete_cortes_and_reorganize(ids_to_delete)
         
-        messagebox.showinfo("Éxito", f"{len(ids_to_delete)} corte(s) eliminado(s) y reorganizado(s) correctamente.")
+        messagebox.showinfo("Éxito", f"{len(ids_to_delete)} corte(s) eliminado(s) correctamente.")
         self.load_cortes()
     
     def agregar_corte(self):
@@ -599,11 +622,13 @@ class DetallesCorteDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Detalles del Corte")
-        self.dialog.geometry("600x700")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        self.dialog.minsize(600, 700)
+        
+        # Adjusted size
+        self.dialog.geometry("850x550")
+        self.dialog.minsize(850, 550)
         
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
@@ -615,15 +640,25 @@ class DetallesCorteDialog:
     
     def center_dialog(self):
         self.dialog.update_idletasks()
-        width = 600
-        height = 740
+        width = self.dialog.winfo_width()
+        height = self.dialog.winfo_height()
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
     
+    def add_info_grid(self, parent, row, col, label, value, color=None, columnspan=1):
+        tk.Label(parent, text=label, font=FONTS['normal'],
+                bg=COLORS['bg_secondary'], anchor='w').grid(row=row, column=col, sticky='w', padx=(20, 10), pady=5)
+        
+        value_color = color if color else COLORS['text_primary']
+        value_label = tk.Label(parent, text=str(value), font=FONTS['heading'],
+                bg=COLORS['bg_secondary'], fg=value_color, anchor='w')
+        value_label.grid(row=row, column=col + 1, sticky='w', padx=(0, 20), pady=5, columnspan=columnspan)
+        return value_label
+
     def setup_ui(self):
         main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         db.cursor.execute('SELECT * FROM cortes WHERE id = ?', (self.corte_id,))
         corte = db.cursor.fetchone()
@@ -637,93 +672,79 @@ class DetallesCorteDialog:
         
         tk.Label(main_frame, text=f"Corte de Caja #{corte['numero_corte']}", 
                 font=FONTS['title'], bg=COLORS['bg_primary'],
-                fg=COLORS['text_primary']).pack(pady=(0, 20))
+                fg=COLORS['text_primary']).pack(pady=(0, 15))
         
         info_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'],
-                             relief=tk.RAISED, borderwidth=2)
+                             relief=tk.RAISED, borderwidth=1)
         info_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        self.add_info_row(info_frame, "Fecha Inicio:", corte['fecha_inicio'])
-        if corte['fecha_cierre']:
-            self.add_info_row(info_frame, "Fecha Cierre:", corte['fecha_cierre'])
-        
-        # Fetch usernames
+        info_frame.columnconfigure(1, weight=1)
+        info_frame.columnconfigure(3, weight=1)
+
+        # --- Data ---
         usuario_inicio_username = db.get_usuario(corte['usuario_inicio_id'])['username'] if corte['usuario_inicio_id'] else 'N/A'
         usuario_cierre_username = db.get_usuario(corte['usuario_cierre_id'])['username'] if corte['usuario_cierre_id'] else 'N/A'
-
-        self.add_info_row(info_frame, "Iniciado por:", usuario_inicio_username)
-        self.add_info_row(info_frame, "Cerrado por:", usuario_cierre_username)
-
-        self.add_info_row(info_frame, "Dinero en Caja:", 
-                         format_currency(corte['dinero_en_caja']))
-        
-        tk.Label(info_frame, text="── VENTAS DEL CORTE ──", 
-                font=FONTS['normal'], bg=COLORS['bg_secondary'],
-                fg=COLORS['accent']).pack(pady=(10, 5))
-        
-        self.add_info_row(info_frame, "Ventas en Efectivo:", 
-                         format_currency(corte['ventas_efectivo']))
-        
-        self.add_info_row(info_frame, "Ventas por Transferencia:", 
-                         format_currency(corte['ventas_transferencia']))
-        
-        self.add_info_row(info_frame, "Ventas con Tarjeta:", 
-                         format_currency(corte['ventas_tarjeta']))
-        
         total_ventas = corte['ventas_efectivo'] + corte['ventas_transferencia'] + corte['ventas_tarjeta']
-        self.add_info_row(info_frame, "Total de Ventas:", 
-                         format_currency(total_ventas), COLORS['accent'])
+
+        # --- Layout using grid ---
+        row = 0
+        # Section titles
+        tk.Label(info_frame, text="Información General", font=FONTS['heading'], bg=COLORS['bg_secondary'], fg=COLORS['accent']).grid(row=row, column=0, columnspan=2, sticky='w', padx=20, pady=(10,5))
+        tk.Label(info_frame, text="Resumen de Ventas", font=FONTS['heading'], bg=COLORS['bg_secondary'], fg=COLORS['accent']).grid(row=row, column=2, columnspan=2, sticky='w', padx=20, pady=(10,5))
+        row += 1
+
+        # Row 1
+        self.add_info_grid(info_frame, row, 0, "Fecha Inicio:", corte['fecha_inicio'])
+        self.add_info_grid(info_frame, row, 2, "Ventas en Efectivo:", format_currency(corte['ventas_efectivo']))
+        row += 1
         
-        tk.Frame(info_frame, bg=COLORS['border'], height=2).pack(fill=tk.X, pady=10, padx=20)
-        
-        self.add_info_row(info_frame, "Corte Final (contado):", 
-                         format_currency(corte['corte_final']), COLORS['accent'])
-        
-        self.add_info_row(info_frame, "Corte Esperado:", 
-                         format_currency(corte['corte_esperado']))
-        
+        # Row 2
+        if corte['fecha_cierre']:
+            self.add_info_grid(info_frame, row, 0, "Fecha Cierre:", corte['fecha_cierre'])
+        self.add_info_grid(info_frame, row, 2, "Ventas Transferencia:", format_currency(corte['ventas_transferencia']))
+        row += 1
+
+        # Row 3
+        self.add_info_grid(info_frame, row, 0, "Iniciado por:", usuario_inicio_username)
+        self.add_info_grid(info_frame, row, 2, "Ventas con Tarjeta:", format_currency(corte['ventas_tarjeta']))
+        row += 1
+
+        # Row 4
+        self.add_info_grid(info_frame, row, 0, "Cerrado por:", usuario_cierre_username)
+        self.add_info_grid(info_frame, row, 2, "Total de Ventas:", format_currency(total_ventas), COLORS['accent'])
+        row += 1
+
+        # Separator
+        tk.Frame(info_frame, bg=COLORS['border'], height=1).grid(row=row, columnspan=4, sticky='ew', pady=10, padx=20)
+        row += 1
+
+        # Row 5
+        self.add_info_grid(info_frame, row, 0, "Dinero en Caja:", format_currency(corte['dinero_en_caja']))
+        self.add_info_grid(info_frame, row, 2, "Corte Esperado:", format_currency(corte['corte_esperado']))
+        row += 1
+
+        # Row 6
         if corte['retiros'] > 0:
-            self.add_info_row(info_frame, "Retiros/Egresos:", 
-                             format_currency(corte['retiros']))
-        
-        diferencia_color = COLORS['text_primary']
-        if corte['estado'] == 'Sobrante':
-            diferencia_color = COLORS['success']
-        elif corte['estado'] == 'Faltante':
-            diferencia_color = COLORS['danger']
-        
-        self.add_info_row(info_frame, "Diferencia:", 
-                         format_currency(corte['diferencia']), diferencia_color)
-        
-        estado_color = COLORS['text_primary']
-        if corte['estado'] == 'Cuadrado':
-            estado_color = COLORS['accent']
-        elif corte['estado'] == 'Sobrante':
-            estado_color = COLORS['success']
-        elif corte['estado'] == 'Faltante':
-            estado_color = COLORS['danger']
-        
-        self.add_info_row(info_frame, "Estado del Corte:", 
-                         corte['estado'], estado_color)
-        
-        self.add_info_row(info_frame, "Ganancias del Día:", 
-                         format_currency(corte['ganancias']), COLORS['success'])
+            self.add_info_grid(info_frame, row, 0, "Retiros/Egresos:", format_currency(corte['retiros']))
+        self.add_info_grid(info_frame, row, 2, "Corte Final (contado):", format_currency(corte['corte_final']), COLORS['accent'])
+        row += 1
+
+        # Separator
+        tk.Frame(info_frame, bg=COLORS['border'], height=1).grid(row=row, columnspan=4, sticky='ew', pady=10, padx=20)
+        row += 1
+
+        # Results section
+        diferencia_color = COLORS['success'] if corte['estado'] == 'Sobrante' else COLORS['danger'] if corte['estado'] == 'Faltante' else COLORS['text_primary']
+        estado_color = COLORS['accent'] if corte['estado'] == 'Cuadrado' else diferencia_color
+
+        self.add_info_grid(info_frame, row, 0, "Diferencia:", format_currency(corte['diferencia']), diferencia_color)
+        self.add_info_grid(info_frame, row, 2, "Estado del Corte:", corte['estado'], estado_color)
+        row += 1
+
+        self.add_info_grid(info_frame, row, 0, "Ganancias del Día:", format_currency(corte['ganancias']), COLORS['success'], columnspan=3)
         
         tk.Button(main_frame, text="Cerrar", command=self.dialog.destroy,
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=40, pady=12).pack(pady=20)
-    
-    def add_info_row(self, parent, label, value, color=None):
-        row_frame = tk.Frame(parent, bg=COLORS['bg_secondary'])
-        row_frame.pack(fill=tk.X, padx=20, pady=8)
-        
-        tk.Label(row_frame, text=label, font=FONTS['normal'],
-                bg=COLORS['bg_secondary'], anchor='w').pack(side=tk.LEFT)
-        
-        value_color = color if color else COLORS['text_primary']
-        tk.Label(row_frame, text=str(value), font=FONTS['heading'],
-                bg=COLORS['bg_secondary'], fg=value_color,
-                anchor='e').pack(side=tk.RIGHT)
+                 relief=tk.RAISED, borderwidth=2, padx=40, pady=10).pack(side=tk.BOTTOM, pady=(20,0))
 
 
 class CorteDialog:
