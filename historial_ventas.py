@@ -566,6 +566,7 @@ class HistorialVentasWindow:
         self.detail_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
         self.detail_tree.tag_configure('efectivo', background='#E8F5E9')
         self.detail_tree.tag_configure('transferencia', background='#E3F2FD')
+        self.detail_tree.tag_configure('tarjeta', background='#FFF9C4') # Color para tarjeta
         
         # Frame de botones de acción
         action_button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
@@ -692,6 +693,11 @@ class HistorialVentasWindow:
                  font=FONTS['normal'], bg=COLORS['accent'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
 
+        tk.Button(quick_filters_frame, text="Tarjeta",
+                  command=lambda: self.detail_filtro_metodo_pago('Tarjeta'),
+                  font=FONTS['normal'], bg='#FFC107', fg='black',  # Un color ámbar
+                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
+
         # Separador
         tk.Label(quick_filters_frame, text="|", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=10)
@@ -746,6 +752,8 @@ class HistorialVentasWindow:
                 tag = 'efectivo'
             elif v['metodo_pago'] == 'Transferencia':
                 tag = 'transferencia'
+            elif v['metodo_pago'] == 'Tarjeta':
+                tag = 'tarjeta'
             else:
                 tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
             
@@ -818,9 +826,10 @@ class HistorialVentasWindow:
                 num_corte = int(num_corte)
             
             db.cursor.execute('''
-                SELECT v.*, c.numero_corte 
+                SELECT v.*, c.numero_corte, u.username 
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
+                LEFT JOIN usuarios u ON v.usuario_id = u.id
                 WHERE c.numero_corte = ? 
                 ORDER BY v.id DESC
             ''', (num_corte,))
@@ -871,9 +880,10 @@ class HistorialVentasWindow:
     def detail_filtro_metodo_pago(self, metodo):
         """Filtra por método de pago"""
         db.cursor.execute('''
-            SELECT v.*, c.numero_corte 
+            SELECT v.*, c.numero_corte, u.username 
             FROM ventas v
             LEFT JOIN cortes c ON v.corte_id = c.id
+            LEFT JOIN usuarios u ON v.usuario_id = u.id
             WHERE v.metodo_pago = ? 
             ORDER BY v.id DESC
         ''', (metodo,))
@@ -890,9 +900,10 @@ class HistorialVentasWindow:
         try:
             num_venta = int(num_venta)
             db.cursor.execute('''
-                SELECT v.*, c.numero_corte 
+                SELECT v.*, c.numero_corte, u.username 
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
+                LEFT JOIN usuarios u ON v.usuario_id = u.id
                 WHERE v.numero_venta = ? 
                 ORDER BY v.id DESC
             ''', (num_venta,))
