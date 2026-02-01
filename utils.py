@@ -224,3 +224,21 @@ def enable_drag_selection(tree: ttk.Treeview):
             tree.selection_add(item)
 
     tree.bind("<B1-Motion>", on_drag_motion)
+
+def restart_application():
+    """Reinicia la aplicación actual."""
+    import subprocess
+    try:
+        subprocess.Popen([sys.executable] + sys.argv)
+        sys.exit()
+    except Exception as e:
+        print(f"Error al reiniciar la aplicación: {e}")
+
+def get_checkpoints_dir() -> str:
+    """
+    Retorna la ruta al directorio de checkpoints, creándolo si no existe.
+    """
+    base_path = get_base_path()
+    checkpoints_dir = os.path.join(base_path, 'data', 'checkpoints')
+    os.makedirs(checkpoints_dir, exist_ok=True)
+    return checkpoints_dir

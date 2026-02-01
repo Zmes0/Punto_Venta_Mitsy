@@ -279,7 +279,7 @@ class Database:
         self.cursor.execute('SELECT COUNT(*) as count FROM ventas WHERE corte_id IS NULL')
         result = self.cursor.fetchone()
         
-        if result['count'] > 0:
+        if result and result[0] > 0:
             # Obtener la fecha más antigua de ventas
             self.cursor.execute('''
                 SELECT MIN(fecha) as fecha_minima FROM ventas WHERE corte_id IS NULL
@@ -313,7 +313,7 @@ class Database:
             ''', (corte_legacy_id,))
             
             self.conn.commit()
-            print(f">> Migración completada: {result['count']} ventas asignadas al corte legacy")
+            print(f">> Migración completada: {result[0]} ventas asignadas al corte legacy")
     
     
     
@@ -1468,7 +1468,96 @@ class Database:
         
         return [dict(row) for row in self.cursor.fetchall()]
 
+    def delete_database_file(self):
+        """Cierra la conexión y elimina el archivo de la base de datos."""
+        self.close()
+        try:
+            if os.path.exists(self.db_path):
+                os.remove(self.db_path)
+                print(f"Base de datos '{self.db_path}' eliminada correctamente.")
+                return True
+        except Exception as e:
+            print(f"Error al eliminar la base de datos: {e}")
+            return False
+
+    def recreate_database(self):
+        """Elimina y recrea la base de datos."""
+        if self.delete_database_file():
+            self.connect()
+            self.create_tables()
+            self.init_config()
+            print("Base de datos recreada exitosamente.")
+
+    def create_checkpoint(self, corte_numero: int):
+        """Crea un checkpoint de la base de datos."""
+        self.close() # Cerrar conexión antes de copiar
+        
+        from utils import get_checkpoints_dir
+        checkpoint_dir = get_checkpoints_dir()
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        checkpoint_name = f"mitsys_checkpoint_{timestamp}_Corte{corte_numero}.db"
+        checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
+        
+        try:
+            import shutil
+            shutil.copy2(self.db_path, checkpoint_path)
+            print(f"Checkpoint creado: {checkpoint_path}")
+        except Exception as e:
+            print(f"Error al crear checkpoint: {e}")
+        finally:
+            self.connect() # Reabrir conexión
     
+    def restore_checkpoint(self, checkpoint_path: str):
+        """Restaura la base de datos desde un checkpoint."""
+        self.close() # Cerrar conexión antes de reemplazar
+        
+        try:
+            import shutil
+            shutil.copy2(checkpoint_path, self.db_path)
+            print(f"Base de datos restaurada desde: {checkpoint_path}")
+        except Exception as e:
+            print(f"Error al restaurar checkpoint: {e}")
+            raise # Re-lanzar la excepción para que sea manejada por el llamador
+        finally:
+            self.connect() # Reabrir conexión
+    
+    def get_checkpoints(self) -> List[Dict]:
+        """Obtiene una lista de checkpoints disponibles."""
+        from utils import get_checkpoints_dir
+        checkpoint_dir = get_checkpoints_dir()
+        
+        checkpoints = []
+        if os.path.exists(checkpoint_dir):
+            for filename in os.listdir(checkpoint_dir):
+                if filename.startswith("mitsys_checkpoint_") and filename.endswith(".db"):
+                    full_path = os.path.join(checkpoint_dir, filename)
+                    try:
+                        # Extraer fecha, hora y número de corte del nombre del archivo
+                        parts = filename.split('_')
+                        date_str = parts[2] # YYYYMMDD
+                        time_str = parts[3] # HHMMSS
+                        corte_str = parts[4].replace('.db', '') # CorteX
+                        
+                        # Formatear para mostrar
+                        display_date = f"{date_str[6:]}/{date_str[4:6]}/{date_str[:4]}"
+                        display_time = f"{time_str[:2]}:{time_str[2:4]}:{time_str[4:]}"
+                        
+                        checkpoints.append({
+                            'name': filename,
+                            'path': full_path,
+                            'date': display_date,
+                            'time': display_time,
+                            'corte': corte_str
+                        })
+                    except IndexError:
+                        # Ignorar archivos que no sigan el patrón esperado
+                        pass
+        
+        # Ordenar por fecha y hora (más reciente primero)
+        checkpoints.sort(key=lambda x: (x['date'], x['time']), reverse=True)
+        
+        return checkpoints
 
 # Instancia global de la base de datos
 db = Database()

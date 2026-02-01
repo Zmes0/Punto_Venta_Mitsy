@@ -1851,20 +1851,23 @@ class FinalizarDiaWindow:
                 corte_final = denominacion_total
             
             # NUEVO: Cerrar el corte activo usando el nuevo sistema
-            numero_corte = db.cerrar_corte_activo(corte_final)
+            corte_id = db.cerrar_corte_activo(corte_final)
             
-            if not numero_corte:
+            if not corte_id:
                 messagebox.showerror("Error", "No se pudo cerrar el corte. No hay corte activo.")
                 return
             
             # NUEVO: Obtener información completa del corte recién cerrado
-            db.cursor.execute('SELECT * FROM cortes WHERE numero_corte = ? ORDER BY id DESC LIMIT 1', (numero_corte,))
+            db.cursor.execute('SELECT * FROM cortes WHERE id = ?', (corte_id,))
             corte = dict(db.cursor.fetchone())
+
+            # NUEVO: Crear checkpoint de la base de datos
+            db.create_checkpoint(corte['numero_corte'])
             
             # NUEVO: Resumen mejorado con separación de efectivo y transferencia
             resumen = f"""
 ╔══════════════════════════════════════╗
-         CORTE DE CAJA #{numero_corte}
+         CORTE DE CAJA #{corte['numero_corte']}
 ╚══════════════════════════════════════╝
 
 Dinero inicial:          {format_currency(corte['dinero_en_caja'])}

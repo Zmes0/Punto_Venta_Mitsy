@@ -454,7 +454,9 @@ class AdminAuthDialog:
         if user and user['nivel'] == 'admin' and user['activo']:
             messagebox.showinfo("Autorizado", "Autorización concedida", parent=self.dialog)
             
-            db.add_auditoria(session.get_current_user()['id'], 'admin_auth', 
+            # Registrar en auditoría quién autorizó
+            # Usar el ID del usuario que acaba de autorizar, no el de la sesión actual
+            db.add_auditoria(user['id'], 'admin_auth', 
                            f"Autorización de admin por: {username}")
             
             self.dialog.destroy()
