@@ -2001,23 +2001,31 @@ class RetiroDialog:
             messagebox.showerror("Error", "El monto debe ser un número válido.", parent=self.dialog)
             return
 
+        # Obtener el ID del usuario actual o None si no hay sesión activa
+        from auth import session
+        usuario_id = session.get_current_user()['id'] if session.is_logged_in() else None
+        usuario_nombre = session.get_current_user()['username'] if session.is_logged_in() else "N/A"
+
+        # Obtener el corte activo
         corte_id = db.get_corte_activo_id()
         if not corte_id:
-            messagebox.showerror("Error", "No hay un corte activo para asociar el retiro.", parent=self.dialog)
+            messagebox.showerror("Error", "No hay un corte de caja activo para registrar el retiro.", parent=self.dialog)
             return
-            
-        from auth import session
-        usuario_id = session.get_current_user()['id'] if session.get_current_user() else None
 
         try:
-            db.add_retiro(monto, motivo, "", corte_id, usuario_id) # Passed empty string for description
-            db.add_auditoria(usuario_id, 'retiro_caja', f"Retiro de {format_currency(monto)} por: {motivo}")
-            messagebox.showinfo("Éxito", "Retiro registrado correctamente.", parent=self.dialog)
-            
-            open_cash_drawer() # Moved here
-            
+            # Guardar el retiro en la base de datos
+            db.add_retiro(monto, motivo, "", corte_id, usuario_id) # La descripción se eliminó de la UI, se pasa vacío
+
+            # Registrar en auditoría
+            db.add_auditoria(usuario_id, 'retiro_caja', f"Retiro de {format_currency(monto)} por '{motivo}' realizado por {usuario_nombre}")
+
+            messagebox.showinfo("Retiro Registrado", "El retiro se ha registrado exitosamente.", parent=self.dialog)
+            open_cash_drawer() # Abrir caja después de registrar el retiro
             if self.callback:
                 self.callback()
-            self.dialog.destroy()
+            self.dialog.destroy() # Moved this line
+
         except Exception as e:
-            messagebox.showerror("Error", f"No se pudo guardar el retiro: {e}", parent=self.dialog)
+            messagebox.showerror("Error", f"Error al registrar el retiro: {str(e)}", parent=self.dialog)
+            self.dialog.destroy() # Moved this line
+            

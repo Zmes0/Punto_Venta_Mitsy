@@ -1471,18 +1471,18 @@ class Database:
         """Obtiene registros de auditoría"""
         if usuario_id:
             self.cursor.execute('''
-                SELECT a.*, u.username, u.nombre_completo 
+                SELECT a.*, COALESCE(u.username, 'N/A') as username, u.nombre_completo 
                 FROM auditoria a
-                JOIN usuarios u ON a.usuario_id = u.id
+                LEFT JOIN usuarios u ON a.usuario_id = u.id
                 WHERE a.usuario_id = ?
                 ORDER BY a.id DESC
                 LIMIT ?
             ''', (usuario_id, limit))
         else:
             self.cursor.execute('''
-                SELECT a.*, u.username, u.nombre_completo 
+                SELECT a.*, COALESCE(u.username, 'N/A') as username, u.nombre_completo 
                 FROM auditoria a
-                JOIN usuarios u ON a.usuario_id = u.id
+                LEFT JOIN usuarios u ON a.usuario_id = u.id
                 ORDER BY a.id DESC
                 LIMIT ?
             ''', (limit,))
