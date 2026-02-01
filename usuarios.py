@@ -103,6 +103,12 @@ class UsuarioDialog:
         tk.Radiobutton(nivel_frame, text="Empleado", variable=self.nivel_var,
                       value='empleado', font=FONTS['normal'],
                       bg=COLORS['bg_primary']).pack(side=tk.LEFT)
+        tk.Radiobutton(nivel_frame, text="Chef", variable=self.nivel_var,
+                      value='chef', font=FONTS['normal'],
+                      bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 20))
+        tk.Radiobutton(nivel_frame, text="Mesero", variable=self.nivel_var,
+                      value='mesero', font=FONTS['normal'],
+                      bg=COLORS['bg_primary']).pack(side=tk.LEFT)
         
         # Botones
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])

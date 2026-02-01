@@ -141,36 +141,25 @@ class PuntoVentaWindow:
         
         # MODIFICACIÓN: Añadir nuevos botones y definir colores
         buttons = [
-            ("Añadir Mesa", self.add_mesa),
-            ("Eliminar Mesa", self.delete_mesa),
-            ("Retiro", self.hacer_retiro),
-            ("Finalizar Día", self.finalizar_dia),
-            ("Volver", self.close_window)
+            ("Añadir Mesa", self.add_mesa, COLORS['success']),
+            ("Eliminar Mesa", self.delete_mesa, COLORS['danger']),
+            ("Retiro", self.hacer_retiro, COLORS['button_bg']),
+            ("Finalizar Día", self.finalizar_dia, COLORS['accent']),
+            ("Volver", self.close_window, COLORS['button_bg'])
         ]
         
-        for text, command in buttons:
-            if text == "Finalizar Día":
-                bg_color = COLORS['accent']
-                fg_color = 'white'
-            elif text == "Añadir Mesa":
-                bg_color = COLORS['success']
-                fg_color = 'white'
-            elif text == "Eliminar Mesa":
-                bg_color = COLORS['danger']
-                fg_color = 'white'
-            else:
-                bg_color = COLORS['button_bg']
-                fg_color = COLORS['text_primary']
+        for text, command, color in buttons:
+            fg = 'white' if color != COLORS['button_bg'] else COLORS['text_primary']
             
             btn = tk.Button(bottom_frame, text=text, command=command,
-                          font=FONTS['button'], bg=bg_color, fg=fg_color,
+                          font=FONTS['button'], bg=color, fg=fg,
                           relief=tk.RAISED, borderwidth=2, padx=30, pady=10)
             btn.pack(side=tk.LEFT, padx=10)
     
     def toggle_auto_print(self, *args):
         """Activa/desactiva la impresión automática"""
         activo = self.auto_print_var.get()
-        db.set_auto_print(activo)
+        db.set_config('auto_print_tickets', '1' if activo else '0')
     
     def imprimir_ultimo_ticket(self):
         """Imprime el último ticket generado EN IMPRESORA TÉRMICA"""
@@ -804,7 +793,7 @@ class AgregarProductosWindow:
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
         
-        productos = db.get_productos()
+        productos = db.get_productos_by_sales_frequency() # MODIFICADO: Obtener productos por frecuencia de ventas
         
         row = 0
         col = 0
@@ -862,7 +851,7 @@ class AgregarProductosWindow:
         # Botón seleccionar
         btn = tk.Button(card, text="Seleccionar", 
                        command=lambda p=producto: self.select_producto(p),
-                       font=FONTS['normal'], bg=COLORS['accent'], fg='white',
+                       font=FONTS['button'], bg=COLORS['accent'], fg='white',
                        relief=tk.RAISED, borderwidth=2, cursor='hand2')
         btn.pack(pady=(0, 8), padx=8, fill=tk.X)
         
@@ -894,12 +883,11 @@ class AgregarProductosWindow:
             widget.destroy()
         
         if not query:
-            # Si la búsqueda está vacía, cargar todos los productos
-            self.load_productos()
-            return
-        
-        # Realizar la búsqueda y mostrar todos los resultados de una vez
-        productos = db.search_productos(query)
+            # Si la búsqueda está vacía, cargar productos por frecuencia de ventas
+            productos = db.get_productos_by_sales_frequency()
+        else:
+            # Realizar la búsqueda por nombre
+            productos = db.search_productos(query)
         
         row = 0
         col = 0
@@ -1696,20 +1684,20 @@ class FinalizarDiaWindow:
         canvas = tk.Canvas(top_section_frame, bg=COLORS['bg_primary'], 
                           highlightthickness=0, height=250)
         scrollbar = tk.Scrollbar(top_section_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
+        self.scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
         
-        scrollable_frame.bind(
+        self.scrollable_frame.bind(
             "<Configure>",
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
         # Frame para billetes
         from config import DENOMINACIONES
         
-        billetes_frame = tk.LabelFrame(scrollable_frame, text="Billetes", 
+        billetes_frame = tk.LabelFrame(self.scrollable_frame, text="Billetes", 
                                        font=FONTS['heading'],
                                        bg=COLORS['bg_secondary'],
                                        fg=COLORS['text_primary'],
@@ -1720,7 +1708,7 @@ class FinalizarDiaWindow:
             self.create_denominacion_row(billetes_frame, denominacion, 'billete')
         
         # Frame para monedas
-        monedas_frame = tk.LabelFrame(scrollable_frame, text="Monedas", 
+        monedas_frame = tk.LabelFrame(self.scrollable_frame, text="Monedas", 
                                       font=FONTS['heading'],
                                       bg=COLORS['bg_secondary'],
                                       fg=COLORS['text_primary'],
@@ -1998,37 +1986,3 @@ class RetiroDialog:
 
     def save_retiro(self):
         monto_str = self.monto_var.get().strip()
-        motivo = self.motivo_var.get().strip()
-        descripcion = self.descripcion_var.get().strip()
-
-        if not monto_str or not motivo:
-            messagebox.showerror("Error", "El monto y el motivo son obligatorios.", parent=self.dialog)
-            return
-
-        try:
-            monto = float(monto_str)
-            if monto <= 0:
-                messagebox.showerror("Error", "El monto debe ser un número positivo.", parent=self.dialog)
-                return
-        except ValueError:
-            messagebox.showerror("Error", "El monto debe ser un número válido.", parent=self.dialog)
-            return
-
-        corte_id = db.get_corte_activo_id()
-        if not corte_id:
-            messagebox.showerror("Error", "No hay un corte activo para asociar el retiro.", parent=self.dialog)
-            return
-            
-        from auth import session
-        usuario_id = session.get_current_user()['id'] if session.get_current_user() else None
-
-        try:
-            db.add_retiro(monto, motivo, descripcion, corte_id, usuario_id)
-            db.add_auditoria(usuario_id, 'retiro_caja', f"Retiro de {format_currency(monto)} por: {motivo}")
-            messagebox.showinfo("Éxito", "Retiro registrado correctamente.", parent=self.dialog)
-            
-            if self.callback:
-                self.callback()
-            self.dialog.destroy()
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo guardar el retiro: {e}", parent=self.dialog)

@@ -112,7 +112,7 @@ class MitsysPOS:
         from auth import session
         if session.is_logged_in():
             user = session.get_current_user()
-            user_text = f"Usuario: {user['username']} ({user['nivel'].capitalize()})"
+            user_text = f"Usuario: {user['username']}"
             tk.Label(center_frame, text=user_text, font=FONTS['small'],
                     bg=COLORS['bg_primary'], fg=COLORS['text_secondary']).pack(pady=(0, 10))
     

@@ -684,6 +684,26 @@ class Database:
         max_id = result['max_id'] if result['max_id'] else 0
         return max_id + 1
     
+    def get_productos_by_sales_frequency(self, activos_only: bool = True) -> List[Dict]:
+        """
+        Obtiene productos ordenados por frecuencia de ventas (los más vendidos primero).
+        """
+        query = '''
+            SELECT 
+                p.*, 
+                SUM(v.cantidad) AS total_vendido
+            FROM productos p
+            LEFT JOIN ventas v ON p.id = v.id_producto
+        '''
+        if activos_only:
+            query += ' WHERE p.activo = 1'
+        query += '''
+            GROUP BY p.id
+            ORDER BY total_vendido DESC, p.nombre ASC
+        '''
+        self.cursor.execute(query)
+        return [dict(row) for row in self.cursor.fetchall()]
+    
     # ==================== INGREDIENTES ====================
     
     def add_ingrediente(self, id_ingrediente: int, nombre: str, costo_unitario: float,
