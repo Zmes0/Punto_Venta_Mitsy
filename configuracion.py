@@ -510,11 +510,11 @@ class ConfiguracionWindow:
         CambiarPasswordDialog(self.window, user_id=user_id)
     
     def toggle_usuario(self):
-        """Activa/Desactiva el usuario seleccionado - NUEVO"""
+        """Activa/Desactiva el usuario seleccionado - CORREGIDO"""
         selection = self.usuarios_tree.selection()
         
         if not selection:
-            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario")
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
             return
         
         item = self.usuarios_tree.item(selection[0])
@@ -523,37 +523,43 @@ class ConfiguracionWindow:
         estado_actual = item['values'][4]
         
         # No permitir desactivar al usuario actual
-        if user_id == session.get_current_user()['id']:
-            messagebox.showerror("Error", "No puedes cambiar el estado de tu propio usuario")
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes cambiar el estado de tu propio usuario", parent=self.window)
             return
         
         # Si está activo, verificar que no sea el único admin
-        if estado_actual == 'Activo' and username == 'mitsy':
-            db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
-            count = db.cursor.fetchone()['count']
-            
-            if count <= 1:
-                messagebox.showerror("Error", "No puedes desactivar el único administrador del sistema")
-                return
+        if estado_actual == 'Activo':
+            # Obtener el nivel del usuario a desactivar
+            user_to_toggle = db.get_usuario(user_id)
+            if user_to_toggle and user_to_toggle['nivel'] == 'admin':
+                db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+                count = db.cursor.fetchone()['count']
+                
+                if count <= 1:
+                    messagebox.showerror("Error", "No puedes desactivar el único administrador activo del sistema", parent=self.window)
+                    return
         
         # Toggle estado
         nuevo_estado = 0 if estado_actual == 'Activo' else 1
         accion = "desactivado" if nuevo_estado == 0 else "activado"
         
-        if messagebox.askyesno("Confirmar", f"¿Deseas {accion.replace('do', 'r')} al usuario '{username}'?"):
+        if messagebox.askyesno("Confirmar", f"¿Deseas {accion.replace('do', 'r')} al usuario '{username}'?", parent=self.window):
             db.update_usuario(user_id, activo=nuevo_estado)
-            db.add_auditoria(session.get_current_user()['id'], 'user_toggle', 
-                           f"Usuario {accion}: {username}")
             
-            messagebox.showinfo("Éxito", f"Usuario {accion} correctamente")
+            actor_id = current_user['id'] if current_user else None
+            db.add_auditoria(actor_id, 'user_toggle', 
+                           f"Usuario {accion}: {username} (ID: {user_id})")
+            
+            messagebox.showinfo("Éxito", f"Usuario {accion} correctamente", parent=self.window)
             self.load_usuarios()
     
     def delete_usuario(self):
-        """Elimina permanentemente un usuario - NUEVO"""
+        """Elimina permanentemente un usuario - CORREGIDO"""
         selection = self.usuarios_tree.selection()
         
         if not selection:
-            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario")
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
             return
         
         item = self.usuarios_tree.item(selection[0])
@@ -561,8 +567,9 @@ class ConfiguracionWindow:
         username = item['values'][1]
         
         # No permitir eliminar al usuario actual
-        if user_id == session.get_current_user()['id']:
-            messagebox.showerror("Error", "No puedes eliminar tu propio usuario")
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes eliminar tu propio usuario", parent=self.window)
             return
         
         # No permitir eliminar a 'mitsy' si es el único admin
@@ -571,25 +578,27 @@ class ConfiguracionWindow:
             count = db.cursor.fetchone()['count']
             
             if count <= 1:
-                messagebox.showerror("Error", "No puedes eliminar el único administrador del sistema")
+                messagebox.showerror("Error", "No puedes eliminar el único administrador del sistema", parent=self.window)
                 return
         
         if messagebox.askyesno("Confirmar Eliminación", 
                               f"¿Estás seguro de ELIMINAR PERMANENTEMENTE al usuario '{username}'?\n\n"
                               "Esta acción NO se puede deshacer.\n\n"
-                              "Si solo deseas desactivar temporalmente el usuario, usa el botón 'Activar/Desactivar'."):
+                              "Si solo deseas desactivar temporalmente el usuario, usa el botón 'Activar/Desactivar'.",
+                              parent=self.window):
             try:
                 # Eliminar físicamente de la base de datos
                 db.cursor.execute('DELETE FROM usuarios WHERE id = ?', (user_id,))
                 db.conn.commit()
                 
-                db.add_auditoria(session.get_current_user()['id'], 'user_delete', 
-                               f"Usuario eliminado permanentemente: {username}")
+                actor_id = current_user['id'] if current_user else None
+                db.add_auditoria(actor_id, 'user_delete', 
+                               f"Usuario eliminado permanentemente: {username} (ID: {user_id})")
                 
-                messagebox.showinfo("Éxito", "Usuario eliminado permanentemente")
+                messagebox.showinfo("Éxito", "Usuario eliminado permanentemente", parent=self.window)
                 self.load_usuarios()
             except Exception as e:
-                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}")
+                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}", parent=self.window)
     
     def preparar_logo_termico(self):
         """Procesa una imagen para convertirla en logo apto para impresora térmica"""
@@ -1070,11 +1079,11 @@ class RestoreCheckpointDialog:
         CambiarPasswordDialog(self.window, user_id=user_id)
     
     def toggle_usuario(self):
-        """Activa/Desactiva el usuario seleccionado - NUEVO"""
+        """Activa/Desactiva el usuario seleccionado - CORREGIDO"""
         selection = self.usuarios_tree.selection()
         
         if not selection:
-            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario")
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
             return
         
         item = self.usuarios_tree.item(selection[0])
@@ -1083,37 +1092,43 @@ class RestoreCheckpointDialog:
         estado_actual = item['values'][4]
         
         # No permitir desactivar al usuario actual
-        if user_id == session.get_current_user()['id']:
-            messagebox.showerror("Error", "No puedes cambiar el estado de tu propio usuario")
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes cambiar el estado de tu propio usuario", parent=self.window)
             return
         
         # Si está activo, verificar que no sea el único admin
-        if estado_actual == 'Activo' and username == 'mitsy':
-            db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
-            count = db.cursor.fetchone()['count']
-            
-            if count <= 1:
-                messagebox.showerror("Error", "No puedes desactivar el único administrador del sistema")
-                return
+        if estado_actual == 'Activo':
+            # Obtener el nivel del usuario a desactivar
+            user_to_toggle = db.get_usuario(user_id)
+            if user_to_toggle and user_to_toggle['nivel'] == 'admin':
+                db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+                count = db.cursor.fetchone()['count']
+                
+                if count <= 1:
+                    messagebox.showerror("Error", "No puedes desactivar el único administrador activo del sistema", parent=self.window)
+                    return
         
         # Toggle estado
         nuevo_estado = 0 if estado_actual == 'Activo' else 1
         accion = "desactivado" if nuevo_estado == 0 else "activado"
         
-        if messagebox.askyesno("Confirmar", f"¿Deseas {accion.replace('do', 'r')} al usuario '{username}'?"):
+        if messagebox.askyesno("Confirmar", f"¿Deseas {accion.replace('do', 'r')} al usuario '{username}'?", parent=self.window):
             db.update_usuario(user_id, activo=nuevo_estado)
-            db.add_auditoria(session.get_current_user()['id'], 'user_toggle', 
-                           f"Usuario {accion}: {username}")
             
-            messagebox.showinfo("Éxito", f"Usuario {accion} correctamente")
+            actor_id = current_user['id'] if current_user else None
+            db.add_auditoria(actor_id, 'user_toggle', 
+                           f"Usuario {accion}: {username} (ID: {user_id})")
+            
+            messagebox.showinfo("Éxito", f"Usuario {accion} correctamente", parent=self.window)
             self.load_usuarios()
     
     def delete_usuario(self):
-        """Elimina permanentemente un usuario - NUEVO"""
+        """Elimina permanentemente un usuario - CORREGIDO"""
         selection = self.usuarios_tree.selection()
         
         if not selection:
-            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario")
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
             return
         
         item = self.usuarios_tree.item(selection[0])
@@ -1121,8 +1136,9 @@ class RestoreCheckpointDialog:
         username = item['values'][1]
         
         # No permitir eliminar al usuario actual
-        if user_id == session.get_current_user()['id']:
-            messagebox.showerror("Error", "No puedes eliminar tu propio usuario")
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes eliminar tu propio usuario", parent=self.window)
             return
         
         # No permitir eliminar a 'mitsy' si es el único admin
@@ -1131,25 +1147,27 @@ class RestoreCheckpointDialog:
             count = db.cursor.fetchone()['count']
             
             if count <= 1:
-                messagebox.showerror("Error", "No puedes eliminar el único administrador del sistema")
+                messagebox.showerror("Error", "No puedes eliminar el único administrador del sistema", parent=self.window)
                 return
         
         if messagebox.askyesno("Confirmar Eliminación", 
                               f"¿Estás seguro de ELIMINAR PERMANENTEMENTE al usuario '{username}'?\n\n"
                               "Esta acción NO se puede deshacer.\n\n"
-                              "Si solo deseas desactivar temporalmente el usuario, usa el botón 'Activar/Desactivar'."):
+                              "Si solo deseas desactivar temporalmente el usuario, usa el botón 'Activar/Desactivar'.",
+                              parent=self.window):
             try:
                 # Eliminar físicamente de la base de datos
                 db.cursor.execute('DELETE FROM usuarios WHERE id = ?', (user_id,))
                 db.conn.commit()
                 
-                db.add_auditoria(session.get_current_user()['id'], 'user_delete', 
-                               f"Usuario eliminado permanentemente: {username}")
+                actor_id = current_user['id'] if current_user else None
+                db.add_auditoria(actor_id, 'user_delete', 
+                               f"Usuario eliminado permanentemente: {username} (ID: {user_id})")
                 
-                messagebox.showinfo("Éxito", "Usuario eliminado permanentemente")
+                messagebox.showinfo("Éxito", "Usuario eliminado permanentemente", parent=self.window)
                 self.load_usuarios()
             except Exception as e:
-                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}")
+                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}", parent=self.window)
     
     def preparar_logo_termico(self):
         """Procesa una imagen para convertirla en logo apto para impresora térmica"""
