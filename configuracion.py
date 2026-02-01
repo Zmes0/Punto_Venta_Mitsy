@@ -362,6 +362,21 @@ class ConfiguracionWindow:
                   font=FONTS['button'], bg=COLORS['accent'], fg='white',
                   relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
 
+        # Sección para reemplazar la base de datos
+        replace_db_frame = tk.LabelFrame(database_options_frame, text="Reemplazar Base de Datos",
+                                        font=FONTS['heading'], bg=COLORS['bg_secondary'],
+                                        fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2,
+                                        padx=15, pady=15)
+        replace_db_frame.pack(fill=tk.X, pady=(20, 10))
+
+        tk.Label(replace_db_frame, text="Reemplaza la base de datos actual por un archivo .db seleccionado. Esta acción es irreversible y requiere un reinicio.",
+                font=FONTS['normal'], bg=COLORS['bg_secondary'], wraplength=500, justify='center').pack(pady=(0, 10))
+
+        tk.Button(replace_db_frame, text="📂 Reemplazar Base de Datos",
+                  command=self.confirm_replace_database,
+                  font=FONTS['button'], bg=COLORS['warning'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
+
         # Botón para borrar la base de datos
         delete_db_frame = tk.LabelFrame(database_options_frame, text="Borrar Base de Datos",
                                         font=FONTS['heading'], bg=COLORS['bg_secondary'],
@@ -424,6 +439,59 @@ class ConfiguracionWindow:
                                  f"Ocurrió un error al crear la copia de seguridad:\n{e}",
                                  parent=self.window)
             # Asegurarse de que la conexión se reabra incluso si hay un error
+            if not db.conn:
+                db.connect()
+
+    def confirm_replace_database(self):
+        """Pide autorización de admin para reemplazar la base de datos."""
+        AdminAuthDialog(self.window, on_success=self.perform_replace_database,
+                        message="Se requiere autorización de administrador para REEMPLAZAR la base de datos.")
+
+    def perform_replace_database(self):
+        """Abre el explorador para seleccionar una BD y la reemplaza."""
+        import shutil
+        from tkinter import filedialog
+        from utils import restart_application
+
+        # Advertencia final
+        if not messagebox.askyesno("Confirmación Final",
+                                   "Estás a punto de REEMPLAZAR la base de datos actual.\n\n"
+                                   "TODOS LOS DATOS ACTUALES SE PERDERÁN y serán sustituidos por los del archivo que selecciones.\n\n"
+                                   "Esta acción NO se puede deshacer.\n\n"
+                                   "¿Deseas continuar?",
+                                   parent=self.window):
+            return
+
+        try:
+            # Abrir diálogo para seleccionar archivo
+            new_db_path = filedialog.askopenfilename(
+                title="Seleccionar la nueva base de datos",
+                defaultextension=".db",
+                filetypes=[("Database files", "*.db"), ("All files", "*.*")],
+                parent=self.window
+            )
+
+            if not new_db_path:
+                return
+
+            # Cerrar la conexión a la BD
+            db.close()
+
+            # Reemplazar el archivo de la base de datos
+            shutil.copy2(new_db_path, db.db_path)
+
+            messagebox.showinfo("Base de Datos Reemplazada",
+                                "La base de datos ha sido reemplazada exitosamente.\n\n"
+                                "La aplicación se reiniciará para aplicar los cambios.",
+                                parent=self.window)
+            
+            restart_application()
+
+        except Exception as e:
+            messagebox.showerror("Error al Reemplazar",
+                                 f"Ocurrió un error al reemplazar la base de datos:\n{e}",
+                                 parent=self.window)
+            # Asegurarse de que la conexión se reabra si hay un error y no se reinicia
             if not db.conn:
                 db.connect()
 
