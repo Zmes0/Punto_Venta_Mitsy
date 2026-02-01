@@ -324,73 +324,86 @@ class ConfiguracionWindow:
                 cursor='hand2').pack()
     
     def setup_database_tab(self):
-        """Configura la pestaña de base de datos"""
-        database_options_frame = tk.Frame(self.database_frame, bg=COLORS['bg_primary'])
-        database_options_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        """Configura la pestaña de base de datos con un diseño más compacto y estético."""
+        main_container = tk.Frame(self.database_frame, bg=COLORS['bg_primary'])
+        main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        tk.Label(database_options_frame, text="Opciones de Base de Datos", 
+        tk.Label(main_container, text="Opciones de Base de Datos", 
                 font=FONTS['title'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 20))
 
-        # Sección para crear copia de seguridad
-        backup_db_frame = tk.LabelFrame(database_options_frame, text="Copia de Seguridad",
-                                        font=FONTS['heading'], bg=COLORS['bg_secondary'],
-                                        fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2,
-                                        padx=15, pady=15)
-        backup_db_frame.pack(fill=tk.X, pady=(10, 20))
-
-        tk.Label(backup_db_frame, text="Crea una copia de seguridad de la base de datos actual en la ubicación que elijas.",
-                font=FONTS['normal'], bg=COLORS['bg_secondary'], wraplength=500, justify='center').pack(pady=(0, 10))
-
-        tk.Button(backup_db_frame, text="💾 Crear Copia de Seguridad",
-                  command=self.backup_database,
-                  font=FONTS['button'], bg=COLORS['success'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
-
-        # Sección para restaurar checkpoint
-        restore_checkpoint_frame = tk.LabelFrame(database_options_frame, text="Restaurar Base de Datos desde Checkpoint",
-                                                font=FONTS['heading'], bg=COLORS['bg_secondary'],
-                                                fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2,
-                                                padx=15, pady=15)
-        restore_checkpoint_frame.pack(fill=tk.X, pady=(20, 10))
-
-        tk.Label(restore_checkpoint_frame, text="Permite regresar la base de datos a un estado anterior guardado automáticamente al finalizar un corte de caja.",
-                font=FONTS['normal'], bg=COLORS['bg_secondary'], wraplength=500, justify='center').pack(pady=(0, 10))
+        # Frame para contener las "tarjetas" de opciones en un grid
+        options_grid_frame = tk.Frame(main_container, bg=COLORS['bg_primary'])
+        options_grid_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
         
-        tk.Button(restore_checkpoint_frame, text="↩️ Restaurar Checkpoint", 
-                  command=self.open_restore_checkpoint_dialog,
-                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
+        # Configurar columnas para el grid
+        options_grid_frame.grid_columnconfigure(0, weight=1)
+        options_grid_frame.grid_columnconfigure(1, weight=1)
+        options_grid_frame.grid_rowconfigure(0, weight=1)
+        options_grid_frame.grid_rowconfigure(1, weight=1)
 
-        # Sección para reemplazar la base de datos
-        replace_db_frame = tk.LabelFrame(database_options_frame, text="Reemplazar Base de Datos",
-                                        font=FONTS['heading'], bg=COLORS['bg_secondary'],
-                                        fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2,
-                                        padx=15, pady=15)
-        replace_db_frame.pack(fill=tk.X, pady=(20, 10))
+        # --- Tarjeta de Copia de Seguridad ---
+        self._create_db_option_card(
+            parent=options_grid_frame,
+            row=0, column=0,
+            title="Copia de Seguridad",
+            description="Crea una copia de la base de datos actual, selecciona una ubicación y guarda el archivo.",
+            button_text="💾 Crear Copia de Seguridad",
+            button_command=self.backup_database,
+            button_color=COLORS['success']
+        )
 
-        tk.Label(replace_db_frame, text="Reemplaza la base de datos actual por un archivo .db seleccionado. Esta acción es irreversible y requiere un reinicio.",
-                font=FONTS['normal'], bg=COLORS['bg_secondary'], wraplength=500, justify='center').pack(pady=(0, 10))
+        # --- Tarjeta de Restaurar Checkpoint ---
+        self._create_db_option_card(
+            parent=options_grid_frame,
+            row=0, column=1,
+            title="Restaurar Checkpoint",
+            description="Regresa la base de datos a un estado anterior (Se realiza un respaldo automáticamente al final de cada corte).",
+            button_text="↩️ Restaurar Checkpoint",
+            button_command=self.open_restore_checkpoint_dialog,
+            button_color=COLORS['accent']
+        )
 
-        tk.Button(replace_db_frame, text="📂 Reemplazar Base de Datos",
-                  command=self.confirm_replace_database,
-                  font=FONTS['button'], bg=COLORS['warning'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
+        # --- Tarjeta de Reemplazar Base de Datos ---
+        self._create_db_option_card(
+            parent=options_grid_frame,
+            row=1, column=0,
+            title="Reemplazar Base de Datos",
+            description="Sustituye la base de datos actual por un archivo .db seleccionado.",
+            button_text="📂 Reemplazar Base de Datos",
+            button_command=self.confirm_replace_database,
+            button_color=COLORS['warning']
+        )
 
-        # Botón para borrar la base de datos
-        delete_db_frame = tk.LabelFrame(database_options_frame, text="Borrar Base de Datos",
-                                        font=FONTS['heading'], bg=COLORS['bg_secondary'],
-                                        fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2,
-                                        padx=15, pady=15)
-        delete_db_frame.pack(fill=tk.X, pady=(20, 10))
+        # --- Tarjeta de Borrar Base de Datos ---
+        self._create_db_option_card(
+            parent=options_grid_frame,
+            row=1, column=1,
+            title="Borrar Base de Datos",
+            description="Elimina PERMANENTEMENTE todos los datos y reinicia el sistema.",
+            button_text="🚨 Borrar Base de Datos Completa 🚨",
+            button_command=self.confirm_delete_database,
+            button_color=COLORS['danger']
+        )
 
-        tk.Label(delete_db_frame, text="¡ADVERTENCIA! Esta acción eliminará PERMANENTEMENTE todos los datos del sistema (ventas, productos, usuarios, etc.) y reiniciará la aplicación.",
-                font=FONTS['normal'], bg=COLORS['bg_secondary'], fg=COLORS['danger'], wraplength=500, justify='center').pack(pady=(0, 10))
+    def _create_db_option_card(self, parent, row, column, title, description, button_text, button_command, button_color):
+        """Crea una tarjeta de opción para la pestaña de base de datos."""
+        card_frame = tk.Frame(parent, bg=COLORS['bg_secondary'], relief=tk.RAISED, borderwidth=2)
+        card_frame.grid(row=row, column=column, padx=10, pady=10, sticky="nsew")
         
-        tk.Button(delete_db_frame, text="🚨 Borrar Base de Datos Completa 🚨", 
-                  command=self.confirm_delete_database,
-                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
-                  relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
+        # Título de la tarjeta
+        tk.Label(card_frame, text=title, font=FONTS['heading'], bg=COLORS['bg_secondary'],
+                 fg=COLORS['text_primary']).pack(pady=(10, 5))
+        
+        # Descripción
+        tk.Label(card_frame, text=description, font=FONTS['normal'], bg=COLORS['bg_secondary'],
+                 fg=COLORS['text_primary'], wraplength=250, justify='center').pack(padx=10, pady=(0, 10))
+        
+        # Botón
+        tk.Button(card_frame, text=button_text, command=button_command,
+                 font=FONTS['button'], bg=button_color, fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=20, pady=10,
+                 cursor='hand2').pack(pady=(0, 15))
     
     def backup_database(self):
         """Crea una copia de seguridad de la base de datos en una ubicación seleccionada por el usuario."""
