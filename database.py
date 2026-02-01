@@ -438,10 +438,15 @@ class Database:
         return corte_id
     
     def cerrar_corte_activo(self, corte_final: float) -> Optional[int]:
-        """Cierra el corte activo y calcula los totales"""
-        corte_id = self.get_corte_activo_id()
+        """
+        Cierra el corte activo, calcula los totales y lo guarda en la BD.
         
+        Returns:
+            Optional[int]: El ID del corte que se cerró, o None si no había corte activo.
+        """
+        corte_id = self.get_corte_activo_id()
         if not corte_id:
+            # No hay corte activo
             return None
         
         # Obtener información del corte
@@ -454,76 +459,72 @@ class Database:
         # Calcular ventas en efectivo y transferencia del corte
         self.cursor.execute('''
             SELECT 
-                SUM(CASE WHEN metodo_pago = 'Efectivo' THEN total ELSE 0 END) as efectivo,
-                SUM(CASE WHEN metodo_pago = 'Transferencia' THEN total ELSE 0 END) as transferencia,
-                SUM(CASE WHEN metodo_pago = 'Tarjeta' THEN total ELSE 0 END) as tarjeta
-            FROM ventas
+                SUM(CASE WHEN metodo_pago = 'Efectivo' THEN total ELSE 0 END) as ventas_efectivo,
+                SUM(CASE WHEN metodo_pago = 'Transferencia' THEN total ELSE 0 END) as ventas_transferencia
+            FROM ventas 
             WHERE corte_id = ?
         ''', (corte_id,))
         
-        result = self.cursor.fetchone()
-        ventas_efectivo = result['efectivo'] if result['efectivo'] else 0
-        ventas_transferencia = result['transferencia'] if result['transferencia'] else 0
-        ventas_tarjeta = result['tarjeta'] if result['tarjeta'] else 0
+        ventas = self.cursor.fetchone()
+        ventas_efectivo = ventas['ventas_efectivo'] if ventas['ventas_efectivo'] else 0
+        ventas_transferencia = ventas['ventas_transferencia'] if ventas['ventas_transferencia'] else 0
         
         # NUEVO: Calcular total de retiros para este corte
         self.cursor.execute('SELECT SUM(monto) as total_retiros FROM retiros WHERE corte_id = ?', (corte_id,))
-        result_retiros = self.cursor.fetchone()
-        retiros = result_retiros['total_retiros'] if result_retiros['total_retiros'] else 0
+        retiros_result = self.cursor.fetchone()
+        retiros = retiros_result['total_retiros'] if retiros_result['total_retiros'] else 0
         
         # CORREGIDO: Solo ventas en efectivo afectan el corte esperado
         corte_esperado = dinero_inicial + ventas_efectivo - retiros
         diferencia = corte_final - corte_esperado
         
-        # Determinar estado
-        if abs(diferencia) < 0.01:
-            estado = 'Cuadrado'
-        elif diferencia > 0:
+        if diferencia > 0.01:
             estado = 'Sobrante'
-        else:
+        elif diferencia < -0.01:
             estado = 'Faltante'
-        
+        else:
+            estado = 'Cuadrado'
+            
         # Calcular ganancias del corte
         self.cursor.execute('''
-            SELECT SUM(v.total) - SUM(p.costo * v.cantidad) as ganancias
+            SELECT SUM(v.cantidad * p.ganancia)
             FROM ventas v
             JOIN productos p ON v.id_producto = p.id
             WHERE v.corte_id = ?
         ''', (corte_id,))
+        ganancias_result = self.cursor.fetchone()
+        ganancias = ganancias_result[0] if ganancias_result and ganancias_result[0] is not None else 0
         
-        result = self.cursor.fetchone()
-        ganancias = result['ganancias'] if result['ganancias'] else 0
+        # Obtener ventas con tarjeta (no se suman al corte esperado)
+        self.cursor.execute("SELECT SUM(total) FROM ventas WHERE metodo_pago = 'Tarjeta' AND corte_id = ?", (corte_id,))
+        ventas_tarjeta_result = self.cursor.fetchone()
+        ventas_tarjeta = ventas_tarjeta_result[0] if ventas_tarjeta_result and ventas_tarjeta_result[0] is not None else 0
         
-        fecha_cierre = get_current_datetime()
-        
-        # Obtener usuario actual para el cierre
+        fecha_cierre = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
         from auth import session
-        usuario_cierre_id = None
-        if self.is_auth_enabled() and session.is_logged_in():
-            usuario_cierre_id = session.get_current_user()['id']
+        usuario_cierre_id = session.get_current_user()['id'] if session.get_current_user() else None
 
         # Actualizar el corte
         self.cursor.execute('''
             UPDATE cortes 
             SET fecha_cierre = ?, corte_final = ?, corte_esperado = ?,
                 retiros = ?, diferencia = ?, estado = ?, estado_corte = 'cerrado',
-                ganancias = ?, ventas_efectivo = ?, ventas_transferencia = ?, ventas_tarjeta = ?,
-                usuario_cierre_id = ?
+                ganancias = ?, ventas_efectivo = ?, ventas_transferencia = ?,
+                ventas_tarjeta = ?, usuario_cierre_id = ?
             WHERE id = ?
         ''', (fecha_cierre, corte_final, corte_esperado, retiros, diferencia, 
               estado, ganancias, ventas_efectivo, ventas_transferencia, ventas_tarjeta, usuario_cierre_id, corte_id))
         
         # Desactivar corte activo
         self.set_config('corte_activo_id', 'None')
-        self.set_config('dinero_ingresado_hoy', '0')
         
-        self.conn.commit()
+        # Auditoría
+        # CORREGIDO: Verificar que hay un usuario activo antes de registrar auditoría
+        if usuario_cierre_id:
+            self.add_auditoria(usuario_cierre_id, 'cierre_corte', f"Corte #{numero_corte} cerrado. Estado: {estado}")
         
-        # Registrar en auditoría
-        self.add_auditoria(usuario_cierre_id, 'cierre_corte', f"Corte #{numero_corte} cerrado. Estado: {estado}")
-
         print(f">> Corte #{numero_corte} cerrado exitosamente")
-        return numero_corte
+        return corte_id
     
     def get_last_closed_corte_id(self) -> Optional[int]:
         """Obtiene el ID del último corte cerrado."""
