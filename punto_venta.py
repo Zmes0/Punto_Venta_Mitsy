@@ -1919,7 +1919,7 @@ class RetiroDialog:
 
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Realizar Retiro")
-        self.dialog.geometry("450x400")
+        self.dialog.geometry("450x350") # Adjusted height since description is removed
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -1937,13 +1937,12 @@ class RetiroDialog:
         self.setup_ui()
         self.center_dialog()
         
-        # Abrir caja
-        open_cash_drawer()
+        # open_cash_drawer() # Removed from here
 
     def center_dialog(self):
         self.dialog.update_idletasks()
         width = 450
-        height = 400
+        height = 350 # Adjusted height
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
@@ -1956,7 +1955,7 @@ class RetiroDialog:
                  bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 20))
 
         # Monto
-        tk.Label(main_frame, text="Monto:", font=FONTS['normal'],
+        tk.Label(main_frame, text="Monto ($):", font=FONTS['normal'],
                  bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
         self.monto_var = tk.StringVar()
         monto_entry = tk.Entry(main_frame, textvariable=self.monto_var, font=FONTS['normal'])
@@ -1967,13 +1966,13 @@ class RetiroDialog:
         tk.Label(main_frame, text="Motivo:", font=FONTS['normal'],
                  bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
         self.motivo_var = tk.StringVar()
-        tk.Entry(main_frame, textvariable=self.motivo_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 15))
+        tk.Entry(main_frame, textvariable=self.motivo_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20)) # Adjusted pady
 
-        # Descripción
-        tk.Label(main_frame, text="Descripción (opcional):", font=FONTS['normal'],
-                 bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
-        self.descripcion_var = tk.StringVar()
-        tk.Entry(main_frame, textvariable=self.descripcion_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
+        # Descripción (removed)
+        # tk.Label(main_frame, text="Descripción (opcional):", font=FONTS['normal'],
+        #          bg=COLORS['bg_primary']).pack(anchor='w', pady=(0, 5))
+        # self.descripcion_var = tk.StringVar()
+        # tk.Entry(main_frame, textvariable=self.descripcion_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 20))
 
         # Botones
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
@@ -1986,3 +1985,39 @@ class RetiroDialog:
 
     def save_retiro(self):
         monto_str = self.monto_var.get().strip()
+        motivo = self.motivo_var.get().strip()
+        #descripcion = self.descripcion_var.get().strip() # Removed
+
+        if not monto_str or not motivo:
+            messagebox.showerror("Error", "El monto y el motivo son obligatorios.", parent=self.dialog)
+            return
+
+        try:
+            monto = float(monto_str)
+            if monto <= 0:
+                messagebox.showerror("Error", "El monto debe ser un número positivo.", parent=self.dialog)
+                return
+        except ValueError:
+            messagebox.showerror("Error", "El monto debe ser un número válido.", parent=self.dialog)
+            return
+
+        corte_id = db.get_corte_activo_id()
+        if not corte_id:
+            messagebox.showerror("Error", "No hay un corte activo para asociar el retiro.", parent=self.dialog)
+            return
+            
+        from auth import session
+        usuario_id = session.get_current_user()['id'] if session.get_current_user() else None
+
+        try:
+            db.add_retiro(monto, motivo, "", corte_id, usuario_id) # Passed empty string for description
+            db.add_auditoria(usuario_id, 'retiro_caja', f"Retiro de {format_currency(monto)} por: {motivo}")
+            messagebox.showinfo("Éxito", "Retiro registrado correctamente.", parent=self.dialog)
+            
+            open_cash_drawer() # Moved here
+            
+            if self.callback:
+                self.callback()
+            self.dialog.destroy()
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar el retiro: {e}", parent=self.dialog)
