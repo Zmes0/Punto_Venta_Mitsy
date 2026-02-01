@@ -332,21 +332,21 @@ class ConfiguracionWindow:
                 font=FONTS['title'], bg=COLORS['bg_primary'],
                 fg=COLORS['text_primary']).pack(pady=(0, 20))
 
-        # Botón para borrar la base de datos
-        delete_db_frame = tk.LabelFrame(database_options_frame, text="Borrar Base de Datos",
+        # Sección para crear copia de seguridad
+        backup_db_frame = tk.LabelFrame(database_options_frame, text="Copia de Seguridad",
                                         font=FONTS['heading'], bg=COLORS['bg_secondary'],
                                         fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2,
                                         padx=15, pady=15)
-        delete_db_frame.pack(fill=tk.X, pady=(10, 20))
+        backup_db_frame.pack(fill=tk.X, pady=(10, 20))
 
-        tk.Label(delete_db_frame, text="¡ADVERTENCIA! Esta acción eliminará PERMANENTEMENTE todos los datos del sistema (ventas, productos, usuarios, etc.) y reiniciará la aplicación.",
-                font=FONTS['normal'], bg=COLORS['bg_secondary'], fg=COLORS['danger'], wraplength=500, justify='center').pack(pady=(0, 10))
-        
-        tk.Button(delete_db_frame, text="🚨 Borrar Base de Datos Completa 🚨", 
-                  command=self.confirm_delete_database,
-                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+        tk.Label(backup_db_frame, text="Crea una copia de seguridad de la base de datos actual en la ubicación que elijas.",
+                font=FONTS['normal'], bg=COLORS['bg_secondary'], wraplength=500, justify='center').pack(pady=(0, 10))
+
+        tk.Button(backup_db_frame, text="💾 Crear Copia de Seguridad",
+                  command=self.backup_database,
+                  font=FONTS['button'], bg=COLORS['success'], fg='white',
                   relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
-        
+
         # Sección para restaurar checkpoint
         restore_checkpoint_frame = tk.LabelFrame(database_options_frame, text="Restaurar Base de Datos desde Checkpoint",
                                                 font=FONTS['heading'], bg=COLORS['bg_secondary'],
@@ -361,7 +361,72 @@ class ConfiguracionWindow:
                   command=self.open_restore_checkpoint_dialog,
                   font=FONTS['button'], bg=COLORS['accent'], fg='white',
                   relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
+
+        # Botón para borrar la base de datos
+        delete_db_frame = tk.LabelFrame(database_options_frame, text="Borrar Base de Datos",
+                                        font=FONTS['heading'], bg=COLORS['bg_secondary'],
+                                        fg=COLORS['text_primary'], relief=tk.RAISED, borderwidth=2,
+                                        padx=15, pady=15)
+        delete_db_frame.pack(fill=tk.X, pady=(20, 10))
+
+        tk.Label(delete_db_frame, text="¡ADVERTENCIA! Esta acción eliminará PERMANENTEMENTE todos los datos del sistema (ventas, productos, usuarios, etc.) y reiniciará la aplicación.",
+                font=FONTS['normal'], bg=COLORS['bg_secondary'], fg=COLORS['danger'], wraplength=500, justify='center').pack(pady=(0, 10))
+        
+        tk.Button(delete_db_frame, text="🚨 Borrar Base de Datos Completa 🚨", 
+                  command=self.confirm_delete_database,
+                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                  relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(pady=10)
     
+    def backup_database(self):
+        """Crea una copia de seguridad de la base de datos en una ubicación seleccionada por el usuario."""
+        import shutil
+        from datetime import datetime
+        from tkinter import filedialog
+
+        try:
+            # Sugerir un nombre de archivo para el backup
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            default_filename = f"mitsys_backup_{timestamp}.db"
+
+            # Abrir diálogo para guardar archivo
+            backup_path = filedialog.asksaveasfilename(
+                title="Guardar copia de seguridad de la base de datos",
+                initialfile=default_filename,
+                defaultextension=".db",
+                filetypes=[("Database files", "*.db"), ("All files", "*.*")],
+                parent=self.window
+            )
+
+            if not backup_path:
+                # El usuario canceló el diálogo
+                return
+
+            # Cerrar la conexión a la BD para evitar bloqueos del archivo
+            db.close()
+
+            # Copiar el archivo de la base de datos
+            shutil.copy2(db.db_path, backup_path)
+
+            # Reabrir la conexión a la BD
+            db.connect()
+
+            messagebox.showinfo("Copia de Seguridad Exitosa",
+                                f"La copia de seguridad se ha guardado correctamente en:\n{backup_path}",
+                                parent=self.window)
+
+            # Registrar en auditoría
+            current_user = session.get_current_user()
+            actor_id = current_user['id'] if current_user else None
+            db.add_auditoria(actor_id, 'db_backup', f"Copia de seguridad creada en: {backup_path}")
+
+        except Exception as e:
+            messagebox.showerror("Error en Copia de Seguridad",
+                                 f"Ocurrió un error al crear la copia de seguridad:\n{e}",
+                                 parent=self.window)
+            # Asegurarse de que la conexión se reabra incluso si hay un error
+            if not db.conn:
+                db.connect()
+
     def confirm_delete_database(self):
         """Pide confirmación y luego autorización de admin para borrar la base de datos."""
         if messagebox.askyesno("Confirmar Eliminación de Base de Datos",
@@ -933,6 +998,1714 @@ class RestoreCheckpointDialog:
         except Exception as e:
             messagebox.showerror("Error", f"Ocurrió un error al intentar restaurar la base de datos: {e}",
                                 parent=self.dialog)
+
+    
+    def confirm_delete_database(self):
+        """Pide confirmación y luego autorización de admin para borrar la base de datos."""
+        if messagebox.askyesno("Confirmar Eliminación de Base de Datos",
+                               "Estás a punto de eliminar PERMANENTEMENTE toda la información del sistema.\n\n"
+                               "Esta acción NO se puede deshacer.\n\n"
+                               "¿Estás ABSOLUTAMENTE seguro de que deseas continuar?",
+                               parent=self.window):
+            # Si el usuario confirma, pedir autorización de administrador
+            AdminAuthDialog(self.window, on_success=self.perform_delete_database,
+                            message="Se requiere autorización de administrador para ELIMINAR la base de datos completa.")
+
+    def perform_delete_database(self):
+        """Ejecuta la eliminación y recreación de la base de datos y reinicia la aplicación."""
+        try:
+            db.recreate_database()
+            messagebox.showinfo("Base de Datos Eliminada",
+                                "La base de datos ha sido eliminada y recreada exitosamente.\n\n"
+                                "La aplicación se reiniciará para aplicar los cambios.",
+                                parent=self.window)
+            from utils import restart_application
+            restart_application()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al intentar borrar y recrear la base de datos: {e}",
+                                parent=self.window)
+    
+    def toggle_auth_system(self, *args):
+        """Activa/desactiva el sistema de autenticación con confirmación de admin."""
+        enabled = self.auth_enabled_var.get()
+
+        # Si se está intentando desactivar, se requiere autorización de admin
+        if not enabled:
+            # Desvincular temporalmente el trace para evitar recursión
+            trace_id = self.auth_enabled_var.trace_info()[0][1]
+            self.auth_enabled_var.trace_vdelete('w', trace_id)
+
+            auth_successful = [False]
+
+            def on_auth_success():
+                auth_successful[0] = True
+
+            # Crear y esperar al diálogo de autorización
+            auth_dialog = AdminAuthDialog(self.window, on_success=on_auth_success, 
+                                          message="Se requiere autorización de administrador para desactivar el sistema de autenticación.")
+            self.window.wait_window(auth_dialog.dialog)
+
+            # Después de que el diálogo se cierra, verificar si la auth fue exitosa
+            if auth_successful[0]:
+                db.toggle_auth_system(False)
+                messagebox.showinfo("Sistema de Autenticación", 
+                                  "Sistema de autenticación desactivado.\n\n" 
+                                  "No se solicitará inicio de sesión al abrir la aplicación.")
+                current_user = session.get_current_user()
+                if current_user:
+                    db.add_auditoria(current_user['id'], 'config_auth', 
+                                'Sistema de autenticación desactivado')
+            else:
+                # Si la autenticación falla o se cancela, revertir el botón
+                self.auth_enabled_var.set(True)
+
+            # Volver a vincular el trace
+            self.auth_enabled_var.trace('w', self.toggle_auth_system)
+
+        else:  # Si se está activando, no se requiere auth extra
+            db.toggle_auth_system(True)
+            messagebox.showinfo("Sistema de Autenticación", 
+                              "Sistema de autenticación activado.\n\n" 
+                              "Los usuarios deberán iniciar sesión al abrir la aplicación.")
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_auth', 
+                            'Sistema de autenticación activado')
+    
+    def update_timeout(self):
+        """Actualiza el timeout de sesión"""
+        timeout = self.timeout_var.get()
+        db.set_config('session_timeout', str(timeout))
+        session.set_timeout(timeout)
+        
+        # CORREGIDO: Verificar que hay un usuario activo antes de registrar auditoría
+        current_user = session.get_current_user()
+        if current_user:
+            db.add_auditoria(current_user['id'], 'config_timeout', 
+                   f"Timeout de sesión actualizado a {timeout} minutos")
+    
+    def load_usuarios(self):
+        """Carga los usuarios en la tabla"""
+        for item in self.usuarios_tree.get_children():
+            self.usuarios_tree.delete(item)
+        
+        usuarios = db.get_usuarios()
+        
+        for idx, u in enumerate(usuarios):
+            if not u['activo']:
+                tag = 'inactivo'
+            elif u['nivel'] == 'admin':
+                tag = 'admin'
+            else:
+                tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            values = (
+                u['id'],
+                u['username'],
+                u['nombre_completo'] or '-',
+                u['nivel'].capitalize(),
+                'Activo' if u['activo'] else 'Inactivo',
+                u['ultimo_acceso'] or 'Nunca'
+            )
+            
+            self.usuarios_tree.insert('', tk.END, values=values, tags=(tag,))
+    
+    def add_usuario(self):
+        """Añade un nuevo usuario"""
+        from usuarios import UsuarioDialog
+        UsuarioDialog(self.window, callback=self.load_usuarios)
+    
+    def edit_usuario(self):
+        """Edita el usuario seleccionado"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario para editar")
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        
+        from usuarios import UsuarioDialog
+        UsuarioDialog(self.window, user_id=user_id, callback=self.load_usuarios)
+    
+    def change_password(self):
+        """Cambia la contraseña del usuario seleccionado"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario")
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        
+        from usuarios import CambiarPasswordDialog
+        CambiarPasswordDialog(self.window, user_id=user_id)
+    
+    def toggle_usuario(self):
+        """Activa/Desactiva el usuario seleccionado - CORREGIDO"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        username = item['values'][1]
+        estado_actual = item['values'][4]
+        
+        # No permitir desactivar al usuario actual
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes cambiar el estado de tu propio usuario", parent=self.window)
+            return
+        
+        # Si está activo, verificar que no sea el único admin
+        if estado_actual == 'Activo':
+            # Obtener el nivel del usuario a desactivar
+            user_to_toggle = db.get_usuario(user_id)
+            if user_to_toggle and user_to_toggle['nivel'] == 'admin':
+                db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+                count = db.cursor.fetchone()['count']
+                
+                if count <= 1:
+                    messagebox.showerror("Error", "No puedes desactivar el único administrador activo del sistema", parent=self.window)
+                    return
+        
+        # Toggle estado
+        nuevo_estado = 0 if estado_actual == 'Activo' else 1
+        accion = "desactivado" if nuevo_estado == 0 else "activado"
+        
+        if messagebox.askyesno("Confirmar", f"¿Deseas {accion.replace('do', 'r')} al usuario '{username}'?", parent=self.window):
+            db.update_usuario(user_id, activo=nuevo_estado)
+            
+            actor_id = current_user['id'] if current_user else None
+            db.add_auditoria(actor_id, 'user_toggle', 
+                           f"Usuario {accion}: {username} (ID: {user_id})")
+            
+            messagebox.showinfo("Éxito", f"Usuario {accion} correctamente", parent=self.window)
+            self.load_usuarios()
+    
+    def delete_usuario(self):
+        """Elimina permanentemente un usuario - CORREGIDO"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        username = item['values'][1]
+        
+        # No permitir eliminar al usuario actual
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes eliminar tu propio usuario", parent=self.window)
+            return
+        
+        # No permitir eliminar a 'mitsy' si es el único admin
+        if username == 'mitsy':
+            db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+            count = db.cursor.fetchone()['count']
+            
+            if count <= 1:
+                messagebox.showerror("Error", "No puedes eliminar el único administrador del sistema", parent=self.window)
+                return
+        
+        if messagebox.askyesno("Confirmar Eliminación", 
+                              f"¿Estás seguro de ELIMINAR PERMANENTEMENTE al usuario '{username}'?\n\n"
+                              "Esta acción NO se puede deshacer.\n\n"
+                              "Si solo deseas desactivar temporalmente el usuario, usa el botón 'Activar/Desactivar'.",
+                              parent=self.window):
+            try:
+                # Eliminar físicamente de la base de datos
+                db.cursor.execute('DELETE FROM usuarios WHERE id = ?', (user_id,))
+                db.conn.commit()
+                
+                actor_id = current_user['id'] if current_user else None
+                db.add_auditoria(actor_id, 'user_delete', 
+                               f"Usuario eliminado permanentemente: {username} (ID: {user_id})")
+                
+                messagebox.showinfo("Éxito", "Usuario eliminado permanentemente", parent=self.window)
+                self.load_usuarios()
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}", parent=self.window)
+    
+    def preparar_logo_termico(self):
+        """Procesa una imagen para convertirla en logo apto para impresora térmica"""
+        from tkinter import filedialog
+        from PIL import Image
+        import os
+    
+        # Abrir selector de archivo
+        filename = filedialog.askopenfilename(
+            title="Seleccionar imagen para procesar",
+            filetypes=[
+                ("Imágenes", "*.png *.jpg *.jpeg *.bmp *.gif"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+    
+        if not filename:
+            return
+    
+        try:
+            # Configuración
+            target_width = 300  # Ancho ideal para 58mm
+            output_path = get_resource_path('images/logo_thermal.png')
+        
+            # Crear carpeta si no existe
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+            # 1. Abrir imagen
+            img = Image.open(filename)
+        
+            # 2. Convertir a escala de grises
+            img = img.convert('L')
+        
+            # 3. Redimensionar manteniendo proporciones
+            width_percent = (target_width / float(img.size[0]))
+            height_size = int((float(img.size[1]) * float(width_percent)))
+            img = img.resize((target_width, height_size), Image.LANCZOS)
+        
+            # 4. Convertir a BLANCO Y NEGRO PURO
+            img = img.point(lambda x: 0 if x < 128 else 255, '1')
+        
+            # 5. Guardar
+            img.save(output_path)
+        
+            # Actualizar campo y preview
+            self.logo_path_var.set('images/logo_thermal.png')
+            self.update_logo_preview()
+        
+            messagebox.showinfo("Éxito", 
+                            f"Logo procesado correctamente.\n\n"
+                            f"Guardado en: {output_path}\n\n"
+                            f"Recuerda hacer clic en 'Guardar Cambios' para aplicarlo.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar la imagen: {str(e)}")
+
+    def update_logo_preview(self):
+        """Actualiza la previsualización del logo"""
+        import os
+        from PIL import Image
+        try:
+            from PIL import ImageTk
+            logo_path = get_resource_path(self.logo_path_var.get())
+        
+            if os.path.exists(logo_path):
+                
+                # Cargar imagen
+                img = Image.open(logo_path)
+            
+                # Redimensionar para preview (máximo 200x150)
+                img.thumbnail((200, 150), Image.LANCZOS)
+            
+                # Convertir a PhotoImage
+                photo = ImageTk.PhotoImage(img)
+            
+                # Actualizar label
+                self.logo_preview_label.config(image=photo, text="")
+                self.logo_preview_label.image = photo  # Mantener referencia
+            else:
+                self.logo_preview_label.config(image="", text="Logo no encontrado")
+            
+        except Exception as e:
+            self.logo_preview_label.config(image="", text="Error al cargar logo")
+            print(f"Error al cargar preview: {e}")
+            
+    
+    
+    def guardar_negocio_info(self):
+        """Guarda la información del negocio"""
+        try:
+            # Construir mensaje final juntando las líneas
+            mensaje_lineas = []
+            if self.mensaje_linea1_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea1_var.get().strip())
+            if self.mensaje_linea2_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea2_var.get().strip())
+        
+            mensaje_final = '\n'.join(mensaje_lineas)
+
+            data_to_save = {
+                'name': self.name_var.get().strip(),
+                'subtitle': self.subtitle_var.get().strip(),
+                'direccion': self.direccion_var.get().strip(),
+                'ciudad': self.ciudad_var.get().strip(),
+                'telefono': self.telefono_var.get().strip(),
+                'mensaje_final': mensaje_final,
+                'logo_path': self.logo_path_var.get().strip(),
+                'mostrar_logo': 1 if self.mostrar_logo_var.get() else 0,
+                'mostrar_total_letras': 1 if self.mostrar_total_letras_var.get() else 0
+            }
+
+            # Añadir líneas extra de header y footer
+            for i, var in enumerate(self.header_vars, 1):
+                data_to_save[f'header_linea{i}'] = var.get().strip()
+            
+            for i, var in enumerate(self.footer_vars, 1):
+                data_to_save[f'footer_linea{i}'] = var.get().strip()
+
+            db.update_negocio_info(**data_to_save)
+        
+            # Verificar que hay un usuario activo antes de registrar auditoría
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_negocio', 
+                           'Información del negocio actualizada')
+        
+            messagebox.showinfo("Éxito", "Información del negocio actualizada correctamente.\n\n" 
+                            "Los cambios se aplicarán en los próximos tickets generados.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar: {str(e)}")
+    
+    def setup_audit_tab(self):
+        """Configura la pestaña de auditoría"""
+        main_audit_frame = tk.Frame(self.audit_frame, bg=COLORS['bg_primary'])
+        main_audit_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        tk.Label(main_audit_frame, text="Registro de Auditoría del Sistema", 
+                 font=FONTS['subtitle'], bg=COLORS['bg_primary'],
+                 fg=COLORS['text_primary']).pack(pady=(0, 20))
+
+        controls_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        controls_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Button(controls_frame, text="Recargar Registros", command=self.load_audit_logs,
+                  font=FONTS['button'], bg=COLORS['button_bg'],
+                  fg=COLORS['text_primary']).pack(side=tk.LEFT)
+
+        table_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        columns = ('ID', 'Fecha', 'Usuario', 'Acción', 'Detalle')
+        
+        self.audit_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                       yscrollcommand=scrollbar.set, selectmode='browse')
+        
+        self.audit_tree.heading('ID', text='ID')
+        self.audit_tree.heading('Fecha', text='Fecha y Hora')
+        self.audit_tree.heading('Usuario', text='Usuario')
+        self.audit_tree.heading('Acción', text='Acción')
+        self.audit_tree.heading('Detalle', text='Detalle')
+        
+        self.audit_tree.column('ID', width=60, anchor='center')
+        self.audit_tree.column('Fecha', width=180, anchor='center')
+        self.audit_tree.column('Usuario', width=150)
+        self.audit_tree.column('Acción', width=150)
+        self.audit_tree.column('Detalle', width=400)
+        
+        self.audit_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.audit_tree.yview)
+        
+        self.audit_tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.audit_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+
+        self.load_audit_logs()
+
+    def load_audit_logs(self):
+        """Carga los registros de auditoría en la tabla"""
+        for item in self.audit_tree.get_children():
+            self.audit_tree.delete(item)
+        
+        logs = db.get_auditoria(limit=200) 
+        
+        for idx, log in enumerate(logs):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            values = (
+                log['id'],
+                log['fecha'],
+                log['username'],
+                log['accion'],
+                log['detalle'] or ''
+            )
+            
+            self.audit_tree.insert('', tk.END, values=values, tags=(tag,))
+
+    def close_window(self):
+        """Cierra la ventana"""
+        self.window.destroy()
+        if self.on_close_callback:
+            self.on_close_callback()
+
+class RestoreCheckpointDialog:
+    def __init__(self, parent):
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Restaurar Base de Datos desde Checkpoint")
+        self.dialog.geometry("800x500")
+        self.dialog.configure(bg=COLORS['bg_primary'])
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.resizable(False, False)
+        
+        self.dialog.lift()
+        self.dialog.attributes('-topmost', True)
+        self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+        
+        try:
+            self.dialog.iconbitmap(get_resource_path('icono.ico'))
+        except:
+            pass
+        
+        self.center_dialog()
+        self.setup_ui()
+        self.load_checkpoints()
+    
+    def center_dialog(self):
+        self.dialog.update_idletasks()
+        width = 800
+        height = 500
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+    
+    def setup_ui(self):
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="Selecciona un Checkpoint para Restaurar", 
+                font=FONTS['title'], bg=COLORS['bg_primary'],
+                fg=COLORS['text_primary']).pack(pady=(0, 20))
+        
+        tk.Label(main_frame, text="¡ADVERTENCIA! Restaurar un checkpoint reemplazará la base de datos actual con la versión seleccionada. Se perderán todos los cambios posteriores al checkpoint.",
+                font=FONTS['normal'], bg=COLORS['bg_primary'], fg=COLORS['danger'], wraplength=700, justify='center').pack(pady=(0, 10))
+        
+        table_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        table_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        columns = ('Nombre', 'Fecha', 'Hora', 'Corte')
+        self.checkpoints_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                             yscrollcommand=scrollbar.set, selectmode='browse')
+        
+        self.checkpoints_tree.heading('Nombre', text='Nombre del Archivo')
+        self.checkpoints_tree.heading('Fecha', text='Fecha')
+        self.checkpoints_tree.heading('Hora', text='Hora')
+        self.checkpoints_tree.heading('Corte', text='Corte #')
+        
+        self.checkpoints_tree.column('Nombre', width=300, anchor='w')
+        self.checkpoints_tree.column('Fecha', width=100, anchor='center')
+        self.checkpoints_tree.column('Hora', width=80, anchor='center')
+        self.checkpoints_tree.column('Corte', width=80, anchor='center')
+        
+        self.checkpoints_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.checkpoints_tree.yview)
+        
+        self.checkpoints_tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.checkpoints_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+        
+        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        button_frame.pack(pady=(10, 0))
+        
+        tk.Button(button_frame, text="Restaurar Checkpoint", command=self.confirm_restore,
+                 font=FONTS['button'], bg=COLORS['warning'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
+                 font=FONTS['button'], bg=COLORS['button_bg'],
+                 fg=COLORS['text_primary'], relief=tk.RAISED,
+                 borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+    
+    def load_checkpoints(self):
+        """Carga los checkpoints disponibles en la tabla."""
+        for item in self.checkpoints_tree.get_children():
+            self.checkpoints_tree.delete(item)
+        
+        checkpoints = db.get_checkpoints()
+        
+        if not checkpoints:
+            self.checkpoints_tree.insert('', tk.END, values=("No hay checkpoints disponibles", "", "", ""), tags=('oddrow',))
+            return
+        
+        for idx, cp in enumerate(checkpoints):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            values = (cp['name'], cp['date'], cp['time'], cp['corte'])
+            self.checkpoints_tree.insert('', tk.END, values=values, tags=(tag,), iid=cp['path']) # Usar path como iid
+    
+    def confirm_restore(self):
+        """Pide confirmación y autorización para restaurar el checkpoint."""
+        selected_item = self.checkpoints_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un checkpoint para restaurar.", parent=self.dialog)
+            return
+        
+        checkpoint_path = selected_item[0]
+        checkpoint_name = self.checkpoints_tree.item(selected_item[0], 'values')[0]
+        
+        if messagebox.askyesno("Confirmar Restauración de Base de Datos",
+                               f"Estás a punto de restaurar la base de datos a la versión:\n\n"
+                               f"'{checkpoint_name}'\n\n"
+                               "¡ADVERTENCIA! Se perderán todos los datos guardados después de este checkpoint.\n\n"
+                               "¿Estás ABSOLUTAMENTE seguro de que deseas continuar?",
+                               parent=self.dialog):
+            # Si el usuario confirma, pedir autorización de administrador
+            AdminAuthDialog(self.dialog, on_success=lambda: self.perform_restore(checkpoint_path),
+                            message="Se requiere autorización de administrador para RESTAURAR la base de datos.")
+    
+    def perform_restore(self, checkpoint_path: str):
+        """Ejecuta la restauración de la base de datos y reinicia la aplicación."""
+        try:
+            db.restore_checkpoint(checkpoint_path)
+            messagebox.showinfo("Base de Datos Restaurada",
+                                "La base de datos ha sido restaurada exitosamente.\n\n"
+                                "La aplicación se reiniciará para aplicar los cambios.",
+                                parent=self.dialog)
+            from utils import restart_application
+            restart_application()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al intentar restaurar la base de datos: {e}",
+                                parent=self.dialog)
+
+    
+    def confirm_delete_database(self):
+        """Pide confirmación y luego autorización de admin para borrar la base de datos."""
+        if messagebox.askyesno("Confirmar Eliminación de Base de Datos",
+                               "Estás a punto de eliminar PERMANENTEMENTE toda la información del sistema.\n\n"
+                               "Esta acción NO se puede deshacer.\n\n"
+                               "¿Estás ABSOLUTAMENTE seguro de que deseas continuar?",
+                               parent=self.window):
+            # Si el usuario confirma, pedir autorización de administrador
+            AdminAuthDialog(self.window, on_success=self.perform_delete_database,
+                            message="Se requiere autorización de administrador para ELIMINAR la base de datos completa.")
+
+    def perform_delete_database(self):
+        """Ejecuta la eliminación y recreación de la base de datos y reinicia la aplicación."""
+        try:
+            db.recreate_database()
+            messagebox.showinfo("Base de Datos Eliminada",
+                                "La base de datos ha sido eliminada y recreada exitosamente.\n\n"
+                                "La aplicación se reiniciará para aplicar los cambios.",
+                                parent=self.window)
+            from utils import restart_application
+            restart_application()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al intentar borrar y recrear la base de datos: {e}",
+                                parent=self.window)
+    
+    def toggle_auth_system(self, *args):
+        """Activa/desactiva el sistema de autenticación con confirmación de admin."""
+        enabled = self.auth_enabled_var.get()
+
+        # Si se está intentando desactivar, se requiere autorización de admin
+        if not enabled:
+            # Desvincular temporalmente el trace para evitar recursión
+            trace_id = self.auth_enabled_var.trace_info()[0][1]
+            self.auth_enabled_var.trace_vdelete('w', trace_id)
+
+            auth_successful = [False]
+
+            def on_auth_success():
+                auth_successful[0] = True
+
+            # Crear y esperar al diálogo de autorización
+            auth_dialog = AdminAuthDialog(self.window, on_success=on_auth_success, 
+                                          message="Se requiere autorización de administrador para desactivar el sistema de autenticación.")
+            self.window.wait_window(auth_dialog.dialog)
+
+            # Después de que el diálogo se cierra, verificar si la auth fue exitosa
+            if auth_successful[0]:
+                db.toggle_auth_system(False)
+                messagebox.showinfo("Sistema de Autenticación", 
+                                  "Sistema de autenticación desactivado.\n\n" 
+                                  "No se solicitará inicio de sesión al abrir la aplicación.")
+                current_user = session.get_current_user()
+                if current_user:
+                    db.add_auditoria(current_user['id'], 'config_auth', 
+                                'Sistema de autenticación desactivado')
+            else:
+                # Si la autenticación falla o se cancela, revertir el botón
+                self.auth_enabled_var.set(True)
+
+            # Volver a vincular el trace
+            self.auth_enabled_var.trace('w', self.toggle_auth_system)
+
+        else:  # Si se está activando, no se requiere auth extra
+            db.toggle_auth_system(True)
+            messagebox.showinfo("Sistema de Autenticación", 
+                              "Sistema de autenticación activado.\n\n" 
+                              "Los usuarios deberán iniciar sesión al abrir la aplicación.")
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_auth', 
+                            'Sistema de autenticación activado')
+    
+    def update_timeout(self):
+        """Actualiza el timeout de sesión"""
+        timeout = self.timeout_var.get()
+        db.set_config('session_timeout', str(timeout))
+        session.set_timeout(timeout)
+        
+        # CORREGIDO: Verificar que hay un usuario activo antes de registrar auditoría
+        current_user = session.get_current_user()
+        if current_user:
+            db.add_auditoria(current_user['id'], 'config_timeout', 
+                   f"Timeout de sesión actualizado a {timeout} minutos")
+    
+    def load_usuarios(self):
+        """Carga los usuarios en la tabla"""
+        for item in self.usuarios_tree.get_children():
+            self.usuarios_tree.delete(item)
+        
+        usuarios = db.get_usuarios()
+        
+        for idx, u in enumerate(usuarios):
+            if not u['activo']:
+                tag = 'inactivo'
+            elif u['nivel'] == 'admin':
+                tag = 'admin'
+            else:
+                tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            values = (
+                u['id'],
+                u['username'],
+                u['nombre_completo'] or '-',
+                u['nivel'].capitalize(),
+                'Activo' if u['activo'] else 'Inactivo',
+                u['ultimo_acceso'] or 'Nunca'
+            )
+            
+            self.usuarios_tree.insert('', tk.END, values=values, tags=(tag,))
+    
+    def add_usuario(self):
+        """Añade un nuevo usuario"""
+        from usuarios import UsuarioDialog
+        UsuarioDialog(self.window, callback=self.load_usuarios)
+    
+    def edit_usuario(self):
+        """Edita el usuario seleccionado"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario para editar")
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        
+        from usuarios import UsuarioDialog
+        UsuarioDialog(self.window, user_id=user_id, callback=self.load_usuarios)
+    
+    def change_password(self):
+        """Cambia la contraseña del usuario seleccionado"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario")
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        
+        from usuarios import CambiarPasswordDialog
+        CambiarPasswordDialog(self.window, user_id=user_id)
+    
+    def toggle_usuario(self):
+        """Activa/Desactiva el usuario seleccionado - CORREGIDO"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        username = item['values'][1]
+        estado_actual = item['values'][4]
+        
+        # No permitir desactivar al usuario actual
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes cambiar el estado de tu propio usuario", parent=self.window)
+            return
+        
+        # Si está activo, verificar que no sea el único admin
+        if estado_actual == 'Activo':
+            # Obtener el nivel del usuario a desactivar
+            user_to_toggle = db.get_usuario(user_id)
+            if user_to_toggle and user_to_toggle['nivel'] == 'admin':
+                db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+                count = db.cursor.fetchone()['count']
+                
+                if count <= 1:
+                    messagebox.showerror("Error", "No puedes desactivar el único administrador activo del sistema", parent=self.window)
+                    return
+        
+        # Toggle estado
+        nuevo_estado = 0 if estado_actual == 'Activo' else 1
+        accion = "desactivado" if nuevo_estado == 0 else "activado"
+        
+        if messagebox.askyesno("Confirmar", f"¿Deseas {accion.replace('do', 'r')} al usuario '{username}'?", parent=self.window):
+            db.update_usuario(user_id, activo=nuevo_estado)
+            
+            actor_id = current_user['id'] if current_user else None
+            db.add_auditoria(actor_id, 'user_toggle', 
+                           f"Usuario {accion}: {username} (ID: {user_id})")
+            
+            messagebox.showinfo("Éxito", f"Usuario {accion} correctamente", parent=self.window)
+            self.load_usuarios()
+    
+    def delete_usuario(self):
+        """Elimina permanentemente un usuario - CORREGIDO"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        username = item['values'][1]
+        
+        # No permitir eliminar al usuario actual
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes eliminar tu propio usuario", parent=self.window)
+            return
+        
+        # No permitir eliminar a 'mitsy' si es el único admin
+        if username == 'mitsy':
+            db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+            count = db.cursor.fetchone()['count']
+            
+            if count <= 1:
+                messagebox.showerror("Error", "No puedes eliminar el único administrador del sistema", parent=self.window)
+                return
+        
+        if messagebox.askyesno("Confirmar Eliminación", 
+                              f"¿Estás seguro de ELIMINAR PERMANENTEMENTE al usuario '{username}'?\n\n"
+                              "Esta acción NO se puede deshacer.\n\n"
+                              "Si solo deseas desactivar temporalmente el usuario, usa el botón 'Activar/Desactivar'.",
+                              parent=self.window):
+            try:
+                # Eliminar físicamente de la base de datos
+                db.cursor.execute('DELETE FROM usuarios WHERE id = ?', (user_id,))
+                db.conn.commit()
+                
+                actor_id = current_user['id'] if current_user else None
+                db.add_auditoria(actor_id, 'user_delete', 
+                               f"Usuario eliminado permanentemente: {username} (ID: {user_id})")
+                
+                messagebox.showinfo("Éxito", "Usuario eliminado permanentemente", parent=self.window)
+                self.load_usuarios()
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}", parent=self.window)
+    
+    def preparar_logo_termico(self):
+        """Procesa una imagen para convertirla en logo apto para impresora térmica"""
+        from tkinter import filedialog
+        from PIL import Image
+        import os
+    
+        # Abrir selector de archivo
+        filename = filedialog.askopenfilename(
+            title="Seleccionar imagen para procesar",
+            filetypes=[
+                ("Imágenes", "*.png *.jpg *.jpeg *.bmp *.gif"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+    
+        if not filename:
+            return
+    
+        try:
+            # Configuración
+            target_width = 300  # Ancho ideal para 58mm
+            output_path = get_resource_path('images/logo_thermal.png')
+        
+            # Crear carpeta si no existe
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+            # 1. Abrir imagen
+            img = Image.open(filename)
+        
+            # 2. Convertir a escala de grises
+            img = img.convert('L')
+        
+            # 3. Redimensionar manteniendo proporciones
+            width_percent = (target_width / float(img.size[0]))
+            height_size = int((float(img.size[1]) * float(width_percent)))
+            img = img.resize((target_width, height_size), Image.LANCZOS)
+        
+            # 4. Convertir a BLANCO Y NEGRO PURO
+            img = img.point(lambda x: 0 if x < 128 else 255, '1')
+        
+            # 5. Guardar
+            img.save(output_path)
+        
+            # Actualizar campo y preview
+            self.logo_path_var.set('images/logo_thermal.png')
+            self.update_logo_preview()
+        
+            messagebox.showinfo("Éxito", 
+                            f"Logo procesado correctamente.\n\n"
+                            f"Guardado en: {output_path}\n\n"
+                            f"Recuerda hacer clic en 'Guardar Cambios' para aplicarlo.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar la imagen: {str(e)}")
+
+    def update_logo_preview(self):
+        """Actualiza la previsualización del logo"""
+        import os
+        from PIL import Image
+        try:
+            from PIL import ImageTk
+            logo_path = get_resource_path(self.logo_path_var.get())
+        
+            if os.path.exists(logo_path):
+                
+                # Cargar imagen
+                img = Image.open(logo_path)
+            
+                # Redimensionar para preview (máximo 200x150)
+                img.thumbnail((200, 150), Image.LANCZOS)
+            
+                # Convertir a PhotoImage
+                photo = ImageTk.PhotoImage(img)
+            
+                # Actualizar label
+                self.logo_preview_label.config(image=photo, text="")
+                self.logo_preview_label.image = photo  # Mantener referencia
+            else:
+                self.logo_preview_label.config(image="", text="Logo no encontrado")
+            
+        except Exception as e:
+            self.logo_preview_label.config(image="", text="Error al cargar logo")
+            print(f"Error al cargar preview: {e}")
+            
+    
+    
+    def guardar_negocio_info(self):
+        """Guarda la información del negocio"""
+        try:
+            # Construir mensaje final juntando las líneas
+            mensaje_lineas = []
+            if self.mensaje_linea1_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea1_var.get().strip())
+            if self.mensaje_linea2_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea2_var.get().strip())
+        
+            mensaje_final = '\n'.join(mensaje_lineas)
+
+            data_to_save = {
+                'name': self.name_var.get().strip(),
+                'subtitle': self.subtitle_var.get().strip(),
+                'direccion': self.direccion_var.get().strip(),
+                'ciudad': self.ciudad_var.get().strip(),
+                'telefono': self.telefono_var.get().strip(),
+                'mensaje_final': mensaje_final,
+                'logo_path': self.logo_path_var.get().strip(),
+                'mostrar_logo': 1 if self.mostrar_logo_var.get() else 0,
+                'mostrar_total_letras': 1 if self.mostrar_total_letras_var.get() else 0
+            }
+
+            # Añadir líneas extra de header y footer
+            for i, var in enumerate(self.header_vars, 1):
+                data_to_save[f'header_linea{i}'] = var.get().strip()
+            
+            for i, var in enumerate(self.footer_vars, 1):
+                data_to_save[f'footer_linea{i}'] = var.get().strip()
+
+            db.update_negocio_info(**data_to_save)
+        
+            # Verificar que hay un usuario activo antes de registrar auditoría
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_negocio', 
+                           'Información del negocio actualizada')
+        
+            messagebox.showinfo("Éxito", "Información del negocio actualizada correctamente.\n\n" 
+                            "Los cambios se aplicarán en los próximos tickets generados.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar: {str(e)}")
+    
+    def setup_audit_tab(self):
+        """Configura la pestaña de auditoría"""
+        main_audit_frame = tk.Frame(self.audit_frame, bg=COLORS['bg_primary'])
+        main_audit_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        tk.Label(main_audit_frame, text="Registro de Auditoría del Sistema", 
+                 font=FONTS['subtitle'], bg=COLORS['bg_primary'],
+                 fg=COLORS['text_primary']).pack(pady=(0, 20))
+
+        controls_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        controls_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Button(controls_frame, text="Recargar Registros", command=self.load_audit_logs,
+                  font=FONTS['button'], bg=COLORS['button_bg'],
+                  fg=COLORS['text_primary']).pack(side=tk.LEFT)
+
+        table_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        columns = ('ID', 'Fecha', 'Usuario', 'Acción', 'Detalle')
+        
+        self.audit_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                       yscrollcommand=scrollbar.set, selectmode='browse')
+        
+        self.audit_tree.heading('ID', text='ID')
+        self.audit_tree.heading('Fecha', text='Fecha y Hora')
+        self.audit_tree.heading('Usuario', text='Usuario')
+        self.audit_tree.heading('Acción', text='Acción')
+        self.audit_tree.heading('Detalle', text='Detalle')
+        
+        self.audit_tree.column('ID', width=60, anchor='center')
+        self.audit_tree.column('Fecha', width=180, anchor='center')
+        self.audit_tree.column('Usuario', width=150)
+        self.audit_tree.column('Acción', width=150)
+        self.audit_tree.column('Detalle', width=400)
+        
+        self.audit_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.audit_tree.yview)
+        
+        self.audit_tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.audit_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+
+        self.load_audit_logs()
+
+    def load_audit_logs(self):
+        """Carga los registros de auditoría en la tabla"""
+        for item in self.audit_tree.get_children():
+            self.audit_tree.delete(item)
+        
+        logs = db.get_auditoria(limit=200) 
+        
+        for idx, log in enumerate(logs):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            values = (
+                log['id'],
+                log['fecha'],
+                log['username'],
+                log['accion'],
+                log['detalle'] or ''
+            )
+            
+            self.audit_tree.insert('', tk.END, values=values, tags=(tag,))
+
+    def close_window(self):
+        """Cierra la ventana"""
+        self.window.destroy()
+        if self.on_close_callback:
+            self.on_close_callback()
+
+class RestoreCheckpointDialog:
+    def __init__(self, parent):
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Restaurar Base de Datos desde Checkpoint")
+        self.dialog.geometry("800x500")
+        self.dialog.configure(bg=COLORS['bg_primary'])
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.resizable(False, False)
+        
+        self.dialog.lift()
+        self.dialog.attributes('-topmost', True)
+        self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+        
+        try:
+            self.dialog.iconbitmap(get_resource_path('icono.ico'))
+        except:
+            pass
+        
+        self.center_dialog()
+        self.setup_ui()
+        self.load_checkpoints()
+    
+    def center_dialog(self):
+        self.dialog.update_idletasks()
+        width = 800
+        height = 500
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+    
+    def setup_ui(self):
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="Selecciona un Checkpoint para Restaurar", 
+                font=FONTS['title'], bg=COLORS['bg_primary'],
+                fg=COLORS['text_primary']).pack(pady=(0, 20))
+        
+        tk.Label(main_frame, text="¡ADVERTENCIA! Restaurar un checkpoint reemplazará la base de datos actual con la versión seleccionada. Se perderán todos los cambios posteriores al checkpoint.",
+                font=FONTS['normal'], bg=COLORS['bg_primary'], fg=COLORS['danger'], wraplength=700, justify='center').pack(pady=(0, 10))
+        
+        table_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        table_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        columns = ('Nombre', 'Fecha', 'Hora', 'Corte')
+        self.checkpoints_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                             yscrollcommand=scrollbar.set, selectmode='browse')
+        
+        self.checkpoints_tree.heading('Nombre', text='Nombre del Archivo')
+        self.checkpoints_tree.heading('Fecha', text='Fecha')
+        self.checkpoints_tree.heading('Hora', text='Hora')
+        self.checkpoints_tree.heading('Corte', text='Corte #')
+        
+        self.checkpoints_tree.column('Nombre', width=300, anchor='w')
+        self.checkpoints_tree.column('Fecha', width=100, anchor='center')
+        self.checkpoints_tree.column('Hora', width=80, anchor='center')
+        self.checkpoints_tree.column('Corte', width=80, anchor='center')
+        
+        self.checkpoints_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.checkpoints_tree.yview)
+        
+        self.checkpoints_tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.checkpoints_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+        
+        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        button_frame.pack(pady=(10, 0))
+        
+        tk.Button(button_frame, text="Restaurar Checkpoint", command=self.confirm_restore,
+                 font=FONTS['button'], bg=COLORS['warning'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
+                 font=FONTS['button'], bg=COLORS['button_bg'],
+                 fg=COLORS['text_primary'], relief=tk.RAISED,
+                 borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+    
+    def load_checkpoints(self):
+        """Carga los checkpoints disponibles en la tabla."""
+        for item in self.checkpoints_tree.get_children():
+            self.checkpoints_tree.delete(item)
+        
+        checkpoints = db.get_checkpoints()
+        
+        if not checkpoints:
+            self.checkpoints_tree.insert('', tk.END, values=("No hay checkpoints disponibles", "", "", ""), tags=('oddrow',))
+            return
+        
+        for idx, cp in enumerate(checkpoints):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            values = (cp['name'], cp['date'], cp['time'], cp['corte'])
+            self.checkpoints_tree.insert('', tk.END, values=values, tags=(tag,), iid=cp['path']) # Usar path como iid
+    
+    def confirm_restore(self):
+        """Pide confirmación y autorización para restaurar el checkpoint."""
+        selected_item = self.checkpoints_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un checkpoint para restaurar.", parent=self.dialog)
+            return
+        
+        checkpoint_path = selected_item[0]
+        checkpoint_name = self.checkpoints_tree.item(selected_item[0], 'values')[0]
+        
+        if messagebox.askyesno("Confirmar Restauración de Base de Datos",
+                               f"Estás a punto de restaurar la base de datos a la versión:\n\n"
+                               f"'{checkpoint_name}'\n\n"
+                               "¡ADVERTENCIA! Se perderán todos los datos guardados después de este checkpoint.\n\n"
+                               "¿Estás ABSOLUTAMENTE seguro de que deseas continuar?",
+                               parent=self.dialog):
+            # Si el usuario confirma, pedir autorización de administrador
+            AdminAuthDialog(self.dialog, on_success=lambda: self.perform_restore(checkpoint_path),
+                            message="Se requiere autorización de administrador para RESTAURAR la base de datos.")
+    
+    def perform_restore(self, checkpoint_path: str):
+        """Ejecuta la restauración de la base de datos y reinicia la aplicación."""
+        try:
+            db.restore_checkpoint(checkpoint_path)
+            messagebox.showinfo("Base de Datos Restaurada",
+                                "La base de datos ha sido restaurada exitosamente.\n\n"
+                                "La aplicación se reiniciará para aplicar los cambios.",
+                                parent=self.dialog)
+            from utils import restart_application
+            restart_application()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al intentar restaurar la base de datos: {e}",
+                                parent=self.dialog)
+
+    
+    def confirm_delete_database(self):
+        """Pide confirmación y luego autorización de admin para borrar la base de datos."""
+        if messagebox.askyesno("Confirmar Eliminación de Base de Datos",
+                               "Estás a punto de eliminar PERMANENTEMENTE toda la información del sistema.\n\n"
+                               "Esta acción NO se puede deshacer.\n\n"
+                               "¿Estás ABSOLUTAMENTE seguro de que deseas continuar?",
+                               parent=self.window):
+            # Si el usuario confirma, pedir autorización de administrador
+            AdminAuthDialog(self.window, on_success=self.perform_delete_database,
+                            message="Se requiere autorización de administrador para ELIMINAR la base de datos completa.")
+
+    def perform_delete_database(self):
+        """Ejecuta la eliminación y recreación de la base de datos y reinicia la aplicación."""
+        try:
+            db.recreate_database()
+            messagebox.showinfo("Base de Datos Eliminada",
+                                "La base de datos ha sido eliminada y recreada exitosamente.\n\n"
+                                "La aplicación se reiniciará para aplicar los cambios.",
+                                parent=self.window)
+            from utils import restart_application
+            restart_application()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al intentar borrar y recrear la base de datos: {e}",
+                                parent=self.window)
+    
+    def toggle_auth_system(self, *args):
+        """Activa/desactiva el sistema de autenticación con confirmación de admin."""
+        enabled = self.auth_enabled_var.get()
+
+        # Si se está intentando desactivar, se requiere autorización de admin
+        if not enabled:
+            # Desvincular temporalmente el trace para evitar recursión
+            trace_id = self.auth_enabled_var.trace_info()[0][1]
+            self.auth_enabled_var.trace_vdelete('w', trace_id)
+
+            auth_successful = [False]
+
+            def on_auth_success():
+                auth_successful[0] = True
+
+            # Crear y esperar al diálogo de autorización
+            auth_dialog = AdminAuthDialog(self.window, on_success=on_auth_success, 
+                                          message="Se requiere autorización de administrador para desactivar el sistema de autenticación.")
+            self.window.wait_window(auth_dialog.dialog)
+
+            # Después de que el diálogo se cierra, verificar si la auth fue exitosa
+            if auth_successful[0]:
+                db.toggle_auth_system(False)
+                messagebox.showinfo("Sistema de Autenticación", 
+                                  "Sistema de autenticación desactivado.\n\n" 
+                                  "No se solicitará inicio de sesión al abrir la aplicación.")
+                current_user = session.get_current_user()
+                if current_user:
+                    db.add_auditoria(current_user['id'], 'config_auth', 
+                                'Sistema de autenticación desactivado')
+            else:
+                # Si la autenticación falla o se cancela, revertir el botón
+                self.auth_enabled_var.set(True)
+
+            # Volver a vincular el trace
+            self.auth_enabled_var.trace('w', self.toggle_auth_system)
+
+        else:  # Si se está activando, no se requiere auth extra
+            db.toggle_auth_system(True)
+            messagebox.showinfo("Sistema de Autenticación", 
+                              "Sistema de autenticación activado.\n\n" 
+                              "Los usuarios deberán iniciar sesión al abrir la aplicación.")
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_auth', 
+                            'Sistema de autenticación activado')
+    
+    def update_timeout(self):
+        """Actualiza el timeout de sesión"""
+        timeout = self.timeout_var.get()
+        db.set_config('session_timeout', str(timeout))
+        session.set_timeout(timeout)
+        
+        # CORREGIDO: Verificar que hay un usuario activo antes de registrar auditoría
+        current_user = session.get_current_user()
+        if current_user:
+            db.add_auditoria(current_user['id'], 'config_timeout', 
+                   f"Timeout de sesión actualizado a {timeout} minutos")
+    
+    def load_usuarios(self):
+        """Carga los usuarios en la tabla"""
+        for item in self.usuarios_tree.get_children():
+            self.usuarios_tree.delete(item)
+        
+        usuarios = db.get_usuarios()
+        
+        for idx, u in enumerate(usuarios):
+            if not u['activo']:
+                tag = 'inactivo'
+            elif u['nivel'] == 'admin':
+                tag = 'admin'
+            else:
+                tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            values = (
+                u['id'],
+                u['username'],
+                u['nombre_completo'] or '-',
+                u['nivel'].capitalize(),
+                'Activo' if u['activo'] else 'Inactivo',
+                u['ultimo_acceso'] or 'Nunca'
+            )
+            
+            self.usuarios_tree.insert('', tk.END, values=values, tags=(tag,))
+    
+    def add_usuario(self):
+        """Añade un nuevo usuario"""
+        from usuarios import UsuarioDialog
+        UsuarioDialog(self.window, callback=self.load_usuarios)
+    
+    def edit_usuario(self):
+        """Edita el usuario seleccionado"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario para editar")
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        
+        from usuarios import UsuarioDialog
+        UsuarioDialog(self.window, user_id=user_id, callback=self.load_usuarios)
+    
+    def change_password(self):
+        """Cambia la contraseña del usuario seleccionado"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario")
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        
+        from usuarios import CambiarPasswordDialog
+        CambiarPasswordDialog(self.window, user_id=user_id)
+    
+    def toggle_usuario(self):
+        """Activa/Desactiva el usuario seleccionado - CORREGIDO"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        username = item['values'][1]
+        estado_actual = item['values'][4]
+        
+        # No permitir desactivar al usuario actual
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes cambiar el estado de tu propio usuario", parent=self.window)
+            return
+        
+        # Si está activo, verificar que no sea el único admin
+        if estado_actual == 'Activo':
+            # Obtener el nivel del usuario a desactivar
+            user_to_toggle = db.get_usuario(user_id)
+            if user_to_toggle and user_to_toggle['nivel'] == 'admin':
+                db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+                count = db.cursor.fetchone()['count']
+                
+                if count <= 1:
+                    messagebox.showerror("Error", "No puedes desactivar el único administrador activo del sistema", parent=self.window)
+                    return
+        
+        # Toggle estado
+        nuevo_estado = 0 if estado_actual == 'Activo' else 1
+        accion = "desactivado" if nuevo_estado == 0 else "activado"
+        
+        if messagebox.askyesno("Confirmar", f"¿Deseas {accion.replace('do', 'r')} al usuario '{username}'?", parent=self.window):
+            db.update_usuario(user_id, activo=nuevo_estado)
+            
+            actor_id = current_user['id'] if current_user else None
+            db.add_auditoria(actor_id, 'user_toggle', 
+                           f"Usuario {accion}: {username} (ID: {user_id})")
+            
+            messagebox.showinfo("Éxito", f"Usuario {accion} correctamente", parent=self.window)
+            self.load_usuarios()
+    
+    def delete_usuario(self):
+        """Elimina permanentemente un usuario - CORREGIDO"""
+        selection = self.usuarios_tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un usuario", parent=self.window)
+            return
+        
+        item = self.usuarios_tree.item(selection[0])
+        user_id = item['values'][0]
+        username = item['values'][1]
+        
+        # No permitir eliminar al usuario actual
+        current_user = session.get_current_user()
+        if current_user and user_id == current_user['id']:
+            messagebox.showerror("Error", "No puedes eliminar tu propio usuario", parent=self.window)
+            return
+        
+        # No permitir eliminar a 'mitsy' si es el único admin
+        if username == 'mitsy':
+            db.cursor.execute("SELECT COUNT(*) as count FROM usuarios WHERE nivel = 'admin' AND activo = 1")
+            count = db.cursor.fetchone()['count']
+            
+            if count <= 1:
+                messagebox.showerror("Error", "No puedes eliminar el único administrador del sistema", parent=self.window)
+                return
+        
+        if messagebox.askyesno("Confirmar Eliminación", 
+                              f"¿Estás seguro de ELIMINAR PERMANENTEMENTE al usuario '{username}'?\n\n"
+                              "Esta acción NO se puede deshacer.\n\n"
+                              "Si solo deseas desactivar temporalmente el usuario, usa el botón 'Activar/Desactivar'.",
+                              parent=self.window):
+            try:
+                # Eliminar físicamente de la base de datos
+                db.cursor.execute('DELETE FROM usuarios WHERE id = ?', (user_id,))
+                db.conn.commit()
+                
+                actor_id = current_user['id'] if current_user else None
+                db.add_auditoria(actor_id, 'user_delete', 
+                               f"Usuario eliminado permanentemente: {username} (ID: {user_id})")
+                
+                messagebox.showinfo("Éxito", "Usuario eliminado permanentemente", parent=self.window)
+                self.load_usuarios()
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}", parent=self.window)
+    
+    def preparar_logo_termico(self):
+        """Procesa una imagen para convertirla en logo apto para impresora térmica"""
+        from tkinter import filedialog
+        from PIL import Image
+        import os
+    
+        # Abrir selector de archivo
+        filename = filedialog.askopenfilename(
+            title="Seleccionar imagen para procesar",
+            filetypes=[
+                ("Imágenes", "*.png *.jpg *.jpeg *.bmp *.gif"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+    
+        if not filename:
+            return
+    
+        try:
+            # Configuración
+            target_width = 300  # Ancho ideal para 58mm
+            output_path = get_resource_path('images/logo_thermal.png')
+        
+            # Crear carpeta si no existe
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+            # 1. Abrir imagen
+            img = Image.open(filename)
+        
+            # 2. Convertir a escala de grises
+            img = img.convert('L')
+        
+            # 3. Redimensionar manteniendo proporciones
+            width_percent = (target_width / float(img.size[0]))
+            height_size = int((float(img.size[1]) * float(width_percent)))
+            img = img.resize((target_width, height_size), Image.LANCZOS)
+        
+            # 4. Convertir a BLANCO Y NEGRO PURO
+            img = img.point(lambda x: 0 if x < 128 else 255, '1')
+        
+            # 5. Guardar
+            img.save(output_path)
+        
+            # Actualizar campo y preview
+            self.logo_path_var.set('images/logo_thermal.png')
+            self.update_logo_preview()
+        
+            messagebox.showinfo("Éxito", 
+                            f"Logo procesado correctamente.\n\n"
+                            f"Guardado en: {output_path}\n\n"
+                            f"Recuerda hacer clic en 'Guardar Cambios' para aplicarlo.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar la imagen: {str(e)}")
+
+    def update_logo_preview(self):
+        """Actualiza la previsualización del logo"""
+        import os
+        from PIL import Image
+        try:
+            from PIL import ImageTk
+            logo_path = get_resource_path(self.logo_path_var.get())
+        
+            if os.path.exists(logo_path):
+                
+                # Cargar imagen
+                img = Image.open(logo_path)
+            
+                # Redimensionar para preview (máximo 200x150)
+                img.thumbnail((200, 150), Image.LANCZOS)
+            
+                # Convertir a PhotoImage
+                photo = ImageTk.PhotoImage(img)
+            
+                # Actualizar label
+                self.logo_preview_label.config(image=photo, text="")
+                self.logo_preview_label.image = photo  # Mantener referencia
+            else:
+                self.logo_preview_label.config(image="", text="Logo no encontrado")
+            
+        except Exception as e:
+            self.logo_preview_label.config(image="", text="Error al cargar logo")
+            print(f"Error al cargar preview: {e}")
+            
+    
+    
+    def guardar_negocio_info(self):
+        """Guarda la información del negocio"""
+        try:
+            # Construir mensaje final juntando las líneas
+            mensaje_lineas = []
+            if self.mensaje_linea1_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea1_var.get().strip())
+            if self.mensaje_linea2_var.get().strip():
+                mensaje_lineas.append(self.mensaje_linea2_var.get().strip())
+        
+            mensaje_final = '\n'.join(mensaje_lineas)
+
+            data_to_save = {
+                'name': self.name_var.get().strip(),
+                'subtitle': self.subtitle_var.get().strip(),
+                'direccion': self.direccion_var.get().strip(),
+                'ciudad': self.ciudad_var.get().strip(),
+                'telefono': self.telefono_var.get().strip(),
+                'mensaje_final': mensaje_final,
+                'logo_path': self.logo_path_var.get().strip(),
+                'mostrar_logo': 1 if self.mostrar_logo_var.get() else 0,
+                'mostrar_total_letras': 1 if self.mostrar_total_letras_var.get() else 0
+            }
+
+            # Añadir líneas extra de header y footer
+            for i, var in enumerate(self.header_vars, 1):
+                data_to_save[f'header_linea{i}'] = var.get().strip()
+            
+            for i, var in enumerate(self.footer_vars, 1):
+                data_to_save[f'footer_linea{i}'] = var.get().strip()
+
+            db.update_negocio_info(**data_to_save)
+        
+            # Verificar que hay un usuario activo antes de registrar auditoría
+            current_user = session.get_current_user()
+            if current_user:
+                db.add_auditoria(current_user['id'], 'config_negocio', 
+                           'Información del negocio actualizada')
+        
+            messagebox.showinfo("Éxito", "Información del negocio actualizada correctamente.\n\n" 
+                            "Los cambios se aplicarán en los próximos tickets generados.")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar: {str(e)}")
+    
+    def setup_audit_tab(self):
+        """Configura la pestaña de auditoría"""
+        main_audit_frame = tk.Frame(self.audit_frame, bg=COLORS['bg_primary'])
+        main_audit_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        tk.Label(main_audit_frame, text="Registro de Auditoría del Sistema", 
+                 font=FONTS['subtitle'], bg=COLORS['bg_primary'],
+                 fg=COLORS['text_primary']).pack(pady=(0, 20))
+
+        controls_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        controls_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Button(controls_frame, text="Recargar Registros", command=self.load_audit_logs,
+                  font=FONTS['button'], bg=COLORS['button_bg'],
+                  fg=COLORS['text_primary']).pack(side=tk.LEFT)
+
+        table_frame = tk.Frame(main_audit_frame, bg=COLORS['bg_primary'])
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        columns = ('ID', 'Fecha', 'Usuario', 'Acción', 'Detalle')
+        
+        self.audit_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                       yscrollcommand=scrollbar.set, selectmode='browse')
+        
+        self.audit_tree.heading('ID', text='ID')
+        self.audit_tree.heading('Fecha', text='Fecha y Hora')
+        self.audit_tree.heading('Usuario', text='Usuario')
+        self.audit_tree.heading('Acción', text='Acción')
+        self.audit_tree.heading('Detalle', text='Detalle')
+        
+        self.audit_tree.column('ID', width=60, anchor='center')
+        self.audit_tree.column('Fecha', width=180, anchor='center')
+        self.audit_tree.column('Usuario', width=150)
+        self.audit_tree.column('Acción', width=150)
+        self.audit_tree.column('Detalle', width=400)
+        
+        self.audit_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.audit_tree.yview)
+        
+        self.audit_tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.audit_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+
+        self.load_audit_logs()
+
+    def load_audit_logs(self):
+        """Carga los registros de auditoría en la tabla"""
+        for item in self.audit_tree.get_children():
+            self.audit_tree.delete(item)
+        
+        logs = db.get_auditoria(limit=200) 
+        
+        for idx, log in enumerate(logs):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            values = (
+                log['id'],
+                log['fecha'],
+                log['username'],
+                log['accion'],
+                log['detalle'] or ''
+            )
+            
+            self.audit_tree.insert('', tk.END, values=values, tags=(tag,))
+
+    def close_window(self):
+        """Cierra la ventana"""
+        self.window.destroy()
+        if self.on_close_callback:
+            self.on_close_callback()
+
+class RestoreCheckpointDialog:
+    def __init__(self, parent):
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Restaurar Base de Datos desde Checkpoint")
+        self.dialog.geometry("800x500")
+        self.dialog.configure(bg=COLORS['bg_primary'])
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.resizable(False, False)
+        
+        self.dialog.lift()
+        self.dialog.attributes('-topmost', True)
+        self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+        
+        try:
+            self.dialog.iconbitmap(get_resource_path('icono.ico'))
+        except:
+            pass
+        
+        self.center_dialog()
+        self.setup_ui()
+        self.load_checkpoints()
+    
+    def center_dialog(self):
+        self.dialog.update_idletasks()
+        width = 800
+        height = 500
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+    
+    def setup_ui(self):
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="Selecciona un Checkpoint para Restaurar", 
+                font=FONTS['title'], bg=COLORS['bg_primary'],
+                fg=COLORS['text_primary']).pack(pady=(0, 20))
+        
+        tk.Label(main_frame, text="¡ADVERTENCIA! Restaurar un checkpoint reemplazará la base de datos actual con la versión seleccionada. Se perderán todos los cambios posteriores al checkpoint.",
+                font=FONTS['normal'], bg=COLORS['bg_primary'], fg=COLORS['danger'], wraplength=700, justify='center').pack(pady=(0, 10))
+        
+        table_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        table_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        columns = ('Nombre', 'Fecha', 'Hora', 'Corte')
+        self.checkpoints_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                             yscrollcommand=scrollbar.set, selectmode='browse')
+        
+        self.checkpoints_tree.heading('Nombre', text='Nombre del Archivo')
+        self.checkpoints_tree.heading('Fecha', text='Fecha')
+        self.checkpoints_tree.heading('Hora', text='Hora')
+        self.checkpoints_tree.heading('Corte', text='Corte #')
+        
+        self.checkpoints_tree.column('Nombre', width=300, anchor='w')
+        self.checkpoints_tree.column('Fecha', width=100, anchor='center')
+        self.checkpoints_tree.column('Hora', width=80, anchor='center')
+        self.checkpoints_tree.column('Corte', width=80, anchor='center')
+        
+        self.checkpoints_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.checkpoints_tree.yview)
+        
+        self.checkpoints_tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.checkpoints_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+        
+        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        button_frame.pack(pady=(10, 0))
+        
+        tk.Button(button_frame, text="Restaurar Checkpoint", command=self.confirm_restore,
+                 font=FONTS['button'], bg=COLORS['warning'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
+                 font=FONTS['button'], bg=COLORS['button_bg'],
+                 fg=COLORS['text_primary'], relief=tk.RAISED,
+                 borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+    
+    def load_checkpoints(self):
+        """Carga los checkpoints disponibles en la tabla."""
+        for item in self.checkpoints_tree.get_children():
+            self.checkpoints_tree.delete(item)
+        
+        checkpoints = db.get_checkpoints()
+        
+        if not checkpoints:
+            self.checkpoints_tree.insert('', tk.END, values=("No hay checkpoints disponibles", "", "", ""), tags=('oddrow',))
+            return
+        
+        for idx, cp in enumerate(checkpoints):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            values = (cp['name'], cp['date'], cp['time'], cp['corte'])
+            self.checkpoints_tree.insert('', tk.END, values=values, tags=(tag,), iid=cp['path']) # Usar path como iid
+    
+    def confirm_restore(self):
+        """Pide confirmación y autorización para restaurar el checkpoint."""
+        selected_item = self.checkpoints_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Advertencia", "Por favor selecciona un checkpoint para restaurar.", parent=self.dialog)
+            return
+        
+        checkpoint_path = selected_item[0]
+        checkpoint_name = self.checkpoints_tree.item(selected_item[0], 'values')[0]
+        
+        if messagebox.askyesno("Confirmar Restauración de Base de Datos",
+                               f"Estás a punto de restaurar la base de datos a la versión:\n\n"
+                               f"'{checkpoint_name}'\n\n"
+                               "¡ADVERTENCIA! Se perderán todos los datos guardados después de este checkpoint.\n\n"
+                               "¿Estás ABSOLUTAMENTE seguro de que deseas continuar?",
+                               parent=self.dialog):
+            # Si el usuario confirma, pedir autorización de administrador
+            AdminAuthDialog(self.dialog, on_success=lambda: self.perform_restore(checkpoint_path),
+                            message="Se requiere autorización de administrador para RESTAURAR la base de datos.")
+    
+    def perform_restore(self, checkpoint_path: str):
+        """Ejecuta la restauración de la base de datos y reinicia la aplicación."""
+        try:
+            db.restore_checkpoint(checkpoint_path)
+            messagebox.showinfo("Base de Datos Restaurada",
+                                "La base de datos ha sido restaurada exitosamente.\n\n"
+                                "La aplicación se reiniciará para aplicar los cambios.",
+                                parent=self.dialog)
+            from utils import restart_application
+            restart_application()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al intentar restaurar la base de datos: {e}",
+                                parent=self.dialog)
+
 
     
     def confirm_delete_database(self):
