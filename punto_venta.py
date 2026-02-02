@@ -141,8 +141,8 @@ class PuntoVentaWindow:
                 bg_color = COLORS['button_bg']
                 fg_color = COLORS['text_primary']
             
-            # Sobrescribir color si tiene venta pendiente (mayor prioridad)
-            if mesa in mesas_pendientes:
+            # Sobrescribir color si tiene venta pendiente, pero dar prioridad a 'pedido_terminado'
+            if mesa in mesas_pendientes and estado != 'pedido_terminado':
                 bg_color = COLORS['warning']
                 fg_color = 'white'
 
@@ -378,12 +378,31 @@ class PuntoVentaWindow:
         elif estado == 'pedido_pendiente':
             menu.add_command(label="Marcar pedido terminado", 
                         command=lambda: self.cambiar_estado_mesa(mesa, 'pedido_terminado'))
+        elif estado == 'pedido_terminado':
+            menu.add_command(label="Revertir a 'Pedido Pendiente'",
+                        command=lambda: self.cambiar_estado_mesa(mesa, 'pedido_pendiente'))
+            menu.add_separator()
+            menu.add_command(label="Cancelar Venta y Liberar Mesa",
+                        command=lambda: self.cancelar_venta_y_liberar_mesa(mesa))
+
+        # No mostrar menú si no tiene opciones
+        if menu.index('end') is None:
+            return
     
         # Mostrar menú en la posición del click
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def cancelar_venta_y_liberar_mesa(self, mesa):
+        """Cancela una venta pendiente, libera la mesa y refresca la UI."""
+        if messagebox.askyesno("Confirmar Cancelación", 
+                               f"¿Está seguro de que desea cancelar la venta de la mesa '{mesa}' y marcarla como libre?\n\nEsta acción no se puede deshacer.",
+                               parent=self.window):
+            db.delete_venta_pendiente(mesa)
+            db.set_estado_mesa(mesa, 'libre')
+            self.refresh_mesas()
 
     def cambiar_estado_mesa(self, mesa, nuevo_estado):
         """Cambia el estado de una mesa y actualiza el color del botón"""
