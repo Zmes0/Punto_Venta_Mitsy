@@ -230,6 +230,15 @@ class Database:
                 fecha_creacion TEXT
             )
         ''')
+        # Tabla de Estados de Mesas
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS estados_mesas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mesa TEXT UNIQUE NOT NULL,
+                estado TEXT DEFAULT 'libre',
+                fecha_modificacion TEXT
+            )
+        ''')
         
         # NUEVO: Tabla de Retiros
         self.cursor.execute('''
@@ -1579,6 +1588,46 @@ class Database:
         checkpoints.sort(key=lambda x: (x['date'], x['time']), reverse=True)
         
         return checkpoints
+    
+    # ==================== GESTIÓN DE ESTADOS DE MESAS ====================
+
+    def get_estado_mesa(self, mesa: str) -> str:
+        """Obtiene el estado actual de una mesa"""
+        self.cursor.execute('SELECT estado FROM estados_mesas WHERE mesa = ?', (mesa,))
+        result = self.cursor.fetchone()
+    
+        if result:
+            return result['estado']
+        else:
+            # Si no existe, crear entrada con estado 'libre'
+            self.set_estado_mesa(mesa, 'libre')
+            return 'libre'
+
+    def set_estado_mesa(self, mesa: str, estado: str):
+        """
+        Establece el estado de una mesa
+        Estados válidos: 'libre', 'ocupada_sin_pedido', 'pedido_pendiente', 'pedido_terminado'
+        """
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    
+        self.cursor.execute('''
+            INSERT OR REPLACE INTO estados_mesas (mesa, estado, fecha_modificacion)
+            VALUES (?, ?, ?)
+        ''', (mesa, estado, fecha))
+    
+        self.conn.commit()
+
+    def get_mesas_por_estado(self) -> dict:
+        """
+        Retorna un diccionario con todas las mesas y sus estados
+        {'Mesa 1': 'libre', 'Mesa 2': 'ocupada_sin_pedido', ...}
+        """
+        self.cursor.execute('SELECT mesa, estado FROM estados_mesas')
+        return {row['mesa']: row['estado'] for row in self.cursor.fetchall()}
+
+    def limpiar_estado_mesa(self, mesa: str):
+        """Limpia el estado de una mesa (vuelve a libre)"""
+        self.set_estado_mesa(mesa, 'libre')
 
 # Instancia global de la base de datos
 db = Database()

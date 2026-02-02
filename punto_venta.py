@@ -111,6 +111,47 @@ class PuntoVentaWindow:
         # MODIFICACIÓN: Determinar el número de columnas dinámicamente
         num_columns = 5 if len(self.mesas) >= 14 else 3
         
+        # Obtener estados de todas las mesas
+        estados_mesas = db.get_mesas_por_estado()
+
+        # Guardar referencia a los botones
+        self.mesa_buttons = {}
+
+        # MODIFICAR el bucle de creación de botones:
+        for idx, mesa in enumerate(self.mesas):
+            # Obtener estado de la mesa
+            estado = estados_mesas.get(mesa, 'libre')
+    
+            # Determinar color según estado
+            if estado == 'libre':
+                bg_color = COLORS['mesa_libre']
+                fg_color = COLORS['text_primary']
+            elif estado == 'ocupada_sin_pedido':
+                bg_color = COLORS['mesa_ocupada']
+                fg_color = COLORS['text_primary']
+            elif estado == 'pedido_pendiente':
+                bg_color = COLORS['mesa_pedido_pendiente']
+                fg_color = 'white'
+            elif estado == 'pedido_terminado':
+                bg_color = COLORS['mesa_pedido_terminado']
+                fg_color = 'white'
+            else:
+                bg_color = COLORS['button_bg']
+                fg_color = COLORS['text_primary']
+    
+            btn = tk.Button(mesas_frame, text=mesa, 
+                        command=lambda m=mesa: self.open_mesa(m),
+                        font=FONTS['button'], bg=bg_color, fg=fg_color,
+                        relief=tk.RAISED, borderwidth=3,
+                        width=15, height=3, cursor='hand2')
+            btn.grid(row=row, column=col, padx=15, pady=15)
+    
+            # Agregar menú contextual (click derecho)
+            btn.bind('<Button-3>', lambda e, m=mesa: self.mostrar_menu_contextual(e, m))
+    
+            # Guardar referencia al botón
+            self.mesa_buttons[mesa] = btn
+    
         # Crear botones de mesas usando la lista de instancia
         row = 0
         col = 0
@@ -332,6 +373,59 @@ class PuntoVentaWindow:
             # Si es un empleado, pedir autorización de admin
             AdminAuthDialog(self.window, on_success=open_retiro_dialog,
                             message="Se requiere autorización de administrador para realizar un retiro.")
+    
+    def mostrar_menu_contextual(self, event, mesa):
+        """Muestra menú contextual según el estado de la mesa"""
+        estado = db.get_estado_mesa(mesa)
+    
+        # Crear menú contextual
+        menu = tk.Menu(self.window, tearoff=0)
+    
+        if estado == 'libre':
+            menu.add_command(label="Marcar como ocupada", 
+                        command=lambda: self.cambiar_estado_mesa(mesa, 'ocupada_sin_pedido'))
+        elif estado == 'ocupada_sin_pedido':
+            menu.add_command(label="Marcar como libre", 
+                        command=lambda: self.cambiar_estado_mesa(mesa, 'libre'))
+        elif estado == 'pedido_pendiente':
+            menu.add_command(label="Marcar pedido terminado", 
+                        command=lambda: self.cambiar_estado_mesa(mesa, 'pedido_terminado'))
+    
+        # Mostrar menú en la posición del click
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def cambiar_estado_mesa(self, mesa, nuevo_estado):
+        """Cambia el estado de una mesa y actualiza el color del botón"""
+        db.set_estado_mesa(mesa, nuevo_estado)
+        self.actualizar_color_mesa(mesa, nuevo_estado)
+
+    def actualizar_color_mesa(self, mesa, estado):
+        """Actualiza el color del botón de la mesa según su estado"""
+        if mesa not in self.mesa_buttons:
+            return
+    
+        btn = self.mesa_buttons[mesa]
+    
+        if estado == 'libre':
+            bg_color = COLORS['mesa_libre']
+            fg_color = COLORS['text_primary']
+        elif estado == 'ocupada_sin_pedido':
+            bg_color = COLORS['mesa_ocupada']
+            fg_color = COLORS['text_primary']
+        elif estado == 'pedido_pendiente':
+            bg_color = COLORS['mesa_pedido_pendiente']
+            fg_color = 'white'
+        elif estado == 'pedido_terminado':
+            bg_color = COLORS['mesa_pedido_terminado']
+            fg_color = 'white'
+        else:
+            bg_color = COLORS['button_bg']
+            fg_color = COLORS['text_primary']
+    
+        btn.config(bg=bg_color, fg=fg_color)
            
 class VentaMesaWindow:
     def __init__(self, parent, mesa, callback=None):
@@ -539,7 +633,8 @@ class VentaMesaWindow:
                 'precio': producto_data['precio'],
                 'total': total
             })
-        
+        # Cambiar estado de la mesa a 'pedido_pendiente' al agregar productos
+        db.set_estado_mesa(self.mesa, 'pedido_pendiente')
         self.update_table()
     
     def edit_item(self, event):
@@ -612,6 +707,8 @@ class VentaMesaWindow:
                                    "¿Estás seguro de limpiar toda la venta?"):
             return
         
+        # Al limpiar productos, cambiar estado a libre
+        db.set_estado_mesa(self.mesa, 'libre')
         self.productos_venta = []
         self.update_table()
     
@@ -635,6 +732,9 @@ class VentaMesaWindow:
         # Eliminar venta pendiente
         db.delete_venta_pendiente(self.mesa)
         
+        # Cambiar estado de la mesa a 'libre' al cobrar
+        db.set_estado_mesa(self.mesa, 'libre')
+        
         # Cerrar ventana
         self.window.destroy()
         
@@ -650,7 +750,8 @@ class VentaMesaWindow:
         else:
             # Si no hay productos, eliminar venta pendiente
             db.delete_venta_pendiente(self.mesa)
-        
+            db.set_estado_mesa(self.mesa, 'libre')
+            
         self.window.destroy()
         
         if self.callback:

@@ -4,20 +4,25 @@ Configuración global del sistema Mitsy's POS
 
 # Colores del tema (inspirado en las imágenes de referencia)
 COLORS = {
-    'bg_primary': '#E8E8E8',      # Fondo principal gris claro
-    'bg_secondary': '#F5F5F5',    # Fondo secundario
-    'button_bg': '#FFFFFF',       # Fondo de botones
-    'button_hover': '#D0D0D0',    # Hover de botones
-    'border': '#A0A0A0',          # Bordes
-    'text_primary': '#2C2C2C',    # Texto principal
-    'text_secondary': '#666666',  # Texto secundario
-    'accent': '#4A90E2',          # Color de acento
-    'success': '#4CAF50',         # Verde éxito
-    'warning': '#FF9800',         # Naranja advertencia
-    'danger': '#F44336',          # Rojo peligro
-    'table_header': '#D9D9D9',    # Encabezado de tabla
-    'table_row_even': '#FFFFFF',  # Fila par
-    'table_row_odd': '#F9F9F9'    # Fila impar
+    'bg_primary': '#E8E8E8',
+    'bg_secondary': '#F5F5F5',
+    'button_bg': '#FFFFFF',
+    'button_hover': '#D0D0D0',
+    'border': '#A0A0A0',
+    'text_primary': '#2C2C2C',
+    'text_secondary': '#666666',
+    'accent': '#4A90E2',
+    'success': '#4CAF50',
+    'warning': '#FF9800',
+    'danger': '#F44336',
+    'table_header': '#D9D9D9',
+    'table_row_even': '#FFFFFF',
+    'table_row_odd': '#F9F9F9',
+    # Colores para estados de mesas
+    'mesa_libre': '#FFFFFF',           # Blanco - Mesa libre
+    'mesa_ocupada': '#FFD54F',         # Amarillo - Ocupada sin pedido
+    'mesa_pedido_pendiente': '#FF9800',# Naranja - Pedido pendiente
+    'mesa_pedido_terminado': '#66BB6A' # Verde - Pedido terminado
 }
 
 # Fuentes
