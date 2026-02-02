@@ -117,7 +117,9 @@ class PuntoVentaWindow:
         # Guardar referencia a los botones
         self.mesa_buttons = {}
 
-        # MODIFICAR el bucle de creación de botones:
+        # Bucle de creación de botones de mesas
+        row = 0
+        col = 0
         for idx, mesa in enumerate(self.mesas):
             # Obtener estado de la mesa
             estado = estados_mesas.get(mesa, 'libre')
@@ -138,7 +140,12 @@ class PuntoVentaWindow:
             else:
                 bg_color = COLORS['button_bg']
                 fg_color = COLORS['text_primary']
-    
+            
+            # Sobrescribir color si tiene venta pendiente (mayor prioridad)
+            if mesa in mesas_pendientes:
+                bg_color = COLORS['warning']
+                fg_color = 'white'
+
             btn = tk.Button(mesas_frame, text=mesa, 
                         command=lambda m=mesa: self.open_mesa(m),
                         font=FONTS['button'], bg=bg_color, fg=fg_color,
@@ -151,28 +158,9 @@ class PuntoVentaWindow:
     
             # Guardar referencia al botón
             self.mesa_buttons[mesa] = btn
-    
-        # Crear botones de mesas usando la lista de instancia
-        row = 0
-        col = 0
-        for idx, mesa in enumerate(self.mesas):
-            # Determinar color según si tiene venta pendiente
-            if mesa in mesas_pendientes:
-                bg_color = COLORS['warning']  # Naranja para ventas pendientes
-                fg_color = 'white'
-            else:
-                bg_color = COLORS['button_bg']
-                fg_color = COLORS['text_primary']
-            
-            btn = tk.Button(mesas_frame, text=mesa, 
-                          command=lambda m=mesa: self.open_mesa(m),
-                          font=FONTS['button'], bg=bg_color, fg=fg_color,
-                          relief=tk.RAISED, borderwidth=3,
-                          width=15, height=3, cursor='hand2')
-            btn.grid(row=row, column=col, padx=15, pady=15)
-            
+
             col += 1
-            if col > num_columns - 1:  # Usar el número de columnas dinámico
+            if col > num_columns - 1:
                 col = 0
                 row += 1
         
