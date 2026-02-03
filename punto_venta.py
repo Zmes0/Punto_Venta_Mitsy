@@ -556,7 +556,7 @@ class VentaMesaWindow:
             ("Borrar Producto", self.borrar_producto, COLORS['danger']),
             ("Limpiar Venta", self.limpiar_venta, COLORS['warning']),
             ("Imprimir Cuenta", self.imprimir_cuenta, COLORS['button_bg']),
-            ("Cobrar Venta", self.cobrar_venta, COLORS['accent']),
+            ("Cobrar Venta (F2)", self.cobrar_venta, COLORS['accent']),
             ("Minimizar Ventana", self.minimizar_ventana, COLORS['button_bg'])
         ]
         
@@ -803,6 +803,9 @@ class AgregarProductosWindow:
         self.current_clasificacion_page = 0
         self.clasificaciones_per_page = 9
         self.selected_clasificacion_id = 'all'
+
+        self.product_widgets = []
+        self.selected_product_index = -1
         
         self.setup_ui()
         self.load_clasificaciones_and_productos()
@@ -810,7 +813,11 @@ class AgregarProductosWindow:
         self.center_dialog()
         self.dialog.deiconify()
         self.search_entry.focus()
-        self.dialog.bind('<Return>', lambda event: self.close_dialog())
+
+        # Key bindings for navigation
+        self.dialog.bind('<Tab>', self.handle_tab_key)
+        self.dialog.bind('<Return>', self.handle_enter_key)
+        self.dialog.bind('<Escape>', lambda event: self.close_dialog())
 
     def center_dialog(self):
         self.dialog.update_idletasks()
@@ -856,7 +863,7 @@ class AgregarProductosWindow:
         action_buttons_frame = tk.Frame(bottom_frame, bg=COLORS['bg_primary'])
         action_buttons_frame.pack(side=tk.LEFT)
 
-        tk.Button(action_buttons_frame, text="Regresar", command=self.close_dialog,
+        tk.Button(action_buttons_frame, text="Regresar (Esc)", command=self.close_dialog,
                  font=FONTS['button'], bg=COLORS['button_bg'],
                  fg=COLORS['text_primary'], relief=tk.RAISED,
                  borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=5)
@@ -963,6 +970,9 @@ class AgregarProductosWindow:
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
         
+        self.product_widgets = []
+        self.selected_product_index = -1
+
         productos = db.get_productos_by_sales_frequency(
             clasificacion_id=self.selected_clasificacion_id,
             query=search_query
@@ -971,7 +981,8 @@ class AgregarProductosWindow:
         row = 0
         col = 0
         for producto in productos:
-            self.create_producto_card(producto, row, col)
+            card = self.create_producto_card(producto, row, col)
+            self.product_widgets.append((card, producto))
             col += 1
             if col > 6:
                 col = 0
@@ -979,7 +990,8 @@ class AgregarProductosWindow:
     
     def create_producto_card(self, producto, row, col):
         card = tk.Frame(self.scrollable_frame, bg=COLORS['bg_secondary'],
-                       relief=tk.RAISED, borderwidth=2)
+                       relief=tk.RAISED, borderwidth=2,
+                       highlightthickness=3, highlightbackground=COLORS['bg_secondary'])
         card.grid(row=row, column=col, padx=12, pady=12, sticky='nsew')
         
         img_frame = tk.Frame(card, bg=COLORS['bg_secondary'], 
@@ -1025,6 +1037,60 @@ class AgregarProductosWindow:
         for child in card.winfo_children():
             if not isinstance(child, tk.Button):
                 child.bind('<Button-1>', lambda e, p=producto: self.select_producto(p))
+        
+        return card
+
+    def clear_product_selection(self):
+        """Clears the visual selection from a product card."""
+        if self.selected_product_index != -1 and self.selected_product_index < len(self.product_widgets):
+            card, _ = self.product_widgets[self.selected_product_index]
+            card.config(highlightbackground=COLORS['bg_secondary'], relief=tk.RAISED)
+        self.selected_product_index = -1
+
+    def handle_tab_key(self, event):
+        """Handles Tab key press for product navigation."""
+        if not self.product_widgets:
+            self.search_entry.focus()
+            return "break"
+
+        # Un-highlight the previously selected card
+        if self.selected_product_index != -1:
+            card, _ = self.product_widgets[self.selected_product_index]
+            card.config(highlightbackground=COLORS['bg_secondary'], relief=tk.RAISED)
+
+        # Move to the next product, wrapping around if necessary
+        self.selected_product_index += 1
+        if self.selected_product_index >= len(self.product_widgets):
+            self.selected_product_index = 0
+
+        # Highlight the new selection
+        card, _ = self.product_widgets[self.selected_product_index]
+        card.config(highlightbackground=COLORS['accent'], relief=tk.SOLID)
+        
+        # Scroll the selected card into view
+        self.canvas.after(50, self.scroll_to_widget, card)
+
+        return "break"
+
+    def scroll_to_widget(self, widget):
+        """Scrolls the canvas to make the widget visible."""
+        self.canvas.update_idletasks()
+        bbox = self.canvas.bbox("all")
+        if not bbox:
+            return
+        
+        content_height = bbox[3]
+        widget_y = widget.winfo_y()
+        
+        if content_height > 0:
+            self.canvas.yview_moveto(widget_y / content_height)
+
+    def handle_enter_key(self, event):
+        """Handles Enter key press to select a product."""
+        if self.selected_product_index != -1:
+            _, product_data = self.product_widgets[self.selected_product_index]
+            self.select_producto(product_data)
+        return "break"
     
     def create_placeholder_image(self):
         img = Image.new('RGB', (110, 110), color=COLORS['table_header'])
@@ -1043,6 +1109,7 @@ class AgregarProductosWindow:
         self.load_productos(search_query=query)
     
     def select_producto(self, producto):
+        self.clear_product_selection()
         CantidadProductoDialog(self.dialog, producto, callback=self.on_cantidad_confirmed)
     
     def on_cantidad_confirmed(self, producto_data):
