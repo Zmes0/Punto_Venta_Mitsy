@@ -148,23 +148,26 @@ class ExcelManager:
 # Funciones específicas para cada módulo
 
 def exportar_productos_excel(productos):
-    """Exporta productos a un archivo ZIP con Excel e imágenes."""
-    columnas = ['ID', 'Nombre', 'Precio Unitario', 'Costo', 'Ganancia', 
-                'Unidad Medida', 'Stock Estimado', 'Stock Mínimo', 'Gestión Stock', 'Imagen']
+    """Exporta productos y clasificaciones a un archivo ZIP con Excel e imágenes."""
+    from database import db # Import db locally
+
+    # --- Preparar datos de Productos ---
+    columnas_productos = ['ID', 'Nombre', 'Clasificación', 'Precio Unitario', 'Costo', 'Ganancia', 
+                          'Unidad Medida', 'Stock Estimado', 'Stock Mínimo', 'Gestión Stock', 'Imagen']
     
-    datos_excel = []
+    datos_productos_excel = []
     rutas_imagenes = []
     
     for p in productos:
         nombre_imagen = None
-        if p.get('imagen'):
-            if os.path.exists(p['imagen']):
-                nombre_imagen = os.path.basename(p['imagen'])
-                rutas_imagenes.append(p['imagen'])
+        if p.get('imagen') and os.path.exists(p['imagen']):
+            nombre_imagen = os.path.basename(p['imagen'])
+            rutas_imagenes.append(p['imagen'])
         
-        datos_excel.append((
+        datos_productos_excel.append((
             p['id'],
             p['nombre'],
+            p.get('clasificacion_nombre', ''), # Añadir nombre de clasificación
             p['precio_unitario'],
             p['costo'],
             p['ganancia'],
@@ -174,7 +177,12 @@ def exportar_productos_excel(productos):
             'Sí' if p['gestion_stock'] else 'No',
             nombre_imagen
         ))
-    
+
+    # --- Preparar datos de Clasificaciones ---
+    clasificaciones = db.get_clasificaciones(activos_only=True)
+    columnas_clasificaciones = ['ID', 'Nombre']
+    datos_clasificaciones_excel = [(c['id'], c['nombre']) for c in clasificaciones]
+
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         nombre_default = f"exportacion_productos_{timestamp}.zip"
@@ -190,11 +198,18 @@ def exportar_productos_excel(productos):
             return False
             
         with tempfile.TemporaryDirectory() as temp_dir:
-            # 1. Guardar el archivo Excel
-            excel_path = os.path.join(temp_dir, "productos.xlsx")
-            df = pd.DataFrame(datos_excel, columns=columnas)
-            df.to_excel(excel_path, sheet_name="Productos", index=False)
+            # 1. Guardar el archivo Excel con ambas hojas
+            excel_path = os.path.join(temp_dir, "productos_y_clasificaciones.xlsx")
             
+            with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+                # Hoja de Productos
+                df_productos = pd.DataFrame(datos_productos_excel, columns=columnas_productos)
+                df_productos.to_excel(writer, sheet_name="Productos", index=False)
+                
+                # Hoja de Clasificaciones
+                df_clasificaciones = pd.DataFrame(datos_clasificaciones_excel, columns=columnas_clasificaciones)
+                df_clasificaciones.to_excel(writer, sheet_name="Clasificaciones", index=False)
+
             # 2. Copiar imágenes
             imagenes_dir = os.path.join(temp_dir, "imagenes_productos")
             os.makedirs(imagenes_dir, exist_ok=True)
@@ -204,12 +219,12 @@ def exportar_productos_excel(productos):
             
             # 3. Crear el archivo ZIP
             with zipfile.ZipFile(zip_filename, 'w') as zipf:
-                zipf.write(excel_path, arcname="productos.xlsx")
+                zipf.write(excel_path, arcname="productos_y_clasificaciones.xlsx")
                 for ruta_img in rutas_imagenes:
                     nombre_img = os.path.basename(ruta_img)
                     zipf.write(os.path.join(imagenes_dir, nombre_img), arcname=f"imagenes_productos/{nombre_img}")
 
-        messagebox.showinfo("Éxito", f"Productos exportados correctamente a:\n{zip_filename}")
+        messagebox.showinfo("Éxito", f"Productos y clasificaciones exportados correctamente a:\n{zip_filename}")
         return True
 
     except Exception as e:
@@ -218,13 +233,16 @@ def exportar_productos_excel(productos):
 
 
 def importar_productos_excel():
-    """Importa productos desde un archivo ZIP."""
-    columnas_esperadas = ['ID', 'Nombre', 'Precio Unitario', 'Costo', 'Unidad Medida', 
-                          'Stock Mínimo', 'Gestión Stock'] # Imagen es opcional
+    """Importa productos y clasificaciones desde un archivo ZIP."""
+    from database import db # Import db locally
+
+    columnas_productos_esperadas = ['ID', 'Nombre', 'Clasificación', 'Precio Unitario', 'Costo', 
+                                    'Unidad Medida', 'Stock Mínimo', 'Gestión Stock']
+    columnas_clasificaciones_esperadas = ['ID', 'Nombre']
     
     zip_filename = filedialog.askopenfilename(
         filetypes=[("ZIP files", "*.zip")],
-        title="Importar Productos desde ZIP"
+        title="Importar Productos y Clasificaciones desde ZIP"
     )
     
     if not zip_filename:
@@ -247,22 +265,48 @@ def importar_productos_excel():
                 messagebox.showerror("Error", "No se encontró un archivo .xlsx en el ZIP.")
                 return None
 
-            # 3. Leer el Excel
-            df = pd.read_excel(excel_path, engine='openpyxl')
-            
-            # 4. Validar columnas
-            columnas_reales = set(df.columns)
-            if not set(columnas_esperadas).issubset(columnas_reales):
-                faltantes = set(columnas_esperadas) - columnas_reales
-                messagebox.showerror("Error de formato", f"Columnas requeridas faltantes: {', '.join(faltantes)}")
+            # 3. Leer ambas hojas del Excel
+            try:
+                dfs = pd.read_excel(excel_path, engine='openpyxl', sheet_name=['Productos', 'Clasificaciones'])
+                df_productos = dfs['Productos']
+                df_clasificaciones = dfs['Clasificaciones']
+            except ValueError as e:
+                messagebox.showerror("Error de formato", f"El archivo Excel debe contener las hojas 'Productos' y 'Clasificaciones'.\nDetalle: {e}")
                 return None
 
-            datos = df.to_dict('records')
+            # 4. Validar columnas
+            if not set(columnas_productos_esperadas).issubset(set(df_productos.columns)):
+                faltantes = set(columnas_productos_esperadas) - set(df_productos.columns)
+                messagebox.showerror("Error de formato", f"Columnas requeridas faltantes en la hoja 'Productos': {', '.join(faltantes)}")
+                return None
+            if not set(columnas_clasificaciones_esperadas).issubset(set(df_clasificaciones.columns)):
+                faltantes = set(columnas_clasificaciones_esperadas) - set(df_clasificaciones.columns)
+                messagebox.showerror("Error de formato", f"Columnas requeridas faltantes en la hoja 'Clasificaciones': {', '.join(faltantes)}")
+                return None
+
+            # 5. Procesar e importar Clasificaciones
+            clasificaciones_importadas = df_clasificaciones.to_dict('records')
+            mapa_nombres_clasif = {}
             
-            # 5. Procesar registros
+            for clasif in clasificaciones_importadas:
+                nombre_clasif = str(clasif['Nombre']).strip()
+                if nombre_clasif:
+                    if not db.clasificacion_nombre_exists(nombre_clasif):
+                        db.add_clasificacion(nombre=nombre_clasif)
+                    
+                    # Obtener el ID para el mapa (ya sea el recién creado o el existente)
+                    c = db.cursor.execute('SELECT id FROM clasificaciones WHERE nombre = ? AND activo = 1', (nombre_clasif,)).fetchone()
+                    if c:
+                        mapa_nombres_clasif[nombre_clasif] = c['id']
+
+            # 6. Procesar e importar Productos
+            datos_productos = df_productos.to_dict('records')
             productos_validos = []
-            for idx, registro in enumerate(datos, start=2):
+            for idx, registro in enumerate(datos_productos, start=2):
                 try:
+                    nombre_clasif_prod = str(registro.get('Clasificación', '')).strip()
+                    clasificacion_id = mapa_nombres_clasif.get(nombre_clasif_prod)
+
                     producto = {
                         'id': int(registro['ID']),
                         'nombre': str(registro['Nombre']).strip(),
@@ -271,6 +315,7 @@ def importar_productos_excel():
                         'unidad_medida': str(registro.get('Unidad Medida', 'Pza')),
                         'stock_minimo': float(registro.get('Stock Mínimo', 0)),
                         'gestion_stock': str(registro.get('Gestión Stock', 'No')).lower() in ['sí', 'si', 'yes', '1', 'true'],
+                        'clasificacion_id': clasificacion_id,
                         'imagen': None
                     }
                     
@@ -280,35 +325,30 @@ def importar_productos_excel():
                         ruta_imagen_origen = os.path.join(temp_dir, "imagenes_productos", nombre_imagen)
                         
                         if os.path.exists(ruta_imagen_origen):
-                            # Crear carpeta de destino si no existe
                             dest_folder = "images/productos"
                             os.makedirs(dest_folder, exist_ok=True)
-                            
-                            # Crear un nombre de archivo único para evitar colisiones
                             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                            nombre_base, extension = os.path.splitext(nombre_imagen)
+                            _, extension = os.path.splitext(nombre_imagen)
                             nuevo_nombre = f"producto_{timestamp}_{idx}{extension}"
                             ruta_imagen_destino = os.path.join(dest_folder, nuevo_nombre)
-                            
                             shutil.copy(ruta_imagen_origen, ruta_imagen_destino)
                             producto['imagen'] = ruta_imagen_destino
                     
                     # Validaciones
                     if producto['id'] <= 0: raise ValueError("ID debe ser mayor a 0")
                     if not producto['nombre']: raise ValueError("Nombre es obligatorio")
-                    if producto['precio_unitario'] < 0: raise ValueError("Precio no puede ser negativo")
                     
                     productos_validos.append(producto)
                     
                 except Exception as e:
-                    messagebox.showerror("Error en fila", f"Error en fila {idx}: {str(e)}\n\nLa importación se detendrá.")
+                    messagebox.showerror("Error en fila", f"Error en la fila {idx} de Productos: {str(e)}\n\nLa importación se detendrá.")
                     return None
             
-            messagebox.showinfo("Éxito", f"Se importaron {len(productos_validos)} productos correctamente.")
+            messagebox.showinfo("Éxito", f"Se procesaron {len(productos_validos)} productos y {len(clasificaciones_importadas)} clasificaciones para importar.")
             return productos_validos
 
     except Exception as e:
-        messagebox.showerror("Error", f"Error al importar productos desde ZIP:\n{str(e)}")
+        messagebox.showerror("Error", f"Error al importar desde ZIP:\n{str(e)}")
         return None
 
 

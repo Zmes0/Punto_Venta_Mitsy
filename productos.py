@@ -540,7 +540,8 @@ class ProductosWindow:
                         unidad_medida=prod['unidad_medida'],
                         stock_minimo=prod['stock_minimo'],
                         gestion_stock=1 if prod['gestion_stock'] else 0,
-                        imagen=prod.get('imagen')
+                        imagen=prod.get('imagen'),
+                        clasificacion_id=prod.get('clasificacion_id')
                     )
                     productos_actualizados += 1
                 else:
@@ -553,7 +554,8 @@ class ProductosWindow:
                         prod['unidad_medida'],
                         prod['gestion_stock'],
                         stock_minimo=prod['stock_minimo'],
-                        imagen=prod.get('imagen')
+                        imagen=prod.get('imagen'),
+                        clasificacion_id=prod.get('clasificacion_id')
                     )
                     productos_creados += 1
         
