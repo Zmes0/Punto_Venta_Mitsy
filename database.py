@@ -469,21 +469,30 @@ class Database:
             self.conn.commit()
     
     def delete_clasificacion(self, id_clasificacion: int):
-        """Marca una clasificación como inactiva y desvincula productos"""
+        """Marca una clasificación como inactiva, la renombra para liberar el UNIQUE y desvincula productos"""
+        # Obtener el nombre actual para poder modificarlo
+        clasificacion = self.get_clasificacion(id_clasificacion)
+        if not clasificacion:
+            return
+
+        nombre_original = clasificacion['nombre']
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        nuevo_nombre = f"{nombre_original}_deleted_{timestamp}"
+
         # Desvincular productos de esta clasificación
         self.cursor.execute('UPDATE productos SET clasificacion_id = NULL WHERE clasificacion_id = ?', (id_clasificacion,))
         
-        # Marcar clasificación como inactiva
-        self.cursor.execute('UPDATE clasificaciones SET activo = 0 WHERE id = ?', (id_clasificacion,))
+        # Marcar clasificación como inactiva y renombrarla
+        self.cursor.execute('UPDATE clasificaciones SET activo = 0, nombre = ? WHERE id = ?', (nuevo_nombre, id_clasificacion,))
         self.conn.commit()
     
     def clasificacion_nombre_exists(self, nombre: str, exclude_id: int = None) -> bool:
-        """Verifica si un nombre de clasificación ya existe"""
+        """Verifica si un nombre de clasificación ya existe entre los activos"""
         if exclude_id:
-            self.cursor.execute('SELECT id FROM clasificaciones WHERE nombre = ? AND id != ?', 
+            self.cursor.execute('SELECT id FROM clasificaciones WHERE nombre = ? AND id != ? AND activo = 1', 
                               (nombre, exclude_id))
         else:
-            self.cursor.execute('SELECT id FROM clasificaciones WHERE nombre = ?', (nombre,))
+            self.cursor.execute('SELECT id FROM clasificaciones WHERE nombre = ? AND activo = 1', (nombre,))
         
         return self.cursor.fetchone() is not None
     
