@@ -1059,11 +1059,6 @@ class ProductoDialog:
         clasificacion_nombre = self.clasificacion_var.get()
         clasificacion_id = self.clasificaciones_dict.get(clasificacion_nombre)
         
-        if gestion and not self.ingredientes_agregados:
-            messagebox.showwarning("Advertencia", 
-                                   "Si gestiona inventario, debe añadir al menos un ingrediente")
-            return
-        
         try:
             if self.producto_id:
                 # Actualizar producto

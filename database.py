@@ -1056,9 +1056,12 @@ class Database:
         self.conn.commit()
     
     def actualizar_todos_stocks_estimados(self):
-        """Actualiza el stock estimado de todos los productos con gestión de stock"""
+        """Actualiza el stock estimado de todos los productos con gestión de stock Y RECETA."""
         productos = self.cursor.execute('''
-            SELECT id FROM productos WHERE gestion_stock = 1 AND activo = 1
+            SELECT DISTINCT p.id 
+            FROM productos p
+            JOIN recetas r ON p.id = r.id_producto
+            WHERE p.gestion_stock = 1 AND p.activo = 1
         ''').fetchall()
         
         for producto in productos:
