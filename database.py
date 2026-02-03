@@ -1,4 +1,4 @@
-"Gestor de base de datos SQLite para Mitsy's POS ACTUALIZADO: Sistema de cortes independientes con corte_id"
+"Gestor de base de datos SQLite para Mitsy's POS ACTUALIZADO: Sistema de cortes independientes con corte_id y clasificaciones de productos"
 import sqlite3
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -18,6 +18,7 @@ class Database:
         self.create_tables()
         self.init_config()
         self.migrate_legacy_data()  # NUEVO: Migrar datos antiguos
+        self.add_clasificacion_column_if_not_exists()  # NUEVO: Migración para clasificaciones
     
     def _get_current_datetime(self):
         """Obtiene la fecha y hora actual en formato del sistema"""
@@ -96,7 +97,18 @@ class Database:
             )
         ''')
         
-        # Tabla de Productos (ID manual)
+        # NUEVO: Tabla de Clasificaciones de Productos
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS clasificaciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT UNIQUE NOT NULL,
+                imagen TEXT,
+                activo INTEGER DEFAULT 1,
+                fecha_creacion TEXT
+            )
+        ''')
+        
+        # Tabla de Productos (ID manual) - ACTUALIZADA con clasificacion_id
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS productos (
                 id INTEGER PRIMARY KEY,
@@ -108,9 +120,11 @@ class Database:
                 stock_estimado REAL DEFAULT 0,
                 stock_minimo REAL DEFAULT 0,
                 gestion_stock INTEGER DEFAULT 0,
+                clasificacion_id INTEGER DEFAULT NULL,
                 imagen TEXT,
                 activo INTEGER DEFAULT 1,
-                fecha_creacion TEXT
+                fecha_creacion TEXT,
+                FOREIGN KEY (clasificacion_id) REFERENCES clasificaciones(id)
             )
         ''')
         
@@ -256,6 +270,15 @@ class Database:
         ''')
         
         self.conn.commit()
+    
+    def add_clasificacion_column_if_not_exists(self):
+        """Agrega la columna clasificacion_id a productos si no existe (migración)"""
+        self.cursor.execute("PRAGMA table_info(productos)")
+        columns = [row[1] for row in self.cursor.fetchall()]
+        if 'clasificacion_id' not in columns:
+            self.cursor.execute('ALTER TABLE productos ADD COLUMN clasificacion_id INTEGER DEFAULT NULL REFERENCES clasificaciones(id)')
+            self.conn.commit()
+            print(">> Columna clasificacion_id agregada a la tabla productos")
     
     def init_config(self):
         """Inicializa configuraciones por defecto"""
@@ -405,7 +428,65 @@ class Database:
         
             self.cursor.execute(f'UPDATE negocio SET {fields} WHERE id = 1', values)
             self.conn.commit()
+    
+    # ==================== CLASIFICACIONES DE PRODUCTOS ====================
+    
+    def get_clasificaciones(self, activos_only: bool = True) -> List[Dict]:
+        """Obtiene todas las clasificaciones"""
+        query = 'SELECT * FROM clasificaciones'
+        if activos_only:
+            query += ' WHERE activo = 1'
+        query += ' ORDER BY nombre'
         
+        self.cursor.execute(query)
+        return [dict(row) for row in self.cursor.fetchall()]
+    
+    def get_clasificacion(self, id_clasificacion: int) -> Optional[Dict]:
+        """Obtiene una clasificación por ID"""
+        self.cursor.execute('SELECT * FROM clasificaciones WHERE id = ?', (id_clasificacion,))
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+    
+    def add_clasificacion(self, nombre: str, imagen: str = None) -> int:
+        """Añade una nueva clasificación"""
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        self.cursor.execute('''
+            INSERT INTO clasificaciones (nombre, imagen, activo, fecha_creacion)
+            VALUES (?, ?, 1, ?)
+        ''', (nombre, imagen, fecha))
+        
+        self.conn.commit()
+        return self.cursor.lastrowid
+    
+    def update_clasificacion(self, id_clasificacion: int, **kwargs):
+        """Actualiza una clasificación"""
+        if kwargs:
+            fields = ', '.join([f"{k} = ?" for k in kwargs.keys()])
+            values = list(kwargs.values()) + [id_clasificacion]
+            
+            self.cursor.execute(f'UPDATE clasificaciones SET {fields} WHERE id = ?', values)
+            self.conn.commit()
+    
+    def delete_clasificacion(self, id_clasificacion: int):
+        """Marca una clasificación como inactiva y desvincula productos"""
+        # Desvincular productos de esta clasificación
+        self.cursor.execute('UPDATE productos SET clasificacion_id = NULL WHERE clasificacion_id = ?', (id_clasificacion,))
+        
+        # Marcar clasificación como inactiva
+        self.cursor.execute('UPDATE clasificaciones SET activo = 0 WHERE id = ?', (id_clasificacion,))
+        self.conn.commit()
+    
+    def clasificacion_nombre_exists(self, nombre: str, exclude_id: int = None) -> bool:
+        """Verifica si un nombre de clasificación ya existe"""
+        if exclude_id:
+            self.cursor.execute('SELECT id FROM clasificaciones WHERE nombre = ? AND id != ?', 
+                              (nombre, exclude_id))
+        else:
+            self.cursor.execute('SELECT id FROM clasificaciones WHERE nombre = ?', (nombre,))
+        
+        return self.cursor.fetchone() is not None
+    
     # ==================== GESTIÓN DE CORTES ====================
     
     def get_corte_activo_id(self) -> Optional[int]:
@@ -593,7 +674,7 @@ class Database:
     def add_producto(self, id_producto: int, nombre: str, precio: float, costo: float, 
                      unidad: str = 'Pza', gestion_stock: bool = False,
                      stock_estimado: float = 0, stock_minimo: float = 0,
-                     imagen: str = None) -> int:
+                     imagen: str = None, clasificacion_id: int = None) -> int:
         """Añade un nuevo producto con ID específico"""
         if self.id_exists('productos', id_producto):
             raise ValueError(f"El ID {id_producto} ya existe")
@@ -604,20 +685,24 @@ class Database:
         self.cursor.execute('''
             INSERT INTO productos (id, nombre, precio_unitario, costo, ganancia, 
                                  unidad_medida, stock_estimado, stock_minimo,
-                                 gestion_stock, imagen, fecha_creacion)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 gestion_stock, imagen, clasificacion_id, fecha_creacion)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (id_producto, nombre, precio, costo, ganancia, unidad, stock_estimado, 
-              stock_minimo, 1 if gestion_stock else 0, imagen, fecha))
+              stock_minimo, 1 if gestion_stock else 0, imagen, clasificacion_id, fecha))
         
         self.conn.commit()
         return id_producto
     
     def get_productos(self, activos_only: bool = True) -> List[Dict]:
-        """Obtiene todos los productos"""
-        query = 'SELECT * FROM productos'
+        """Obtiene todos los productos con información de clasificación"""
+        query = '''
+            SELECT p.*, c.nombre as clasificacion_nombre
+            FROM productos p
+            LEFT JOIN clasificaciones c ON p.clasificacion_id = c.id
+        '''
         if activos_only:
-            query += ' WHERE activo = 1'
-        query += ' ORDER BY id'
+            query += ' WHERE p.activo = 1'
+        query += ' ORDER BY p.id'
         
         self.cursor.execute(query)
         return [dict(row) for row in self.cursor.fetchall()]
@@ -700,8 +785,10 @@ class Database:
         query = '''
             SELECT 
                 p.*, 
+                c.nombre as clasificacion_nombre,
                 SUM(v.cantidad) AS total_vendido
             FROM productos p
+            LEFT JOIN clasificaciones c ON p.clasificacion_id = c.id
             LEFT JOIN ventas v ON p.id = v.id_producto
         '''
         if activos_only:

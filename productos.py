@@ -1,5 +1,5 @@
 """
-Módulo de gestión de productos
+Módulo de gestión de productos - ACTUALIZADO con sistema de clasificaciones
 """
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -14,6 +14,7 @@ from excel_utils import exportar_productos_excel, importar_productos_excel
 class ProductosWindow:
     def __init__(self, parent, on_close=None):
         self.on_close_callback = on_close
+        self.viewing_clasificaciones = False  # Estado de la vista actual
         
         self.window = tk.Toplevel(parent)
         self.window.title("Productos - Mitsy's POS")
@@ -42,65 +43,87 @@ class ProductosWindow:
         """Configura la interfaz de usuario"""
     
         # Frame principal
-        main_frame = tk.Frame(self.window, bg=COLORS['bg_primary'])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        self.main_frame = tk.Frame(self.window, bg=COLORS['bg_primary'])
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
     
         # Título
-        title_label = tk.Label(main_frame, text="Productos", 
+        self.title_label = tk.Label(self.main_frame, text="Productos", 
                             font=FONTS['title'], bg=COLORS['bg_primary'],
                             fg=COLORS['text_primary'])
-        title_label.pack(pady=(0, 20))
+        self.title_label.pack(pady=(0, 20))
     
         # Frame de búsqueda y botones de Excel
-        top_controls_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        top_controls_frame.pack(fill=tk.X, pady=(0, 20))
+        self.top_controls_frame = tk.Frame(self.main_frame, bg=COLORS['bg_primary'])
+        self.top_controls_frame.pack(fill=tk.X, pady=(0, 20))
     
         # Búsqueda (lado izquierdo)
-        search_frame = tk.Frame(top_controls_frame, bg=COLORS['bg_primary'])
+        search_frame = tk.Frame(self.top_controls_frame, bg=COLORS['bg_primary'])
         search_frame.pack(side=tk.LEFT)
     
         tk.Label(search_frame, text="Buscar:", font=FONTS['normal'],
             bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
     
         self.search_var = tk.StringVar()
-        self.search_var.trace('w', lambda *args: self.search_productos())
-        search_entry = tk.Entry(search_frame, textvariable=self.search_var,
+        self.search_var.trace('w', lambda *args: self.search_items())
+        self.search_entry = tk.Entry(search_frame, textvariable=self.search_var,
                            font=FONTS['normal'], width=40)
-        search_entry.pack(side=tk.LEFT)
+        self.search_entry.pack(side=tk.LEFT)
     
         # Botones de Excel (lado derecho)
-        excel_frame = tk.Frame(top_controls_frame, bg=COLORS['bg_primary'])
+        excel_frame = tk.Frame(self.top_controls_frame, bg=COLORS['bg_primary'])
         excel_frame.pack(side=tk.RIGHT)
     
-        tk.Button(excel_frame, text="\ud83d\udcbe Exportar a Excel", 
+        tk.Button(excel_frame, text="📊 Exportar a Excel", 
                 command=self.exportar_excel,
                 font=FONTS['button'], bg=COLORS['success'], fg='white',
                 relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.LEFT, padx=5)
     
-        tk.Button(excel_frame, text="\udec5 Importar desde Excel", 
+        tk.Button(excel_frame, text="📁 Importar desde Excel", 
                 command=self.importar_excel,
                 font=FONTS['button'], bg=COLORS['accent'], fg='white',
                 relief=tk.RAISED, borderwidth=2, padx=15, pady=8).pack(side=tk.LEFT, padx=5)
     
         # Frame con scrollbar para la tabla
-        table_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        table_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
+        self.table_frame = tk.Frame(self.main_frame, bg=COLORS['bg_primary'])
+        self.table_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
     
         # Scrollbar
-        scrollbar = ttk.Scrollbar(table_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.scrollbar = ttk.Scrollbar(self.table_frame)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
-        # Treeview (tabla)
-        columns = ('ID', 'Nombre', 'Precio', 'Costo', 'Ganancia', 'U. Medida', 
+        # Treeview (tabla) - Se creará dinámicamente
+        self.create_productos_table()
+    
+        # Frame de botones
+        self.button_frame = tk.Frame(self.main_frame, bg=COLORS['bg_primary'])
+        self.button_frame.pack(fill=tk.X)
+        
+        # Botón para alternar vista
+        self.toggle_btn = tk.Button(self.button_frame, text="Ver Clasificaciones", 
+                          command=self.toggle_view,
+                          font=FONTS['button'], bg=COLORS['accent'], fg='white',
+                          relief=tk.RAISED, borderwidth=2, padx=20, pady=10)
+        self.toggle_btn.pack(side=tk.LEFT, padx=5)
+    
+        # Botones dinámicos
+        self.create_action_buttons()
+    
+    def create_productos_table(self):
+        """Crea la tabla de productos"""
+        if hasattr(self, 'tree'):
+            self.tree.destroy()
+            
+        columns = ('ID', 'Nombre', 'Clasificación', 'Precio', 'Costo', 'Ganancia', 'U. Medida', 
                 'Stock', 'Gestión Stock')
     
-        self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
-                            yscrollcommand=scrollbar.set, selectmode='extended')
+        self.tree = ttk.Treeview(self.table_frame, columns=columns, show='headings',
+                            yscrollcommand=self.scrollbar.set, selectmode='extended')
         utils.enable_drag_selection(self.tree)
     
         # Configurar columnas
         self.tree.heading('ID', text='ID')
         self.tree.heading('Nombre', text='Nombre')
+        self.tree.heading('Clasificación', text='Clasificación')
         self.tree.heading('Precio', text='Precio Unitario')
         self.tree.heading('Costo', text='Costo')
         self.tree.heading('Ganancia', text='Ganancia')
@@ -110,6 +133,7 @@ class ProductosWindow:
     
         self.tree.column('ID', width=50, anchor='center')
         self.tree.column('Nombre', width=200)
+        self.tree.column('Clasificación', width=150)
         self.tree.column('Precio', width=120, anchor='e')
         self.tree.column('Costo', width=120, anchor='e')
         self.tree.column('Ganancia', width=120, anchor='e')
@@ -118,30 +142,98 @@ class ProductosWindow:
         self.tree.column('Gestión Stock', width=120, anchor='center')
     
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.tree.yview)
+        self.scrollbar.config(command=self.tree.yview)
     
         # Configurar colores alternados en filas
         self.tree.tag_configure('evenrow', background=COLORS['table_row_even'])
         self.tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
     
-        # Frame de botones
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(fill=tk.X)
+    def create_clasificaciones_table(self):
+        """Crea la tabla de clasificaciones"""
+        if hasattr(self, 'tree'):
+            self.tree.destroy()
+            
+        columns = ('ID', 'Nombre', 'Productos', 'Fecha Creación')
     
-        buttons = [
-            ("Regresar", self.close_window),
-            ("Editar Producto", self.editar_producto),
-            ("Borrar Producto", self.borrar_producto),
-            ("Añadir Producto", self.add_producto_dialog),
-            ("Registrar Compra", self.registrar_compra_unitaria)
-        ]
+        self.tree = ttk.Treeview(self.table_frame, columns=columns, show='headings',
+                            yscrollcommand=self.scrollbar.set, selectmode='extended')
+        utils.enable_drag_selection(self.tree)
     
-        for text, command in buttons:
-            btn = tk.Button(button_frame, text=text, command=command,
-                        font=FONTS['button'], bg=COLORS['button_bg'],
-                        fg=COLORS['text_primary'], relief=tk.RAISED,
-                        borderwidth=2, padx=20, pady=10)
+        # Configurar columnas
+        self.tree.heading('ID', text='ID')
+        self.tree.heading('Nombre', text='Nombre')
+        self.tree.heading('Productos', text='# Productos')
+        self.tree.heading('Fecha Creación', text='Fecha Creación')
+    
+        self.tree.column('ID', width=80, anchor='center')
+        self.tree.column('Nombre', width=300)
+        self.tree.column('Productos', width=150, anchor='center')
+        self.tree.column('Fecha Creación', width=200, anchor='center')
+    
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar.config(command=self.tree.yview)
+    
+        # Configurar colores alternados
+        self.tree.tag_configure('evenrow', background=COLORS['table_row_even'])
+        self.tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
+    
+    def create_action_buttons(self):
+        """Crea los botones de acción según la vista actual"""
+        # Eliminar botones existentes (excepto el de toggle y regresar)
+        for widget in self.button_frame.winfo_children():
+            if widget != self.toggle_btn:
+                widget.destroy()
+        
+        # Recrear el botón toggle
+        self.toggle_btn.pack(side=tk.LEFT, padx=5)
+        
+        if self.viewing_clasificaciones:
+            # Botones para clasificaciones
+            buttons = [
+                ("Añadir Clasificación", self.add_clasificacion, COLORS['success']),
+                ("Editar Clasificación", self.editar_clasificacion, COLORS['button_bg']),
+                ("Borrar Clasificación", self.borrar_clasificacion, COLORS['danger']),
+            ]
+        else:
+            # Botones para productos
+            buttons = [
+                ("Editar Producto", self.editar_producto, COLORS['button_bg']),
+                ("Borrar Producto", self.borrar_producto, COLORS['danger']),
+                ("Añadir Producto", self.add_producto_dialog, COLORS['success']),
+                ("Registrar Compra", self.registrar_compra_unitaria, COLORS['button_bg']),
+            ]
+        
+        for text, command, color in buttons:
+            fg = 'white' if color != COLORS['button_bg'] else COLORS['text_primary']
+            btn = tk.Button(self.button_frame, text=text, command=command,
+                          font=FONTS['button'], bg=color, fg=fg,
+                          relief=tk.RAISED, borderwidth=2, padx=20, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
+        
+        # Botón regresar siempre al final
+        btn = tk.Button(self.button_frame, text="Regresar", command=self.close_window,
+                      font=FONTS['button'], bg=COLORS['button_bg'],
+                      fg=COLORS['text_primary'], relief=tk.RAISED,
+                      borderwidth=2, padx=20, pady=10)
+        btn.pack(side=tk.LEFT, padx=5)
+    
+    def toggle_view(self):
+        """Alterna entre vista de productos y clasificaciones"""
+        self.viewing_clasificaciones = not self.viewing_clasificaciones
+        
+        if self.viewing_clasificaciones:
+            self.title_label.config(text="Clasificaciones de Productos")
+            self.toggle_btn.config(text="Ver Productos")
+            self.create_clasificaciones_table()
+            self.load_clasificaciones()
+        else:
+            self.title_label.config(text="Productos")
+            self.toggle_btn.config(text="Ver Clasificaciones")
+            self.create_productos_table()
+            self.load_productos()
+        
+        # Recrear botones de acción
+        self.create_action_buttons()
     
     def load_productos(self):
         """Carga los productos en la tabla"""
@@ -155,9 +247,15 @@ class ProductosWindow:
         for idx, p in enumerate(productos):
             tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
             
+            # Obtener nombre de clasificación
+            clasificacion_nombre = p.get('clasificacion_nombre', 'Sin clasificación')
+            if not clasificacion_nombre:
+                clasificacion_nombre = 'Sin clasificación'
+            
             values = (
                 p['id'],
                 p['nombre'],
+                clasificacion_nombre,
                 format_currency(p['precio_unitario']),
                 format_currency(p['costo']),
                 format_currency(p['ganancia']),
@@ -167,6 +265,39 @@ class ProductosWindow:
             )
             
             self.tree.insert('', tk.END, values=values, tags=(tag,))
+    
+    def load_clasificaciones(self):
+        """Carga las clasificaciones en la tabla"""
+        # Limpiar tabla
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Cargar clasificaciones
+        clasificaciones = db.get_clasificaciones()
+        
+        for idx, c in enumerate(clasificaciones):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            # Contar productos de esta clasificación
+            db.cursor.execute('SELECT COUNT(*) as count FROM productos WHERE clasificacion_id = ? AND activo = 1', (c['id'],))
+            count_result = db.cursor.fetchone()
+            num_productos = count_result['count'] if count_result else 0
+            
+            values = (
+                c['id'],
+                c['nombre'],
+                num_productos,
+                c['fecha_creacion'] or '-'
+            )
+            
+            self.tree.insert('', tk.END, values=values, tags=(tag,))
+    
+    def search_items(self):
+        """Busca según la vista actual"""
+        if self.viewing_clasificaciones:
+            self.search_clasificaciones()
+        else:
+            self.search_productos()
     
     def search_productos(self):
         """Busca productos según el texto ingresado"""
@@ -186,9 +317,14 @@ class ProductosWindow:
         for idx, p in enumerate(productos):
             tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
             
+            # Obtener nombre de clasificación
+            clasificacion = db.get_clasificacion(p['clasificacion_id']) if p['clasificacion_id'] else None
+            clasificacion_nombre = clasificacion['nombre'] if clasificacion else 'Sin clasificación'
+            
             values = (
                 p['id'],
                 p['nombre'],
+                clasificacion_nombre,
                 format_currency(p['precio_unitario']),
                 format_currency(p['costo']),
                 format_currency(p['ganancia']),
@@ -198,6 +334,42 @@ class ProductosWindow:
             )
             
             self.tree.insert('', tk.END, values=values, tags=(tag,))
+    
+    def search_clasificaciones(self):
+        """Busca clasificaciones según el texto ingresado"""
+        query = self.search_var.get().strip().lower()
+        
+        # Limpiar tabla
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        if not query:
+            self.load_clasificaciones()
+            return
+        
+        # Buscar clasificaciones
+        clasificaciones = db.get_clasificaciones()
+        
+        resultados = [c for c in clasificaciones if query in c['nombre'].lower()]
+        
+        for idx, c in enumerate(resultados):
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            
+            # Contar productos
+            db.cursor.execute('SELECT COUNT(*) as count FROM productos WHERE clasificacion_id = ? AND activo = 1', (c['id'],))
+            count_result = db.cursor.fetchone()
+            num_productos = count_result['count'] if count_result else 0
+            
+            values = (
+                c['id'],
+                c['nombre'],
+                num_productos,
+                c['fecha_creacion'] or '-'
+            )
+            
+            self.tree.insert('', tk.END, values=values, tags=(tag,))
+    
+    # ========== MÉTODOS PARA PRODUCTOS ==========
     
     def add_producto_dialog(self):
         """Abre diálogo para añadir producto"""
@@ -266,6 +438,57 @@ class ProductosWindow:
             
         producto_nombre = item['values'][1]
         RegistrarCompraUnitariaDialog(self.window, producto_id, producto_nombre, callback=self.load_productos)
+    
+    # ========== MÉTODOS PARA CLASIFICACIONES ==========
+    
+    def add_clasificacion(self):
+        """Abre diálogo para añadir clasificación"""
+        ClasificacionDialog(self.window, callback=self.load_clasificaciones)
+    
+    def editar_clasificacion(self):
+        """Abre diálogo para editar clasificación seleccionada"""
+        selection = self.tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", 
+                                  "Por favor selecciona una clasificación para editar")
+            return
+        
+        if len(selection) > 1:
+            messagebox.showwarning("Advertencia", 
+                                  "Por favor selecciona solo una clasificación para editar")
+            return
+        
+        item = self.tree.item(selection[0])
+        clasificacion_id = item['values'][0]
+        
+        ClasificacionDialog(self.window, clasificacion_id=clasificacion_id, 
+                          callback=self.load_clasificaciones)
+    
+    def borrar_clasificacion(self):
+        """Elimina clasificaciones seleccionadas"""
+        selection = self.tree.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", 
+                                  "Por favor selecciona al menos una clasificación para borrar")
+            return
+        
+        # Advertir que los productos se quedarán sin clasificación
+        if not messagebox.askyesno("Confirmar", 
+                                   f"¿Estás seguro de borrar {len(selection)} clasificación(es)?\n\n"
+                                   "Los productos asociados quedarán sin clasificación."):
+            return
+        
+        ids_a_borrar = [self.tree.item(item)['values'][0] for item in selection]
+        
+        for id_clasificacion in ids_a_borrar:
+            db.delete_clasificacion(id_clasificacion)
+        
+        messagebox.showinfo("Éxito", "Clasificación(es) eliminada(s) correctamente")
+        self.load_clasificaciones()
+    
+    # ========== MÉTODOS GENERALES ==========
     
     def close_window(self):
         """Cierra la ventana y vuelve al menú"""
@@ -347,18 +570,19 @@ class ProductosWindow:
         except Exception as e:
             messagebox.showerror("Error", f"Error al importar productos:\n{str(e)}")
 
-class ProductoDialog:
-    def __init__(self, parent, producto_id=None, callback=None):
-        self.producto_id = producto_id
+
+class ClasificacionDialog:
+    """Diálogo para crear/editar clasificaciones"""
+    def __init__(self, parent, clasificacion_id=None, callback=None):
+        self.clasificacion_id = clasificacion_id
         self.callback = callback
-        self.ingredientes_agregados = []
         
         self.dialog = tk.Toplevel(parent)
-        self.dialog.title("Añadir Producto" if not producto_id else "Editar Producto")
+        self.dialog.title("Añadir Clasificación" if not clasificacion_id else "Editar Clasificación")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        self.dialog.minsize(600, 500)
+        self.dialog.minsize(450, 400)
         
         # Forzar al frente
         self.dialog.lift()
@@ -367,14 +591,14 @@ class ProductoDialog:
         
         self.setup_ui()
         
-        if producto_id:
-            self.load_producto_data()
+        if clasificacion_id:
+            self.load_clasificacion_data()
 
         # Centrar después de crear UI y cargar datos
         self.center_dialog()
         self.dialog.iconbitmap(get_resource_path('icono.ico'))
     
-    IMAGE_DISPLAY_SIZE = (150, 150) # Max width, max height
+    IMAGE_DISPLAY_SIZE = (150, 150)
 
     def center_dialog(self):
         """Centra el diálogo en la pantalla"""
@@ -405,10 +629,9 @@ class ProductoDialog:
             
             self.tk_image = ImageTk.PhotoImage(resized_image)
             self.image_label.config(image=self.tk_image)
-            self.image_label.image = self.tk_image # Mantener referencia
+            self.image_label.image = self.tk_image
         except Exception as e:
             print(f"Error al cargar o mostrar imagen: {e}")
-            # Cargar placeholder si hay error
             try:
                 placeholder_image = Image.open(get_resource_path('images/placeholder.png'))
                 placeholder_image = placeholder_image.resize(self.IMAGE_DISPLAY_SIZE, Image.LANCZOS)
@@ -417,7 +640,213 @@ class ProductoDialog:
                 self.image_label.image = self.tk_image
             except Exception as e_placeholder:
                 print(f"Error al cargar placeholder: {e_placeholder}")
-                self.image_label.config(image='') # Limpiar si ni placeholder funciona
+                self.image_label.config(image='')
+
+    def setup_ui(self):
+        """Configura la interfaz del diálogo"""
+        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'], padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título
+        titulo = "Nueva Clasificación" if not self.clasificacion_id else "Editar Clasificación"
+        tk.Label(main_frame, text=titulo, font=FONTS['subtitle'],
+                bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack(pady=(0, 20))
+
+        # Nombre
+        tk.Label(main_frame, text="Nombre de la Clasificación:", font=FONTS['normal'], 
+                bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        
+        self.nombre_var = tk.StringVar()
+        nombre_entry = tk.Entry(main_frame, textvariable=self.nombre_var, font=FONTS['normal'])
+        nombre_entry.pack(fill=tk.X, pady=(0, 15))
+        nombre_entry.focus()
+
+        # Imagen
+        tk.Label(main_frame, text="Imagen de la Clasificación:", font=FONTS['normal'], 
+                bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
+        
+        self.imagen_var = tk.StringVar()
+
+        # Área para mostrar la imagen
+        self.image_label = tk.Label(main_frame, bg=COLORS['bg_primary'])
+        self.image_label.pack(pady=(5, 10))
+        self._display_image(None)
+
+        tk.Button(main_frame, text="Examinar", command=self.browse_image, 
+                 font=FONTS['button'], bg=COLORS['button_bg'], 
+                 relief=tk.RAISED, borderwidth=2, padx=10, pady=5).pack(pady=(0, 20))
+
+        # Botones
+        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        button_frame.pack(pady=10)
+        
+        tk.Button(button_frame, text="Guardar", command=self.save_clasificacion,
+                 font=FONTS['button'], bg=COLORS['success'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy,
+                 font=FONTS['button'], bg=COLORS['danger'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+    
+    def load_clasificacion_data(self):
+        """Carga los datos de la clasificación a editar"""
+        clasificacion = db.get_clasificacion(self.clasificacion_id)
+        
+        if not clasificacion:
+            messagebox.showerror("Error", "Clasificación no encontrada")
+            self.dialog.destroy()
+            return
+        
+        self.nombre_var.set(clasificacion['nombre'])
+        
+        if clasificacion.get('imagen'):
+            self.imagen_var.set(clasificacion['imagen'])
+            self._display_image(clasificacion['imagen'])
+    
+    def browse_image(self):
+        """Abre diálogo para seleccionar imagen"""
+        from tkinter import filedialog
+        
+        filename = filedialog.askopenfilename(
+            title="Seleccionar imagen de la clasificación",
+            filetypes=[
+                ("Imágenes", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+        
+        if filename:
+            # Copiar imagen a la carpeta images/clasificaciones/
+            import shutil
+            os.makedirs('images/clasificaciones', exist_ok=True)
+            
+            # Generar nombre único
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            extension = os.path.splitext(filename)[1]
+            nuevo_nombre = f"clasificacion_{timestamp}{extension}"
+            destino = os.path.join('images/clasificaciones', nuevo_nombre)
+            
+            try:
+                shutil.copy2(filename, destino)
+                self.imagen_var.set(destino)
+                self._display_image(destino)
+                messagebox.showinfo("Éxito", "Imagen cargada correctamente")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al copiar imagen: {str(e)}")
+    
+    def save_clasificacion(self):
+        """Guarda la clasificación"""
+        nombre = self.nombre_var.get().strip()
+        
+        if not nombre:
+            messagebox.showerror("Error", "El nombre es obligatorio")
+            return
+        
+        # Verificar si el nombre ya existe
+        if db.clasificacion_nombre_exists(nombre, exclude_id=self.clasificacion_id):
+            messagebox.showerror("Error", f"Ya existe una clasificación con el nombre '{nombre}'")
+            return
+        
+        try:
+            if self.clasificacion_id:
+                # Actualizar clasificación existente
+                db.update_clasificacion(
+                    self.clasificacion_id,
+                    nombre=nombre,
+                    imagen=self.imagen_var.get() or None
+                )
+                messagebox.showinfo("Éxito", "Clasificación actualizada correctamente")
+            else:
+                # Crear nueva clasificación
+                db.add_clasificacion(
+                    nombre=nombre,
+                    imagen=self.imagen_var.get() or None
+                )
+                messagebox.showinfo("Éxito", "Clasificación creada correctamente")
+            
+            if self.callback:
+                self.callback()
+            
+            self.dialog.destroy()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar clasificación: {str(e)}")
+
+
+# El resto de las clases (ProductoDialog, IngredienteRecetaDialog, RegistrarCompraUnitariaDialog) 
+# continúan en la siguiente parte...
+
+class ProductoDialog:
+    def __init__(self, parent, producto_id=None, callback=None):
+        self.producto_id = producto_id
+        self.callback = callback
+        self.ingredientes_agregados = []
+        
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Añadir Producto" if not producto_id else "Editar Producto")
+        self.dialog.configure(bg=COLORS['bg_primary'])
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.minsize(600, 500)
+        
+        # Forzar al frente
+        self.dialog.lift()
+        self.dialog.attributes('-topmost', True)
+        self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
+        
+        self.setup_ui()
+        
+        if producto_id:
+            self.load_producto_data()
+
+        # Centrar después de crear UI y cargar datos
+        self.center_dialog()
+        self.dialog.iconbitmap(get_resource_path('icono.ico'))
+    
+    IMAGE_DISPLAY_SIZE = (150, 150)
+
+    def center_dialog(self):
+        """Centra el diálogo en la pantalla"""
+        self.dialog.update_idletasks()
+        width = self.dialog.winfo_reqwidth()
+        height = self.dialog.winfo_reqheight()
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+
+    def _display_image(self, image_path):
+        """Carga, redimensiona y muestra una imagen en el image_label."""
+        try:
+            if image_path and os.path.exists(image_path):
+                original_image = Image.open(image_path)
+            else:
+                original_image = Image.open(get_resource_path('images/placeholder.png'))
+            
+            # Redimensionar imagen manteniendo el aspecto
+            original_width, original_height = original_image.size
+            ratio = min(self.IMAGE_DISPLAY_SIZE[0] / original_width,
+                        self.IMAGE_DISPLAY_SIZE[1] / original_height)
+            
+            new_width = int(original_width * ratio)
+            new_height = int(original_height * ratio)
+            
+            resized_image = original_image.resize((new_width, new_height), Image.LANCZOS)
+            
+            self.tk_image = ImageTk.PhotoImage(resized_image)
+            self.image_label.config(image=self.tk_image)
+            self.image_label.image = self.tk_image
+        except Exception as e:
+            print(f"Error al cargar o mostrar imagen: {e}")
+            try:
+                placeholder_image = Image.open(get_resource_path('images/placeholder.png'))
+                placeholder_image = placeholder_image.resize(self.IMAGE_DISPLAY_SIZE, Image.LANCZOS)
+                self.tk_image = ImageTk.PhotoImage(placeholder_image)
+                self.image_label.config(image=self.tk_image)
+                self.image_label.image = self.tk_image
+            except Exception as e_placeholder:
+                print(f"Error al cargar placeholder: {e_placeholder}")
+                self.image_label.config(image='')
 
     def setup_ui(self):
         """Configura la interfaz del diálogo con dos columnas"""
@@ -445,6 +874,21 @@ class ProductoDialog:
         tk.Label(left_frame, text="Nombre:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
         self.nombre_var = tk.StringVar()
         tk.Entry(left_frame, textvariable=self.nombre_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        # NUEVO: Clasificación
+        tk.Label(left_frame, text="Clasificación:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=(10, 5))
+        self.clasificacion_var = tk.StringVar(value='Sin clasificación')
+        
+        clasificaciones = db.get_clasificaciones()
+        clasificaciones_dict = {'Sin clasificación': None}
+        for c in clasificaciones:
+            clasificaciones_dict[c['nombre']] = c['id']
+        
+        self.clasificaciones_dict = clasificaciones_dict
+        clasificacion_combo = ttk.Combobox(left_frame, textvariable=self.clasificacion_var,
+                                          font=FONTS['normal'], state='readonly',
+                                          values=list(clasificaciones_dict.keys()))
+        clasificacion_combo.pack(fill=tk.X, pady=(0, 10))
 
         # Precio Unitario
         tk.Label(left_frame, text="Precio Unitario:", font=FONTS['normal'], bg=COLORS['bg_primary']).pack(anchor='w', pady=5)
@@ -491,7 +935,7 @@ class ProductoDialog:
         # Área para mostrar la imagen
         self.image_label = tk.Label(right_frame, bg=COLORS['bg_primary'])
         self.image_label.pack(pady=(5, 10))
-        self._display_image(None) # Mostrar placeholder inicialmente
+        self._display_image(None)
 
         tk.Button(right_frame, text="Examinar", command=self.browse_image, font=FONTS['button'], bg=COLORS['button_bg'], relief=tk.RAISED, borderwidth=2, padx=10, pady=5).pack(pady=(0, 10))
 
@@ -505,7 +949,7 @@ class ProductoDialog:
         
         self.btn_add_ingrediente = tk.Button(self.ingredientes_frame, text="Añadir Ingrediente", command=self.add_ingrediente_dialog, font=FONTS['button'], bg=COLORS['button_bg'], relief=tk.RAISED, borderwidth=2, padx=15, pady=5)
         self.btn_add_ingrediente.pack(pady=10)
-        self.ingredientes_frame.grid_remove() # Ocultar al inicio
+        self.ingredientes_frame.grid_remove()
 
         # --- Botones ---
         button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
@@ -542,6 +986,14 @@ class ProductoDialog:
         self.gestion_var.set(bool(producto['gestion_stock']))
         self.stock_var.set(str(producto['stock_estimado']))
         
+        # Cargar clasificación
+        if producto.get('clasificacion_id'):
+            clasificacion = db.get_clasificacion(producto['clasificacion_id'])
+            if clasificacion:
+                self.clasificacion_var.set(clasificacion['nombre'])
+        else:
+            self.clasificacion_var.set('Sin clasificación')
+        
         # Cargar ingredientes si tiene
         if producto['gestion_stock']:
             recetas = db.get_recetas_producto(self.producto_id)
@@ -557,7 +1009,7 @@ class ProductoDialog:
             
         if producto.get('imagen'):
             self.imagen_var.set(producto['imagen'])
-            self._display_image(producto['imagen'])    
+            self._display_image(producto['imagen'])
     
     def add_ingrediente_dialog(self):
         """Abre diálogo para añadir ingrediente"""
@@ -603,8 +1055,10 @@ class ProductoDialog:
         
         gestion = self.gestion_var.get()
         
-        # Si gestiona inventario y no tiene ingredientes, se asume que es un producto unitario.
-        # La validación anterior ha sido eliminada para permitir esto.
+        # Obtener clasificacion_id
+        clasificacion_nombre = self.clasificacion_var.get()
+        clasificacion_id = self.clasificaciones_dict.get(clasificacion_nombre)
+        
         if gestion and not self.ingredientes_agregados:
             messagebox.showwarning("Advertencia", 
                                    "Si gestiona inventario, debe añadir al menos un ingrediente")
@@ -620,7 +1074,8 @@ class ProductoDialog:
                                  unidad_medida=self.unidad_var.get(),
                                  gestion_stock=1 if gestion else 0,
                                  stock_estimado=stock,
-                                 imagen=self.imagen_var.get() or None)
+                                 imagen=self.imagen_var.get() or None,
+                                 clasificacion_id=clasificacion_id)
                 
                 # Eliminar recetas anteriores
                 recetas_anteriores = db.get_recetas_producto(new_id)
@@ -637,7 +1092,8 @@ class ProductoDialog:
                 # Crear nuevo producto
                 producto_id = db.add_producto(new_id, nombre, precio, costo,
                                             self.unidad_var.get(), gestion,
-                                            stock, imagen=self.imagen_var.get() or None)
+                                            stock, imagen=self.imagen_var.get() or None,
+                                            clasificacion_id=clasificacion_id)
             
             # Añadir ingredientes (recetas)
             if gestion:
@@ -683,10 +1139,11 @@ class ProductoDialog:
             try:
                 shutil.copy2(filename, destino)
                 self.imagen_var.set(destino)
-                self._display_image(destino) # Mostrar la nueva imagen
+                self._display_image(destino)
                 messagebox.showinfo("Éxito", "Imagen cargada correctamente")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al copiar imagen: {str(e)}")
+
 
 class IngredienteRecetaDialog:
     def __init__(self, parent, callback=None):
