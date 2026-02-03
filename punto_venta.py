@@ -788,7 +788,7 @@ class AgregarProductosWindow:
         self.dialog = tk.Toplevel(parent)
         self.dialog.withdraw()
         self.dialog.title("Agregar Productos")
-        self.dialog.geometry("1150x700")
+        self.dialog.geometry("1200x700")
         self.dialog.configure(bg=COLORS['bg_primary'])
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -803,7 +803,7 @@ class AgregarProductosWindow:
         
         self.clasificaciones = []
         self.current_clasificacion_page = 0
-        self.clasificaciones_per_page = 9
+        self.clasificaciones_per_page = 10
         self.selected_clasificacion_id = 'all'
 
         self.product_widgets = []
@@ -823,7 +823,7 @@ class AgregarProductosWindow:
 
     def center_dialog(self):
         self.dialog.update_idletasks()
-        width = 1150
+        width = 1200
         height = 700
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
@@ -2085,7 +2085,7 @@ Egresos/Retiros:         {format_currency(corte['retiros'])}
 RESULTADO DEL CORTE:
 ────────────────────────────────────────
 Corte esperado:          {format_currency(corte['corte_esperado'])}
-  (Dinero inicial + Efectivo - Retiros)
+
 
 Corte final (contado):   {format_currency(corte['corte_final'])}
 
@@ -2098,8 +2098,6 @@ RENTABILIDAD:
 Ganancias Netas:         {format_currency(corte['ganancias'])}
 
 ────────────────────────────────────────
-NOTA: Solo las ventas en efectivo afectan
-el dinero esperado en caja.
             """
             
             messagebox.showinfo("Corte de Caja Completado", resumen)

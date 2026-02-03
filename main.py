@@ -492,8 +492,8 @@ class DineroCajaWindow:
             
             messagebox.showinfo("Éxito",
                               (f"Dinero en caja registrado: {format_currency(total)}\n\n"
-                               f"Corte #{numero_corte} iniciado correctamente.\n"
-                               f"Todas las ventas se asociarán a este corte."))
+                               f"Corte #{numero_corte} iniciado.\n")
+                               )
             
             self.window.destroy()
             

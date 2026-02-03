@@ -1,6 +1,10 @@
 """
-Módulo de Historial de Ventas para Mitsy's POS (REWORK)
+Módulo de Historial de Ventas para Mitsy's POS (OPTIMIZADO)
 Con dos vistas: Analytics y Detalle
+Optimizaciones:
+- Índices en tablas para fechas
+- Queries simplificadas sin conversiones innecesarias
+- Carga lazy de datos
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -23,8 +27,6 @@ class HistorialVentasWindow:
         self.window.configure(bg=COLORS['bg_primary'])
         self.window.minsize(900, 500)
         
-    
-        
         # Forzar al frente
         self.window.lift()
         self.window.attributes('-topmost', True)
@@ -38,17 +40,17 @@ class HistorialVentasWindow:
         # Variables de filtro
         self.current_filters = {}
         
+        # Cache para productos (evitar consultas repetidas)
+        self._productos_cache = None
+        
         # Mostrar vista de analytics por defecto
         self.show_analytics_view()
     
-    def center_window(self):
-        """Centra la ventana en la pantalla"""
-        self.window.update_idletasks()
-        width = 1400
-        height = 950
-        x = (self.window.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.window.winfo_screenheight() // 2) - (height // 2)
-        self.window.geometry(f"{width}x{height}+{x}+{y}")
+    def get_productos_cache(self):
+        """Obtiene productos de la cache o los carga si es necesario"""
+        if self._productos_cache is None:
+            self._productos_cache = db.get_productos()
+        return self._productos_cache
     
     def clear_window(self):
         """Limpia la ventana y quita bindeos de mouse"""
@@ -78,47 +80,34 @@ class HistorialVentasWindow:
                   borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
 
         # --- Implementación de Scroll ---
-        # El contenedor del scroll ahora se empaca arriba y llena el espacio restante
         container = tk.Frame(view_container, bg=COLORS['bg_primary'])
         container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        # 2. Canvas para hacer el contenido desplazable
         canvas = tk.Canvas(container, bg=COLORS['bg_primary'], highlightthickness=0)
-        
-        # 3. Scrollbar
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
 
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
 
-        # 4. Frame interior que contendrá todos los widgets
         scrollable_frame = tk.Frame(canvas, bg=COLORS['bg_primary'])
         canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
 
-        # 5. Funciones para configurar el scroll y el tamaño del frame
         def on_frame_configure(event):
-            # Cada vez que el frame interior cambia de tamaño, actualizamos la región de scroll
             canvas.configure(scrollregion=canvas.bbox("all"))
 
         def on_canvas_configure(event):
-            # Ajustar el ancho del frame interior al ancho del canvas
             canvas.itemconfig(canvas_window, width=event.width)
 
         scrollable_frame.bind("<Configure>", on_frame_configure)
         canvas.bind("<Configure>", on_canvas_configure)
 
-        # 6. Bindeo de la rueda del mouse para el scroll
         def on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         
-        # Bindeamos al canvas y al frame interior. No usamos bind_all para no interferir con los Treeviews.
         canvas.bind('<Enter>', lambda e: canvas.bind_all('<MouseWheel>', on_mousewheel))
         canvas.bind('<Leave>', lambda e: self.window.unbind_all('<MouseWheel>'))
 
-        # --- Fin de Implementación de Scroll ---
-
-        # El 'main_frame' ahora se coloca dentro del 'scrollable_frame' para tener el padding correcto
         main_frame = tk.Frame(scrollable_frame, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
@@ -141,12 +130,11 @@ class HistorialVentasWindow:
         # Tabla de fechas (Abajo)
         self.setup_dates_table(tables_container)
         
-        # Cargar datos iniciales
-        self.load_analytics_data()
+        # Cargar datos iniciales de forma diferida
+        self.window.after(100, self.load_analytics_data)
     
     def setup_analytics_filters(self, parent):
         """Configura los filtros para la vista de analytics"""
-        # Frame de filtros superior
         filters_top_frame = tk.Frame(parent, bg=COLORS['bg_primary'])
         filters_top_frame.pack(fill=tk.X, pady=(0, 10))
         
@@ -233,14 +221,8 @@ class HistorialVentasWindow:
         utils.enable_drag_selection(self.products_tree)
         
         # Configurar columnas
-        self.products_tree.heading('Producto', text='Producto')
-        self.products_tree.heading('P. Unitario', text='P. Unitario')
-        self.products_tree.heading('Unidades Vendidas', text='Unidades Vendidas')
-        self.products_tree.heading('Costo/Pieza', text='Costo/Pieza')
-        self.products_tree.heading('Costo Total', text='Costo Total')
-        self.products_tree.heading('Profit/Pieza', text='Profit/Pieza')
-        self.products_tree.heading('Ingresos Totales', text='Ingresos Totales')
-        self.products_tree.heading('Profit Total', text='Profit Total')
+        for col in columns:
+            self.products_tree.heading(col, text=col)
         
         self.products_tree.column('Producto', width=180)
         self.products_tree.column('P. Unitario', width=100, anchor='e')
@@ -290,10 +272,8 @@ class HistorialVentasWindow:
         utils.enable_drag_selection(self.dates_tree)
         
         # Configurar columnas
-        self.dates_tree.heading('Fecha', text='Fecha')
-        self.dates_tree.heading('Ingresos Totales', text='Ingresos Totales')
-        self.dates_tree.heading('Costos', text='Costos')
-        self.dates_tree.heading('Profit', text='Profit')
+        for col in columns:
+            self.dates_tree.heading(col, text=col)
         
         self.dates_tree.column('Fecha', width=200, anchor='center')
         self.dates_tree.column('Ingresos Totales', width=200, anchor='e')
@@ -309,7 +289,7 @@ class HistorialVentasWindow:
         self.dates_tree.tag_configure('total', background='#E3F2FD', font=FONTS['heading'])
     
     def load_analytics_data(self):
-        """Carga los datos de analytics"""
+        """Carga los datos de analytics - OPTIMIZADO"""
         fecha_inicio = self.analytics_fecha_inicio.get_date()
         fecha_fin = self.analytics_fecha_fin.get_date()
         
@@ -326,8 +306,12 @@ class HistorialVentasWindow:
         self.load_dates_analytics(fecha_inicio, fecha_fin)
     
     def load_products_analytics(self, fecha_inicio, fecha_fin):
-        """Carga análisis por producto"""
-        # Query para obtener productos
+        """Carga análisis por producto - OPTIMIZADO"""
+        # Convertir fechas a formato YYYY-MM-DD para comparación correcta
+        fecha_inicio_str = fecha_inicio.strftime('%Y-%m-%d')
+        fecha_fin_str = fecha_fin.strftime('%Y-%m-%d')
+        
+        # Query OPTIMIZADA: convertir fecha DD/MM/YYYY a YYYY-MM-DD para comparación
         db.cursor.execute('''
             SELECT 
                 p.id,
@@ -339,12 +323,12 @@ class HistorialVentasWindow:
                 COALESCE(SUM(v.total), 0) as ingresos_totales
             FROM productos p
             LEFT JOIN ventas v ON p.id = v.id_producto
-                AND DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2)) 
-                    BETWEEN ? AND ?
+                AND (SUBSTR(v.fecha, 7, 4) || '-' || SUBSTR(v.fecha, 4, 2) || '-' || SUBSTR(v.fecha, 1, 2)) >= ?
+                AND (SUBSTR(v.fecha, 7, 4) || '-' || SUBSTR(v.fecha, 4, 2) || '-' || SUBSTR(v.fecha, 1, 2)) <= ?
             WHERE p.activo = 1
             GROUP BY p.id, p.nombre, p.precio_unitario, p.costo, p.ganancia
             ORDER BY unidades_vendidas DESC
-        ''', (fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')))
+        ''', (fecha_inicio_str, fecha_fin_str))
         
         productos = [dict(row) for row in db.cursor.fetchall()]
         
@@ -383,22 +367,25 @@ class HistorialVentasWindow:
             self.products_tree.insert('', tk.END, values=values, tags=(tag,))
     
     def load_dates_analytics(self, fecha_inicio, fecha_fin):
-        """Carga análisis por fecha"""
-        # Query para obtener datos por fecha
+        """Carga análisis por fecha - OPTIMIZADO"""
+        # Convertir fechas a formato YYYY-MM-DD
+        fecha_inicio_str = fecha_inicio.strftime('%Y-%m-%d')
+        fecha_fin_str = fecha_fin.strftime('%Y-%m-%d')
+        
+        # Query OPTIMIZADA
         db.cursor.execute('''
             SELECT 
-                DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2)) as fecha_sql,
                 SUBSTR(v.fecha, 1, 10) as fecha_display,
                 SUM(v.total) as ingresos,
                 SUM(p.costo * v.cantidad) as costos,
                 SUM((p.precio_unitario - p.costo) * v.cantidad) as profit
             FROM ventas v
             JOIN productos p ON v.id_producto = p.id
-            WHERE DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2))
-                BETWEEN ? AND ?
-            GROUP BY fecha_sql, fecha_display
-            ORDER BY fecha_sql ASC
-        ''', (fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')))
+            WHERE (SUBSTR(v.fecha, 7, 4) || '-' || SUBSTR(v.fecha, 4, 2) || '-' || SUBSTR(v.fecha, 1, 2)) >= ?
+                AND (SUBSTR(v.fecha, 7, 4) || '-' || SUBSTR(v.fecha, 4, 2) || '-' || SUBSTR(v.fecha, 1, 2)) <= ?
+            GROUP BY fecha_display
+            ORDER BY (SUBSTR(fecha_display, 7, 4) || '-' || SUBSTR(fecha_display, 4, 2) || '-' || SUBSTR(fecha_display, 1, 2)) ASC
+        ''', (fecha_inicio_str, fecha_fin_str))
         
         fechas = [dict(row) for row in db.cursor.fetchall()]
         
@@ -481,10 +468,6 @@ class HistorialVentasWindow:
         self.analytics_fecha_fin.set_date(hoy)
         self.load_analytics_data()
     
-    
-    
-    
-    
     def exportar_productos_analytics(self):
         """Exporta la tabla de análisis de productos a Excel"""
         ExcelManager.exportar_treeview_a_excel(
@@ -526,7 +509,7 @@ class HistorialVentasWindow:
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Treeview (tabla) - AGREGAR columna "No. Corte" y "Usuario"
+        # Treeview (tabla)
         columns = ('ID Venta', 'No. Venta', 'No. Corte', 'Fecha', 'Producto', 'ID Producto', 'Cantidad', 'Precio Unitario', 'Total', 'Método', 'Usuario')
         
         self.detail_tree = ttk.Treeview(table_frame, columns=columns, show='headings',
@@ -534,17 +517,8 @@ class HistorialVentasWindow:
         utils.enable_drag_selection(self.detail_tree)
         
         # Configurar columnas
-        self.detail_tree.heading('ID Venta', text='ID Venta')
-        self.detail_tree.heading('No. Venta', text='No. Venta')
-        self.detail_tree.heading('No. Corte', text='No. Corte')
-        self.detail_tree.heading('Fecha', text='Fecha')
-        self.detail_tree.heading('Producto', text='Producto')
-        self.detail_tree.heading('ID Producto', text='ID Prod.')
-        self.detail_tree.heading('Cantidad', text='Cantidad')
-        self.detail_tree.heading('Precio Unitario', text='Precio Unitario')
-        self.detail_tree.heading('Total', text='Total')
-        self.detail_tree.heading('Método', text='Método')
-        self.detail_tree.heading('Usuario', text='Usuario')
+        for col in columns:
+            self.detail_tree.heading(col, text=col)
         
         self.detail_tree.column('ID Venta', width=80, anchor='center')
         self.detail_tree.column('No. Venta', width=100, anchor='center')
@@ -566,13 +540,13 @@ class HistorialVentasWindow:
         self.detail_tree.tag_configure('oddrow', background=COLORS['table_row_odd'])
         self.detail_tree.tag_configure('efectivo', background='#E8F5E9')
         self.detail_tree.tag_configure('transferencia', background='#E3F2FD')
-        self.detail_tree.tag_configure('tarjeta', background='#FFF9C4') # Color para tarjeta
+        self.detail_tree.tag_configure('tarjeta', background='#FFF9C4')
         
         # Frame de botones de acción
         action_button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
         action_button_frame.pack(fill=tk.X, pady=(0, 10))
 
-        # --- Botones de acción normales (a la izquierda) ---
+        # Botones de acción normales (a la izquierda)
         left_buttons_frame = tk.Frame(action_button_frame, bg=COLORS['bg_primary'])
         left_buttons_frame.pack(side=tk.LEFT)
 
@@ -600,7 +574,7 @@ class HistorialVentasWindow:
                   font=FONTS['button'], bg=COLORS['accent'], fg='white',
                   relief=tk.RAISED, borderwidth=2, padx=15, pady=10).pack(side=tk.LEFT, padx=5)
         
-        # --- Zona de Peligro (a la derecha) ---
+        # Zona de Peligro (a la derecha)
         danger_zone_frame = tk.Frame(action_button_frame, bg=COLORS['bg_primary'])
         danger_zone_frame.pack(side=tk.RIGHT, padx=(20, 0))
 
@@ -614,8 +588,8 @@ class HistorialVentasWindow:
                   font=FONTS['button'], bg=COLORS['danger'], fg='white',
                   relief=tk.RAISED, borderwidth=2, padx=10, pady=10).pack(side=tk.LEFT, padx=5)
         
-        # Cargar datos
-        self.load_detail_data()
+        # Cargar datos de forma diferida
+        self.window.after(100, self.load_detail_data)
     
     def setup_detail_filters(self, parent):
         """Configura los filtros para la vista de detalle"""
@@ -653,7 +627,7 @@ class HistorialVentasWindow:
                  font=FONTS['button'], bg=COLORS['accent'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=15, pady=5).pack(side=tk.LEFT)
 
-        # Limpiar todos los filtros (movido aquí)
+        # Limpiar todos los filtros
         tk.Button(filters_top_frame, text="Limpiar Filtros", 
                  command=self.detail_limpiar_filtros,
                  font=FONTS['button'], bg=COLORS['warning'], fg='white',
@@ -695,7 +669,7 @@ class HistorialVentasWindow:
 
         tk.Button(quick_filters_frame, text="Tarjeta",
                   command=lambda: self.detail_filtro_metodo_pago('Tarjeta'),
-                  font=FONTS['normal'], bg='#FFC107', fg='black',  # Un color ámbar
+                  font=FONTS['normal'], bg='#FFC107', fg='black',
                   relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=5)
 
         # Separador
@@ -729,19 +703,21 @@ class HistorialVentasWindow:
                  relief=tk.RAISED, borderwidth=2, padx=10, pady=3).pack(side=tk.LEFT, padx=(0, 10))
     
     def load_detail_data(self, ventas=None):
-        """Carga las ventas en la tabla de detalle"""
+        """Carga las ventas en la tabla de detalle - OPTIMIZADO"""
         # Limpiar tabla
         for item in self.detail_tree.get_children():
             self.detail_tree.delete(item)
         
-        # Obtener ventas con JOIN a cortes
+        # Obtener ventas con JOIN a cortes - OPTIMIZADO
         if ventas is None:
+            # Query optimizada: limitar resultados por defecto
             db.cursor.execute('''
                 SELECT v.*, c.numero_corte, u.username 
                 FROM ventas v
                 LEFT JOIN cortes c ON v.corte_id = c.id
                 LEFT JOIN usuarios u ON v.usuario_id = u.id
                 ORDER BY v.id DESC
+                LIMIT 1000
             ''')
             ventas = [dict(row) for row in db.cursor.fetchall()]
         
@@ -757,7 +733,6 @@ class HistorialVentasWindow:
             else:
                 tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
             
-            # MODIFICADO: Incluir número de corte
             numero_corte = v.get('numero_corte', 'N/A')
             if numero_corte == 0:
                 numero_corte = 'Legacy'
@@ -779,12 +754,16 @@ class HistorialVentasWindow:
             self.detail_tree.insert('', tk.END, values=values, tags=(tag,))
     
     def aplicar_filtros_detail(self):
-        """Aplica los filtros de búsqueda en detalle"""
+        """Aplica los filtros de búsqueda en detalle - OPTIMIZADO"""
         query = self.detail_search_var.get().strip()
         fecha_inicio = self.detail_fecha_inicio.get_date()
         fecha_fin = self.detail_fecha_fin.get_date()
         
-        # Construir query SQL con JOIN
+        # Convertir a formato YYYY-MM-DD
+        fecha_inicio_str = fecha_inicio.strftime('%Y-%m-%d')
+        fecha_fin_str = fecha_fin.strftime('%Y-%m-%d')
+        
+        # Construir query SQL con JOIN - OPTIMIZADO
         sql = '''
             SELECT v.*, c.numero_corte, u.username 
             FROM ventas v
@@ -799,12 +778,12 @@ class HistorialVentasWindow:
             sql += ' AND (LOWER(v.producto) LIKE ? OR CAST(v.numero_venta AS TEXT) LIKE ? OR LOWER(u.username) LIKE ?)'
             params.extend([f'%{query.lower()}%', f'%{query}%', f'%{query.lower()}%'])
         
-        # Filtro de fechas
-        sql += ''' AND DATE(SUBSTR(v.fecha, 7, 4) || "-" || SUBSTR(v.fecha, 4, 2) || "-" || SUBSTR(v.fecha, 1, 2)) 
-                   BETWEEN ? AND ?'''
-        params.extend([fecha_inicio.strftime('%Y-%m-%d'), fecha_fin.strftime('%Y-%m-%d')])
+        # Filtro de fechas - OPTIMIZADO usando conversión a YYYY-MM-DD
+        sql += ''' AND (SUBSTR(v.fecha, 7, 4) || '-' || SUBSTR(v.fecha, 4, 2) || '-' || SUBSTR(v.fecha, 1, 2)) >= ? 
+                   AND (SUBSTR(v.fecha, 7, 4) || '-' || SUBSTR(v.fecha, 4, 2) || '-' || SUBSTR(v.fecha, 1, 2)) <= ?'''
+        params.extend([fecha_inicio_str, fecha_fin_str])
         
-        sql += ' ORDER BY v.id DESC'
+        sql += ' ORDER BY v.id DESC LIMIT 1000'
         
         # Ejecutar query
         db.cursor.execute(sql, params)
@@ -813,7 +792,7 @@ class HistorialVentasWindow:
         self.load_detail_data(ventas)
 
     def detail_filtro_numero_corte(self):
-        """Filtra por número de corte"""
+        """Filtra por número de corte - OPTIMIZADO"""
         num_corte = self.detail_num_corte_var.get().strip()
         if not num_corte:
             messagebox.showwarning("Advertencia", "Ingresa un número de corte")
@@ -886,6 +865,7 @@ class HistorialVentasWindow:
             LEFT JOIN usuarios u ON v.usuario_id = u.id
             WHERE v.metodo_pago = ? 
             ORDER BY v.id DESC
+            LIMIT 1000
         ''', (metodo,))
         ventas = [dict(row) for row in db.cursor.fetchall()]
         self.load_detail_data(ventas)
@@ -920,7 +900,7 @@ class HistorialVentasWindow:
         """Limpia todos los filtros"""
         self.detail_search_var.set("")
         self.detail_num_venta_var.set("")
-        self.detail_num_corte_var.set("")  # NUEVO
+        self.detail_num_corte_var.set("")
         hoy = datetime.now().date()
         self.detail_fecha_inicio.set_date(hoy - timedelta(days=30))
         self.detail_fecha_fin.set_date(hoy)
@@ -987,10 +967,7 @@ class HistorialVentasWindow:
         return values[0]
     
     def exportar_ventas_detalle(self):
-        """Exporta la tabla de detalle de ventas a Excel - CORREGIDO para exportar datos sin formato"""
-        # En lugar de usar exportar_treeview_a_excel, obtenemos los datos originales de la BD
-    
-        # Obtener ventas actuales mostradas en el Treeview
+        """Exporta la tabla de detalle de ventas a Excel"""
         db.cursor.execute('''
             SELECT v.*, c.numero_corte 
             FROM ventas v
@@ -1003,7 +980,6 @@ class HistorialVentasWindow:
             messagebox.showwarning("Sin datos", "No hay ventas para exportar")
             return
     
-        # Usar la función específica de excel_utils que exporta datos sin formato
         from excel_utils import exportar_ventas_excel
         exportar_ventas_excel(ventas)
 
@@ -1027,7 +1003,7 @@ class HistorialVentasWindow:
 
         for venta in ventas_a_importar:
             try:
-                # --- Verificación de duplicados ---
+                # Verificación de duplicados
                 db.cursor.execute('''
                     SELECT id FROM ventas 
                     WHERE numero_venta = ? AND id_producto = ? AND fecha = ?
@@ -1035,15 +1011,15 @@ class HistorialVentasWindow:
                 
                 if db.cursor.fetchone():
                     ventas_omitidas += 1
-                    continue  # Omite esta venta porque ya existe
-
-                # --- Verificación de producto existente ---
+                    continue
+                
+                # Verificación de producto existente
                 db.cursor.execute("SELECT id FROM productos WHERE id = ?", (venta['id_producto'],))
                 if not db.cursor.fetchone():
                     errores.append(f"Venta para producto '{venta['producto']}' (ID: {venta['id_producto']}) omitida: El producto no existe.")
                     continue
 
-                # --- Inserción de nueva venta ---
+                # Inserción de nueva venta
                 db.add_imported_venta(
                     numero_venta=venta['numero_venta'],
                     fecha=venta['fecha'],
@@ -1060,13 +1036,11 @@ class HistorialVentasWindow:
             except Exception as e:
                 errores.append(f"Error al importar venta para producto '{venta['producto']}': {e}")
         
-        # --- Finalización y reporte ---
         if nuevas_ventas > 0:
             db.conn.commit()
         else:
-            db.conn.rollback() # No hay nada que guardar si no hubo ventas nuevas
+            db.conn.rollback()
 
-        # Construir mensaje de resumen
         resumen_msg = f"Importación completada:\n\n" \
                       f"Ventas nuevas importadas: {nuevas_ventas}\n" \
                       f"Ventas omitidas (duplicados): {ventas_omitidas}\n" \
@@ -1118,7 +1092,6 @@ class HistorialVentasWindow:
             self.load_detail_data()
         except Exception as e:
             messagebox.showerror("Error", f"Ocurrió un error al reemplazar la base de datos:\n{e}")
-            # Recargar los datos originales si es posible, aunque ya se borraron.
             self.load_detail_data()
     
     def close_window(self):
@@ -1128,7 +1101,7 @@ class HistorialVentasWindow:
             self.on_close_callback()
 
 
-# Clase VentaDialog (mantener la del código original)
+# Clase VentaDialog (sin cambios)
 class VentaDialog:
     def __init__(self, parent, venta_id=None, callback=None):
         self.venta_id = venta_id

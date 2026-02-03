@@ -16,6 +16,7 @@ class Database:
         self.cursor = None
         self.connect()
         self.create_tables()
+        self.create_performance_indexes()
         self.init_config()
         self.migrate_legacy_data()  # NUEVO: Migrar datos antiguos
         self.add_clasificacion_column_if_not_exists()  # NUEVO: Migración para clasificaciones
@@ -1795,6 +1796,26 @@ class Database:
     def limpiar_estado_mesa(self, mesa: str):
         """Limpia el estado de una mesa (vuelve a libre)"""
         self.set_estado_mesa(mesa, 'libre')
+        
+    def create_performance_indexes(self):
+        """Crea índices para mejorar el rendimiento de consultas por fecha"""
+        try:
+            # Índice para búsquedas por fecha en ventas
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_ventas_fecha 
+                ON ventas(fecha)
+            ''')
+        
+            # Índice para búsquedas por fecha en cortes
+            self.cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_cortes_fecha_inicio 
+                ON cortes(fecha_inicio)
+            ''')
+        
+            self.conn.commit()
+            print(">> Índices de rendimiento creados correctamente")
+        except Exception as e:
+            print(f"Error al crear índices: {e}")
 
 # Instancia global de la base de datos
 db = Database()
