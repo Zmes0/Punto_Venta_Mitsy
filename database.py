@@ -446,6 +446,50 @@ class Database:
         self.cursor.execute('SELECT * FROM clasificaciones WHERE id = ?', (id_clasificacion,))
         result = self.cursor.fetchone()
         return dict(result) if result else None
+
+    def get_clasificaciones_by_sales(self) -> List[Dict]:
+        """
+        Obtiene las clasificaciones ordenadas por el total de ventas de sus productos.
+        La categoría 'Sin Clasificación' se añade al final.
+        """
+        # Obtener clasificaciones activas con sus ventas totales
+        query_clasificaciones = '''
+            SELECT
+                c.id,
+                c.nombre,
+                COALESCE(SUM(v.total), 0) as total_sales
+            FROM clasificaciones c
+            LEFT JOIN productos p ON c.id = p.clasificacion_id AND p.activo = 1
+            LEFT JOIN ventas v ON p.id = v.id_producto
+            WHERE c.activo = 1
+            GROUP BY c.id, c.nombre
+            ORDER BY total_sales DESC
+        '''
+        self.cursor.execute(query_clasificaciones)
+        clasificaciones = [dict(row) for row in self.cursor.fetchall()]
+
+        # Obtener ventas de productos sin clasificación
+        query_sin_clasificacion = '''
+            SELECT
+                COALESCE(SUM(v.total), 0) as total_sales
+            FROM productos p
+            LEFT JOIN ventas v ON p.id = v.id_producto
+            WHERE p.clasificacion_id IS NULL AND p.activo = 1
+        '''
+        self.cursor.execute(query_sin_clasificacion)
+        result = self.cursor.fetchone()
+        sales_sin_clasificacion = result['total_sales'] if result and result['total_sales'] is not None else 0
+        
+        sin_clasificacion_obj = {
+            'id': None, 
+            'nombre': 'Sin Clasificacion',
+            'total_sales': sales_sin_clasificacion
+        }
+        
+        # Añadir 'Sin Clasificacion' al final
+        clasificaciones.append(sin_clasificacion_obj)
+        
+        return clasificaciones
     
     def add_clasificacion(self, nombre: str, imagen: str = None) -> int:
         """Añade una nueva clasificación"""
@@ -787,11 +831,14 @@ class Database:
         max_id = result['max_id'] if result['max_id'] else 0
         return max_id + 1
     
-    def get_productos_by_sales_frequency(self, activos_only: bool = True) -> List[Dict]:
+    def get_productos_by_sales_frequency(self, activos_only: bool = True, clasificacion_id: Any = 'all', query: str = None) -> List[Dict]:
         """
         Obtiene productos ordenados por frecuencia de ventas (los más vendidos primero).
+        Permite filtrar por clasificación y búsqueda por nombre.
         """
-        query = '''
+        params = []
+        
+        base_query = '''
             SELECT 
                 p.*, 
                 c.nombre as clasificacion_nombre,
@@ -800,14 +847,35 @@ class Database:
             LEFT JOIN clasificaciones c ON p.clasificacion_id = c.id
             LEFT JOIN ventas v ON p.id = v.id_producto
         '''
+        
+        where_clauses = []
         if activos_only:
-            query += ' WHERE p.activo = 1'
-        query += '''
+            where_clauses.append('p.activo = 1')
+            
+        if clasificacion_id != 'all':
+            if clasificacion_id is None: # 'Sin Clasificacion'
+                where_clauses.append('p.clasificacion_id IS NULL')
+            else:
+                where_clauses.append('p.clasificacion_id = ?')
+                params.append(clasificacion_id)
+        
+        if where_clauses:
+            base_query += ' WHERE ' + ' AND '.join(where_clauses)
+
+        base_query += '''
             GROUP BY p.id
             ORDER BY total_vendido DESC, p.nombre ASC
         '''
-        self.cursor.execute(query)
-        return [dict(row) for row in self.cursor.fetchall()]
+        
+        self.cursor.execute(base_query, params)
+        productos = [dict(row) for row in self.cursor.fetchall()]
+
+        if query:
+            from utils import normalize_text
+            normalized_query = normalize_text(query)
+            productos = [p for p in productos if normalized_query in normalize_text(p['nombre'])]
+
+        return productos
     
     # ==================== INGREDIENTES ====================
     

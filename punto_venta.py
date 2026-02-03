@@ -792,44 +792,81 @@ class AgregarProductosWindow:
         self.dialog.grab_set()
         self.dialog.minsize(1000, 600)
         
-        # Forzar al frente
         self.dialog.lift()
         self.dialog.attributes('-topmost', True)
         self.dialog.after(100, lambda: self.dialog.attributes('-topmost', False))
         
         self.dialog.iconbitmap(get_resource_path('icono.ico'))
-        
-        # Protocolo de cierre para limpiar eventos
         self.dialog.protocol("WM_DELETE_WINDOW", self.close_dialog)
         
-        self.setup_ui()
-        self.load_productos()
+        self.clasificaciones = []
+        self.current_clasificacion_page = 0
+        self.clasificaciones_per_page = 6
+        self.selected_clasificacion_id = None  # Default to 'Sin Clasificacion'
         
-        # Centrar ventana
+        self.setup_ui()
+        self.load_clasificaciones_and_productos()
+        
         self.center_dialog()
         self.dialog.deiconify()
         self.search_entry.focus()
-
-        # Vincular Enter a cerrar la ventana
         self.dialog.bind('<Return>', lambda event: self.close_dialog())
-    
+
     def center_dialog(self):
-        """Centra el diálogo en la pantalla"""
         self.dialog.update_idletasks()
         width = 1150
         height = 700
         x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
-    
+
     def setup_ui(self):
-        """Configura la interfaz de usuario"""
         main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Barra de búsqueda
-        search_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        search_frame.pack(fill=tk.X, pady=(0, 20))
+        top_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        top_frame.pack(fill=tk.X, pady=(0, 15))
+
+        self.clasificaciones_frame = tk.Frame(top_frame, bg=COLORS['bg_primary'])
+        self.clasificaciones_frame.pack(side=tk.LEFT)
+
+        self.pagination_frame = tk.Frame(top_frame, bg=COLORS['bg_primary'])
+        self.pagination_frame.pack(side=tk.RIGHT)
+
+        canvas_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.canvas = tk.Canvas(canvas_frame, bg=COLORS['bg_primary'], highlightthickness=0)
+        scrollbar = tk.Scrollbar(canvas_frame, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas, bg=COLORS['bg_primary'])
+        
+        self.scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
+        
+        bottom_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        bottom_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        action_buttons_frame = tk.Frame(bottom_frame, bg=COLORS['bg_primary'])
+        action_buttons_frame.pack(side=tk.LEFT)
+
+        tk.Button(action_buttons_frame, text="Regresar", command=self.close_dialog,
+                 font=FONTS['button'], bg=COLORS['button_bg'],
+                 fg=COLORS['text_primary'], relief=tk.RAISED,
+                 borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(action_buttons_frame, text="Aceptar", command=self.close_dialog,
+                 font=FONTS['button'], bg=COLORS['success'], fg='white',
+                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=5)
+
+        search_frame = tk.Frame(bottom_frame, bg=COLORS['bg_primary'])
+        search_frame.pack(side=tk.RIGHT)
         
         tk.Label(search_frame, text="Buscar:", font=FONTS['normal'],
                 bg=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 10))
@@ -839,86 +876,99 @@ class AgregarProductosWindow:
         self.search_entry = tk.Entry(search_frame, textvariable=self.search_var,
                                font=FONTS['normal'], width=40)
         self.search_entry.pack(side=tk.LEFT)
+
+    def load_clasificaciones_and_productos(self):
+        self.clasificaciones = db.get_clasificaciones_by_sales()
+        self._update_clasificaciones_ui()
+        self.load_productos()
+
+    def _update_clasificaciones_ui(self):
+        for widget in self.clasificaciones_frame.winfo_children():
+            widget.destroy()
+        for widget in self.pagination_frame.winfo_children():
+            widget.destroy()
+
+        start_index = self.current_clasificacion_page * self.clasificaciones_per_page
+        end_index = start_index + self.clasificaciones_per_page
         
-        # Frame con scrollbar para la galería
-        canvas_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Canvas y scrollbar
-        self.canvas = tk.Canvas(canvas_frame, bg=COLORS['bg_primary'], 
-                               highlightthickness=0)
-        scrollbar = tk.Scrollbar(canvas_frame, orient="vertical", 
-                                command=self.canvas.yview)
-        
-        self.scrollable_frame = tk.Frame(self.canvas, bg=COLORS['bg_primary'])
-        
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-        
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Bind scroll con mouse wheel solo a este canvas
-        self.canvas.bind("<Enter>", self._bind_mousewheel)
-        self.canvas.bind("<Leave>", self._unbind_mousewheel)
-        
-        # Botones inferiores
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.pack(fill=tk.X, pady=(20, 0))
-        
-        tk.Button(button_frame, text="Regresar", command=self.close_dialog,
-                 font=FONTS['button'], bg=COLORS['button_bg'],
-                 fg=COLORS['text_primary'], relief=tk.RAISED,
-                 borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=5)
-        
-        tk.Button(button_frame, text="Aceptar", command=self.close_dialog,
-                 font=FONTS['button'], bg=COLORS['success'], fg='white',
-                 relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=5)
-    
+        clasificaciones_to_show = self.clasificaciones[start_index:end_index]
+
+        for clasificacion in clasificaciones_to_show:
+            is_selected = self.selected_clasificacion_id == clasificacion['id']
+            
+            btn = tk.Button(
+                self.clasificaciones_frame, 
+                text=clasificacion['nombre'],
+                font=FONTS['button'],
+                bg=COLORS['accent'] if is_selected else COLORS['button_bg'],
+                fg='white' if is_selected else COLORS['text_primary'],
+                relief=tk.RAISED,
+                borderwidth=2,
+                command=lambda cid=clasificacion['id']: self.filter_by_clasificacion(cid)
+            )
+            btn.pack(side=tk.LEFT, padx=5, pady=5)
+
+        num_pages = (len(self.clasificaciones) + self.clasificaciones_per_page - 1) // self.clasificaciones_per_page
+        if num_pages > 1:
+            tk.Button(self.pagination_frame, text="<", command=self.prev_page, font=FONTS['button']).pack(side=tk.LEFT)
+            
+            page_label = tk.Label(self.pagination_frame, text=f"{self.current_clasificacion_page + 1} / {num_pages}", font=FONTS['normal'], bg=COLORS['bg_primary'])
+            page_label.pack(side=tk.LEFT, padx=5)
+
+            tk.Button(self.pagination_frame, text=">", command=self.next_page, font=FONTS['button']).pack(side=tk.LEFT)
+
+    def prev_page(self):
+        if self.current_clasificacion_page > 0:
+            self.current_clasificacion_page -= 1
+            self._update_clasificaciones_ui()
+
+    def next_page(self):
+        num_pages = (len(self.clasificaciones) + self.clasificaciones_per_page - 1) // self.clasificaciones_per_page
+        if self.current_clasificacion_page < num_pages - 1:
+            self.current_clasificacion_page += 1
+            self._update_clasificaciones_ui()
+
+    def filter_by_clasificacion(self, clasificacion_id):
+        self.selected_clasificacion_id = clasificacion_id
+        self.search_var.set("")
+        self.load_productos()
+        self._update_clasificaciones_ui()
+
     def _bind_mousewheel(self, event):
-        """Vincula el scroll del mouse cuando entra al canvas"""
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
     
     def _unbind_mousewheel(self, event):
-        """Desvincula el scroll del mouse cuando sale del canvas"""
         self.canvas.unbind_all("<MouseWheel>")
     
     def _on_mousewheel(self, event):
-        """Maneja el scroll con la rueda del mouse"""
         try:
             self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         except:
             pass
     
-    def load_productos(self):
-        """Carga los productos en la galería."""
-        # Limpiar frame
+    def load_productos(self, search_query=None):
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
         
-        productos = db.get_productos_by_sales_frequency() # MODIFICADO: Obtener productos por frecuencia de ventas
+        productos = db.get_productos_by_sales_frequency(
+            clasificacion_id=self.selected_clasificacion_id,
+            query=search_query
+        )
         
         row = 0
         col = 0
         for producto in productos:
             self.create_producto_card(producto, row, col)
             col += 1
-            if col > 6:  # 7 COLUMNAS
+            if col > 6:
                 col = 0
                 row += 1
     
     def create_producto_card(self, producto, row, col):
-        """Crea una tarjeta de producto"""
         card = tk.Frame(self.scrollable_frame, bg=COLORS['bg_secondary'],
                        relief=tk.RAISED, borderwidth=2)
         card.grid(row=row, column=col, padx=12, pady=12, sticky='nsew')
         
-        # Imagen
         img_frame = tk.Frame(card, bg=COLORS['bg_secondary'], 
                             width=120, height=120)
         img_frame.pack(pady=8)
@@ -926,12 +976,10 @@ class AgregarProductosWindow:
         
         try:
             if producto['imagen'] and os.path.exists(producto['imagen']):
-                # Cargar imagen del producto
                 img = Image.open(producto['imagen'])
                 img = img.resize((110, 110), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
             else:
-                # Crear placeholder
                 photo = self.create_placeholder_image()
             
             img_label = tk.Label(img_frame, image=photo, bg=COLORS['bg_secondary'])
@@ -943,7 +991,6 @@ class AgregarProductosWindow:
             img_label.image = photo
             img_label.pack(expand=True)
         
-        # Nombre
         nombre = producto['nombre']
         if len(nombre) > 18:
             nombre = nombre[:18] + "..."
@@ -951,26 +998,22 @@ class AgregarProductosWindow:
         tk.Label(card, text=nombre, font=FONTS['normal'],
                 bg=COLORS['bg_secondary'], wraplength=130).pack(pady=(0, 5))
         
-        # Precio
         tk.Label(card, text=format_currency(producto['precio_unitario']),
                 font=FONTS['normal'], bg=COLORS['bg_secondary'],
                 fg=COLORS['accent']).pack(pady=(0, 8))
         
-        # Botón seleccionar
         btn = tk.Button(card, text="Seleccionar", 
                        command=lambda p=producto: self.select_producto(p),
                        font=FONTS['button'], bg=COLORS['accent'], fg='white',
                        relief=tk.RAISED, borderwidth=2, cursor='hand2')
         btn.pack(pady=(0, 8), padx=8, fill=tk.X)
         
-        # Hacer toda la tarjeta clickeable
         card.bind('<Button-1>', lambda e, p=producto: self.select_producto(p))
         for child in card.winfo_children():
             if not isinstance(child, tk.Button):
                 child.bind('<Button-1>', lambda e, p=producto: self.select_producto(p))
     
     def create_placeholder_image(self):
-        """Crea una imagen placeholder"""
         img = Image.new('RGB', (110, 110), color=COLORS['table_header'])
         
         from PIL import ImageDraw
@@ -982,41 +1025,18 @@ class AgregarProductosWindow:
         
         return ImageTk.PhotoImage(img)
     
-    def search_productos(self):
-        """Busca productos según el texto ingresado"""
+    def search_productos(self, *args):
         query = self.search_var.get().strip()
-        
-        # Limpiar frame
-        for widget in self.scrollable_frame.winfo_children():
-            widget.destroy()
-        
-        if not query:
-            # Si la búsqueda está vacía, cargar productos por frecuencia de ventas
-            productos = db.get_productos_by_sales_frequency()
-        else:
-            # Realizar la búsqueda por nombre
-            productos = db.search_productos(query)
-        
-        row = 0
-        col = 0
-        for producto in productos:
-            self.create_producto_card(producto, row, col)
-            col += 1
-            if col > 6:
-                col = 0
-                row += 1
+        self.load_productos(search_query=query)
     
     def select_producto(self, producto):
-        """Selecciona un producto y abre diálogo de cantidad"""
         CantidadProductoDialog(self.dialog, producto, callback=self.on_cantidad_confirmed)
     
     def on_cantidad_confirmed(self, producto_data):
-        """Callback cuando se confirma la cantidad"""
         if self.callback:
             self.callback(producto_data)
     
     def close_dialog(self):
-        """Cierra el diálogo y limpia eventos"""
         try:
             self.canvas.unbind_all("<MouseWheel>")
         except:
