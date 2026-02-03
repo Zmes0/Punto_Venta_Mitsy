@@ -855,16 +855,17 @@ class ProductoDialog:
                 self.image_label.config(image='')
 
     def setup_ui(self):
-        """Configura la interfaz del diálogo con dos columnas"""
-        main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'], padx=20, pady=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        """Configura la interfaz del diálogo con columnas dinámicas"""
+        self.main_frame = tk.Frame(self.dialog, bg=COLORS['bg_primary'], padx=20, pady=20) # Make main_frame an instance variable
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Configurar grid para dos columnas
-        main_frame.grid_columnconfigure(0, weight=1, minsize=250)
-        main_frame.grid_columnconfigure(1, weight=1, minsize=250)
+        # Configurar grid para dos columnas inicialmente
+        self.main_frame.grid_columnconfigure(0, weight=1, minsize=250)
+        self.main_frame.grid_columnconfigure(1, weight=1, minsize=250)
+        # La tercera columna para ingredientes se configurará dinámicamente
 
         # --- Columna Izquierda ---
-        left_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        left_frame = tk.Frame(self.main_frame, bg=COLORS['bg_primary'])
         left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
         # ID (editable)
@@ -914,7 +915,7 @@ class ProductoDialog:
         tk.Entry(left_frame, textvariable=self.stock_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
 
         # --- Columna Derecha ---
-        right_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
+        right_frame = tk.Frame(self.main_frame, bg=COLORS['bg_primary'])
         right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
         # Unidad de Medida
@@ -946,30 +947,35 @@ class ProductoDialog:
         tk.Button(right_frame, text="Examinar", command=self.browse_image, font=FONTS['button'], bg=COLORS['button_bg'], relief=tk.RAISED, borderwidth=2, padx=10, pady=5).pack(pady=(0, 10))
 
         # --- Frame de Ingredientes (oculto inicialmente) ---
-        self.ingredientes_frame = tk.Frame(main_frame, bg=COLORS['bg_secondary'], relief=tk.SUNKEN, borderwidth=2)
-        self.ingredientes_frame.grid(row=1, column=0, columnspan=2, sticky='nsew', pady=10)
+        self.ingredientes_frame = tk.Frame(self.main_frame, bg=COLORS['bg_secondary'], relief=tk.SUNKEN, borderwidth=2)
+        # No se grilla inicialmente, se hará en toggle_ingredientes
         
         tk.Label(self.ingredientes_frame, text="Ingredientes de la receta:", font=FONTS['heading'], bg=COLORS['bg_secondary']).pack(pady=10)
-        self.ingredientes_listbox = tk.Listbox(self.ingredientes_frame, font=FONTS['normal'], height=5)
-        self.ingredientes_listbox.pack(fill=tk.X, expand=True, padx=10, pady=5)
+        self.ingredientes_listbox = tk.Listbox(self.ingredientes_frame, font=FONTS['normal'], height=10)
+        self.ingredientes_listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         self.btn_add_ingrediente = tk.Button(self.ingredientes_frame, text="Añadir Ingrediente", command=self.add_ingrediente_dialog, font=FONTS['button'], bg=COLORS['button_bg'], relief=tk.RAISED, borderwidth=2, padx=15, pady=5)
         self.btn_add_ingrediente.pack(pady=10)
-        self.ingredientes_frame.grid_remove()
 
         # --- Botones ---
-        button_frame = tk.Frame(main_frame, bg=COLORS['bg_primary'])
-        button_frame.grid(row=2, column=0, columnspan=2, pady=20)
+        self.button_frame = tk.Frame(self.main_frame, bg=COLORS['bg_primary'])
+        self.button_frame.grid(row=1, column=0, columnspan=2, pady=20) # Inicialmente abarca 2 columnas
         
-        tk.Button(button_frame, text="Aceptar", command=self.save_producto, font=FONTS['button'], bg=COLORS['success'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
-        tk.Button(button_frame, text="Cancelar", command=self.dialog.destroy, font=FONTS['button'], bg=COLORS['danger'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(self.button_frame, text="Aceptar", command=self.save_producto, font=FONTS['button'], bg=COLORS['success'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(self.button_frame, text="Cancelar", command=self.dialog.destroy, font=FONTS['button'], bg=COLORS['danger'], fg='white', relief=tk.RAISED, borderwidth=2, padx=30, pady=10).pack(side=tk.LEFT, padx=10)
 
     def toggle_ingredientes(self, *args):
         """Muestra/oculta el frame de ingredientes y ajusta la ventana."""
         if self.gestion_var.get():
-            self.ingredientes_frame.grid()
+            # Activar la tercera columna
+            self.main_frame.grid_columnconfigure(2, weight=1, minsize=250)
+            self.ingredientes_frame.grid(row=0, column=2, sticky='nsew', padx=(10, 0), rowspan=2)
+            self.button_frame.grid(row=1, column=0, columnspan=3, pady=20) # Abarca 3 columnas
         else:
+            # Desactivar la tercera columna
             self.ingredientes_frame.grid_remove()
+            self.main_frame.grid_columnconfigure(2, weight=0, minsize=0) # Colapsar la columna
+            self.button_frame.grid(row=1, column=0, columnspan=2, pady=20) # Abarca 2 columnas
         
         # Forzar actualización de tamaño y recentrar
         self.dialog.update_idletasks()
