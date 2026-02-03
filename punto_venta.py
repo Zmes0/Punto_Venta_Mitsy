@@ -460,6 +460,8 @@ class VentaMesaWindow:
 
         # Atajo de teclado para cobrar
         self.window.bind('<F2>', lambda event: self.cobrar_venta())
+        # Atajo de teclado para minimizar
+        self.window.bind('<Escape>', lambda event: self.minimizar_ventana())
         
         # Centrar ventana
         self.center_window()
@@ -1507,6 +1509,7 @@ class CobrarVentaWindow:
 
         # Atajo de teclado para finalizar venta
         self.dialog.bind('<Return>', lambda event: self.finalizar_venta())
+        self.dialog.bind('<Escape>', lambda event: self.dialog.destroy())
         
         # Centrar ventana
         self.center_dialog()
