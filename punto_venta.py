@@ -801,7 +801,7 @@ class AgregarProductosWindow:
         
         self.clasificaciones = []
         self.current_clasificacion_page = 0
-        self.clasificaciones_per_page = 6
+        self.clasificaciones_per_page = 9
         self.selected_clasificacion_id = 'all'
         
         self.setup_ui()

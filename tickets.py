@@ -336,76 +336,155 @@ class TicketGenerator:
     
     def print_bill_thermal(self, mesa: str, productos_venta: list):
         """
-        Imprime una cuenta/pre-cuenta directamente en impresora térmica.
+        Imprime una cuenta/pre-cuenta con formato de ticket completo pero sin datos de pago.
         """
         if not ESCPOS_AVAILABLE:
             print("❌ Error: python-escpos no está instalado")
             return False
-        
+
         try:
+            # Conectar a la impresora térmica
             p = Win32Raw(self.thermal_printer_name, profile='POS-5890')
             p.hw('INIT')
-            
-            # Header
-            p.set(align='center', bold=True)
-            p.text(f"{mesa.upper()}\n")
-            p.set(align='center', bold=False)
-            p.text(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+
+            # Obtener información del negocio
+            business_info = self._get_business_info()
+
+            # ========== LOGO ==========
+            if business_info['mostrar_logo']:
+                logo_path = get_resource_path(business_info['logo_path'])
+                if os.path.exists(logo_path):
+                    try:
+                        img = Image.open(logo_path)
+                        img = img.convert('1')
+                        max_width = 300
+                        if img.width > max_width:
+                            ratio = max_width / img.width
+                            new_height = int(img.height * ratio)
+                            img = img.resize((max_width, new_height), Image.LANCZOS)
+                        p.image(img, impl='bitImageColumn', center=True)
+                        p.text('\n')
+                    except Exception as e:
+                        print(f"⚠ Error al cargar logo: {e}")
+                        p.set(align='center', bold=True)
+                        p.text(f"{business_info['name']}\n")
+                        p.set(align='center', bold=False)
+                        p.text(f"{business_info['subtitle']}\n")
+                else:
+                    p.set(align='center', bold=True)
+                    p.text(f"{business_info['name']}\n")
+                    p.set(align='center', bold=False)
+                    p.text(f"{business_info['subtitle']}\n")
+            else:
+                p.set(align='center', bold=True)
+                p.text(f"{business_info['name']}\n")
+                p.set(align='center', bold=False)
+                p.text(f"{business_info['subtitle']}\n")
+
+            # ========== INFORMACIÓN DEL NEGOCIO ==========
+            p.set(align='center')
+            if business_info['address']:
+                p.text(f"{business_info['address']}\n")
+            if business_info['city']:
+                p.text(f"{business_info['city']}\n")
+            if business_info['phone']:
+                p.text(f"Tel: {business_info['phone']}\n")
+
+            # ========== LÍNEAS EXTRA DEL HEADER ==========
+            for linea in business_info['header_extra']:
+                if linea.strip():
+                    p.text(f"{linea}\n")
             p.text('\n')
-            
-            # Separator
+
+            # ========== INFORMACIÓN DEL TICKET (CUENTA) ==========
+            p.set(align='center', bold=True)
+            p.text(f"CUENTA: {mesa.upper()}\n")
+            p.set(align='center', bold=False)
+            p.text(f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+            p.text('\n')
+
+            # ========== LÍNEA SEPARADORA ==========
             p.set(align='center')
             p.text('================================\n')
-            
-            # Products Header
+
+            # ========== PRODUCTOS ==========
             p.set(align='left', bold=True)
-            p.text(f"{'Cant.':<6}{'Descripción':<18}{'Total':>8}\n")
+            p.text(f"{ 'Cant.':<6}{'Descripción':<18}{'Total':>8}\n")
             p.set(align='left', bold=False)
-            
+
             subtotal = 0
             for producto in productos_venta:
                 cant = str(int(producto['cantidad']))
                 nombre = producto['nombre']
-                
-                # Truncate name if too long
                 if len(nombre) > 18:
                     nombre = nombre[:15] + "..."
-                
                 total_prod = format_currency(producto['total'])
-                
-                # Product line
                 p.text(f"{cant:<6}{nombre:<18}{total_prod:>8}\n")
                 
-                # Unit price
                 precio_unit = format_currency(producto['precio'])
                 p.text(f"      {precio_unit} c/u\n")
                 subtotal += producto['total']
-            
+
             p.text('\n')
-            
-            # Separator
+
+            # ========== LÍNEA SEPARADORA PUNTEADA ==========
             p.set(align='center')
-            p.text('--------------------------------\n') # Changed to dashes for bill
-            
-            # Total
+            p.text('- - - - - - - - - - - - - - - -\n')
+            p.text('\n')
+
+            # ========== TOTALES ==========
             p.set(align='left', bold=True)
             total_formatted = format_currency(subtotal)
-            p.text(f"{'TOTAL:':<24}{total_formatted:>8}\n")
+            p.text(f"{ 'TOTAL:':<24}{total_formatted:>8}\n")
             p.set(bold=False)
             p.text('\n')
-            
-            # Message
-            p.set(align='center')
-            p.text("Verifique que los datos de la \n")
-            p.text("cuenta sean correctos.\n") 
+
+            # ========== TOTAL EN LETRAS ==========
+            if business_info['mostrar_total_letras']:
+                try:
+                    total_letras = numero_a_letras(subtotal)
+                    p.set(align='center', bold=False)
+                    palabras = total_letras.split()
+                    linea_actual = ""
+                    for palabra in palabras:
+                        if len(linea_actual + palabra) <= 32:
+                            linea_actual += palabra + " "
+                        else:
+                            p.text(f"{linea_actual.strip()}\n")
+                            linea_actual = palabra + " "
+                    if linea_actual:
+                        p.text(f"{linea_actual.strip()}\n")
+                    p.text('\n')
+                except Exception as e:
+                    print(f"⚠ Error al convertir total a letras: {e}")
+
+            # ========== LÍNEA SEPARADORA ==========
+            p.text('================================\n')
             p.text('\n')
+
+            # ========== FOOTER ==========
+            mensaje_lineas = business_info['mensaje_final'].split('\n')
+            if mensaje_lineas:
+                p.set(align='center', bold=True)
+                p.text(f"{mensaje_lineas[0]}\n")
+                if len(mensaje_lineas) > 1:
+                    p.set(align='center', bold=False)
+                    for linea in mensaje_lineas[1:]:
+                        if linea.strip():
+                            p.text(f"{linea}\n")
             
+            # ========== LÍNEAS EXTRA DEL FOOTER ==========
+            p.set(align='center', bold=False)
+            for linea in business_info['footer_extra']:
+                if linea.strip():
+                    p.text(f"{linea}\n")
+
             p.cut()
             p.close()
-            
+
             print("✓ Cuenta impresa correctamente en impresora térmica")
             return True
-            
+
         except Exception as e:
             print(f"❌ Error al imprimir cuenta en térmica: {e}")
             import traceback
