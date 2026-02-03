@@ -802,7 +802,7 @@ class AgregarProductosWindow:
         self.clasificaciones = []
         self.current_clasificacion_page = 0
         self.clasificaciones_per_page = 6
-        self.selected_clasificacion_id = None  # Default to 'Sin Clasificacion'
+        self.selected_clasificacion_id = 'all'
         
         self.setup_ui()
         self.load_clasificaciones_and_productos()
@@ -887,6 +887,19 @@ class AgregarProductosWindow:
             widget.destroy()
         for widget in self.pagination_frame.winfo_children():
             widget.destroy()
+
+        is_selected = self.selected_clasificacion_id == 'all'
+        all_btn = tk.Button(
+            self.clasificaciones_frame, 
+            text="Todos los productos",
+            font=FONTS['button'],
+            bg=COLORS['accent'] if is_selected else COLORS['button_bg'],
+            fg='white' if is_selected else COLORS['text_primary'],
+            relief=tk.RAISED,
+            borderwidth=2,
+            command=lambda: self.filter_by_clasificacion('all')
+        )
+        all_btn.pack(side=tk.LEFT, padx=5, pady=5)
 
         start_index = self.current_clasificacion_page * self.clasificaciones_per_page
         end_index = start_index + self.clasificaciones_per_page
