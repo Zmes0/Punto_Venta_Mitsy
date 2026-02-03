@@ -969,7 +969,7 @@ class ProductoDialog:
         if self.gestion_var.get():
             # Activar la tercera columna
             self.main_frame.grid_columnconfigure(2, weight=1, minsize=250)
-            self.ingredientes_frame.grid(row=0, column=2, sticky='nsew', padx=(10, 0), rowspan=2)
+            self.ingredientes_frame.grid(row=0, column=2, sticky='nsew', padx=(10, 0), rowspan=1)
             self.button_frame.grid(row=1, column=0, columnspan=3, pady=20) # Abarca 3 columnas
         else:
             # Desactivar la tercera columna
