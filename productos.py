@@ -179,14 +179,22 @@ class ProductosWindow:
     
     def create_action_buttons(self):
         """Crea los botones de acción según la vista actual"""
-        # Eliminar botones existentes (excepto el de toggle y regresar)
+        # Olvidar el empaquetado del toggle button para reposicionarlo
+        self.toggle_btn.pack_forget()
+
+        # Eliminar botones de acción anteriores
         for widget in self.button_frame.winfo_children():
-            if widget != self.toggle_btn:
+            if widget != self.toggle_btn: # No destruir el toggle_btn
                 widget.destroy()
         
-        # Recrear el botón toggle
-        self.toggle_btn.pack(side=tk.LEFT, padx=5)
+        # 1. Botón regresar primero
+        btn_regresar = tk.Button(self.button_frame, text="Regresar", command=self.close_window,
+                      font=FONTS['button'], bg=COLORS['button_bg'],
+                      fg=COLORS['text_primary'], relief=tk.RAISED,
+                      borderwidth=2, padx=20, pady=10)
+        btn_regresar.pack(side=tk.LEFT, padx=5)
         
+        # 2. Botones de acción
         if self.viewing_clasificaciones:
             # Botones para clasificaciones
             buttons = [
@@ -210,12 +218,8 @@ class ProductosWindow:
                           relief=tk.RAISED, borderwidth=2, padx=20, pady=10)
             btn.pack(side=tk.LEFT, padx=5)
         
-        # Botón regresar siempre al final
-        btn = tk.Button(self.button_frame, text="Regresar", command=self.close_window,
-                      font=FONTS['button'], bg=COLORS['button_bg'],
-                      fg=COLORS['text_primary'], relief=tk.RAISED,
-                      borderwidth=2, padx=20, pady=10)
-        btn.pack(side=tk.LEFT, padx=5)
+        # 3. Botón toggle al final
+        self.toggle_btn.pack(side=tk.LEFT, padx=5)
     
     def toggle_view(self):
         """Alterna entre vista de productos y clasificaciones"""
