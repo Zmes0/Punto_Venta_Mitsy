@@ -1934,14 +1934,15 @@ class Database:
     
     def get_pedido_activo(self, mesa: str) -> Optional[Dict]:
         """Obtiene el pedido activo (en_carrito) de una mesa"""
-        self.cursor.execute('''
+        cursor = self.conn.cursor()
+        cursor.execute('''
             SELECT * FROM pedidos 
             WHERE mesa = ? AND estado = 'en_carrito'
             ORDER BY fecha_creacion DESC
             LIMIT 1
         ''', (mesa,))
         
-        result = self.cursor.fetchone()
+        result = cursor.fetchone()
         return dict(result) if result else None
     
     def get_pedido_by_id(self, pedido_id: int) -> Optional[Dict]:
@@ -1952,13 +1953,16 @@ class Database:
     
     def get_productos_pedido(self, pedido_id: int) -> List[Dict]:
         """Obtiene los productos de un pedido"""
-        self.cursor.execute('''
+        cursor = self.conn.cursor()
+        cursor.execute('''
             SELECT * FROM pedidos_detalle 
             WHERE pedido_id = ?
             ORDER BY fecha_agregado
         ''', (pedido_id,))
+    
+        return [dict(row) for row in cursor.fetchall()]
         
-        return [dict(row) for row in self.cursor.fetchall()]
+        return [dict(row) for row in cursor.fetchall()]
     
     def eliminar_producto_pedido(self, detalle_id: int):
         """Elimina un producto del pedido"""
@@ -2009,27 +2013,28 @@ class Database:
     
     def get_productos_enviados_mesa(self, mesa: str) -> List[Dict]:
         """Obtiene productos ya enviados al POS de una mesa (pero no cobrados)"""
+        cursor = self.conn.cursor()
         # Obtener pedidos enviados de la mesa
-        self.cursor.execute('''
+        cursor.execute('''
             SELECT id FROM pedidos 
             WHERE mesa = ? AND estado = 'enviado_pos'
         ''', (mesa,))
-        
-        pedidos_ids = [row['id'] for row in self.cursor.fetchall()]
-        
+    
+        pedidos_ids = [row['id'] for row in cursor.fetchall()]
+    
         if not pedidos_ids:
             return []
-        
+    
         # Obtener todos los productos de esos pedidos
         placeholders = ','.join('?' for _ in pedidos_ids)
-        self.cursor.execute(f'''
+        cursor.execute(f'''
             SELECT nombre_producto as producto, SUM(cantidad) as cantidad
             FROM pedidos_detalle
             WHERE pedido_id IN ({placeholders})
             GROUP BY nombre_producto
         ''', pedidos_ids)
-        
-        return [dict(row) for row in self.cursor.fetchall()]
+    
+        return [dict(row) for row in cursor.fetchall()]
     
     def get_mesas_con_pedidos_activos(self) -> List[str]:
         """Obtiene lista de mesas con pedidos activos (en_carrito o enviado_pos)"""
@@ -2075,13 +2080,14 @@ class Database:
     
     def get_usuario_bloqueando_mesa(self, mesa: str) -> Optional[Dict]:
         """Retorna info del usuario bloqueando la mesa o None"""
-        self.cursor.execute('''
+        cursor = self.conn.cursor()
+        cursor.execute('''
             SELECT usuario_id, username, fecha_inicio 
             FROM mesas_en_uso 
             WHERE mesa = ?
         ''', (mesa,))
-        
-        result = self.cursor.fetchone()
+    
+        result = cursor.fetchone()
         return dict(result) if result else None
     
     def get_mesas_bloqueadas(self) -> Dict[str, Dict]:
