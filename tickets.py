@@ -419,10 +419,6 @@ class TicketGenerator:
             p.text('================================\n')
             p.text('\n')
             
-            # ========== FOOTER ==========
-            p.set(align='center', bold=True)
-            p.text("¡BUEN PROVECHO!\n")
-            p.text('\n')
             
             # Cortar papel
             p.cut()

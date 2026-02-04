@@ -471,13 +471,57 @@ class VentaMesaWindow:
         
         self.setup_ui()
         
-        # Cargar venta pendiente si existe
-        self.load_venta_pendiente()
-
-        # NUEVO: Cargar pedidos de la web
-        self.load_web_orders()
+        self.productos_venta = self.load_and_merge_products()
         
         self.update_table()
+
+    def load_and_merge_products(self):
+        """Carga productos de ventas pendientes y de la web, y los fusiona."""
+        import copy
+
+        # Empezar con productos de una venta pendiente guardada
+        productos_finales = []
+        venta_pendiente = db.get_venta_pendiente(self.mesa)
+        if venta_pendiente and 'productos' in venta_pendiente:
+            # Usar deepcopy para evitar modificar accidentalmente un objeto cacheado o compartido
+            productos_finales = copy.deepcopy(venta_pendiente['productos'])
+
+        # Cargar y fusionar pedidos de la web
+        try:
+            productos_web = db.get_and_process_web_orders(self.mesa)
+            
+            if productos_web:
+                # Usar un diccionario para búsqueda eficiente y segura
+                existing_products = {prod['id']: prod for prod in productos_finales}
+
+                for prod_data in productos_web:
+                    if prod_data['id'] in existing_products:
+                        # Si el producto ya existe, sumar la cantidad
+                        existing_prod = existing_products[prod_data['id']]
+                        existing_prod['cantidad'] += prod_data['cantidad']
+                        existing_prod['total'] = existing_prod['cantidad'] * existing_prod['precio']
+                    else:
+                        # Si es un producto nuevo, añadirlo a la lista
+                        total = prod_data['cantidad'] * prod_data['precio']
+                        new_prod = {
+                            'id': prod_data['id'],
+                            'nombre': prod_data['nombre'],
+                            'cantidad': prod_data['cantidad'],
+                            'precio': prod_data['precio'],
+                            'total': total
+                        }
+                        productos_finales.append(new_prod)
+                
+                # Si se agregaron productos, actualizar estado y notificar
+                if productos_finales:
+                    db.set_estado_mesa(self.mesa, 'pedido_pendiente')
+                
+                self.window.after(100, lambda: messagebox.showinfo("Pedidos Web", f"Se han agregado {len(productos_web)} producto(s) desde un pedido web."))
+
+        except Exception as e:
+            self.window.after(100, lambda: messagebox.showerror("Error Web", f"No se pudieron cargar los pedidos web: {e}"))
+        
+        return productos_finales
     
     def center_window(self):
         """Centra la ventana en la pantalla"""
@@ -487,57 +531,6 @@ class VentaMesaWindow:
         x = (self.window.winfo_screenwidth() // 2) - (width // 2)
         y = (self.window.winfo_screenheight() // 2) - (height // 2)
         self.window.geometry(f"{width}x{height}+{x}+{y}")
-    
-    def load_venta_pendiente(self):
-        """Carga una venta pendiente si existe"""
-        venta_pendiente = db.get_venta_pendiente(self.mesa)
-        if venta_pendiente:
-            self.productos_venta = venta_pendiente['productos']
-
-    def load_web_orders(self):
-        """Carga productos de pedidos enviados desde la web y los fusiona."""
-        try:
-            productos_web = db.get_and_process_web_orders(self.mesa)
-            
-            if not productos_web:
-                return
-
-            productos_agregados = len(productos_web) > 0
-
-            for prod_data in productos_web:
-                # Verificar si el producto ya está en la venta
-                producto_existente = None
-                for prod in self.productos_venta:
-                    if prod['id'] == prod_data['id']:
-                        producto_existente = prod
-                        break
-                
-                if producto_existente:
-                    # Sumar cantidad
-                    producto_existente['cantidad'] += prod_data['cantidad']
-                    producto_existente['total'] = producto_existente['cantidad'] * producto_existente['precio']
-                else:
-                    # Añadir nuevo
-                    total = prod_data['cantidad'] * prod_data['precio']
-                    self.productos_venta.append({
-                        'id': prod_data['id'],
-                        'nombre': prod_data['nombre'],
-                        'cantidad': prod_data['cantidad'],
-                        'precio': prod_data['precio'],
-                        'total': total
-                    })
-            
-            if productos_agregados:
-                # Cambiar estado de la mesa a 'pedido_pendiente' si se agregaron productos
-                if self.productos_venta:
-                    db.set_estado_mesa(self.mesa, 'pedido_pendiente')
-                
-                # Usar 'after' para mostrar el mensaje después de que la ventana principal esté estable
-                self.window.after(100, lambda: messagebox.showinfo("Pedidos Web", f"Se han agregado {len(productos_web)} producto(s) desde un pedido web."))
-
-        except Exception as e:
-            # Usar 'after' para mostrar el error sin bloquear la UI
-            self.window.after(100, lambda: messagebox.showerror("Error Web", f"No se pudieron cargar los pedidos web: {e}"))
     
     def setup_ui(self):
         """Configura la interfaz de usuario"""
