@@ -8,9 +8,21 @@ from database import db
 from tickets import ticket_generator
 from datetime import datetime
 import os
+import base64
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Genera clave secreta aleatoria
+
+def encode_image_to_base64(image_path):
+    """Lee una imagen y la codifica en Base64."""
+    if not image_path or not os.path.exists(image_path):
+        return None
+    try:
+        with open(image_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+        return encoded_string
+    except Exception:
+        return None
 
 # ==================== DECORADOR DE AUTENTICACIÓN ====================
 
@@ -409,7 +421,7 @@ def get_productos():
             'id': p['id'],
             'nombre': p['nombre'],
             'precio': p['precio_unitario'],
-            'imagen': p['imagen']
+            'imagen': encode_image_to_base64(p['imagen'])
         } for p in productos]
         
         return jsonify(productos_data)
