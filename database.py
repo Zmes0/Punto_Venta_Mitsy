@@ -255,6 +255,47 @@ class Database:
             )
         ''')
         
+        # Tabla de Pedidos (órdenes en proceso)
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pedidos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mesa TEXT NOT NULL,
+                fecha_creacion TEXT NOT NULL,
+                estado TEXT DEFAULT 'en_carrito',
+                impreso INTEGER DEFAULT 0,
+                usuario_id INTEGER,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+            )
+        ''')
+        
+        # Detalle de Pedidos
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pedidos_detalle (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pedido_id INTEGER NOT NULL,
+                producto_id INTEGER NOT NULL,
+                nombre_producto TEXT NOT NULL,
+                cantidad REAL NOT NULL,
+                fecha_agregado TEXT NOT NULL,
+                FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
+                FOREIGN KEY (producto_id) REFERENCES productos(id)
+            )
+        ''')
+        
+        # Bloqueo de Mesas (para concurrencia)
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS mesas_en_uso (
+                mesa TEXT PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                username TEXT NOT NULL,
+                fecha_inicio TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+            )
+        ''')
+        
+        self.conn.commit()
+
+        
         # NUEVO: Tabla de Retiros
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS retiros (
@@ -1817,5 +1858,257 @@ class Database:
         except Exception as e:
             print(f"Error al crear índices: {e}")
 
+    # ==================== GESTIÓN DE PEDIDOS ====================
+    
+    def crear_pedido(self, mesa: str, usuario_id: int) -> int:
+        """Crea un nuevo pedido en estado 'en_carrito'"""
+        fecha = get_current_datetime()
+        
+        self.cursor.execute('''
+            INSERT INTO pedidos (mesa, fecha_creacion, estado, usuario_id)
+            VALUES (?, ?, 'en_carrito', ?)
+        ''', (mesa, fecha, usuario_id))
+        
+        self.conn.commit()
+        return self.cursor.lastrowid
+    
+    def agregar_producto_a_pedido(self, pedido_id: int, producto_id: int, cantidad: float):
+        """Agrega un producto al pedido o actualiza la cantidad si ya existe"""
+        fecha = get_current_datetime()
+        
+        # Obtener información del producto
+        producto = self.get_producto(producto_id)
+        if not producto:
+            raise ValueError(f"Producto {producto_id} no encontrado")
+        
+        # Verificar si el producto ya está en el pedido
+        self.cursor.execute('''
+            SELECT id, cantidad FROM pedidos_detalle 
+            WHERE pedido_id = ? AND producto_id = ?
+        ''', (pedido_id, producto_id))
+        
+        existing = self.cursor.fetchone()
+        
+        if existing:
+            # Actualizar cantidad
+            nueva_cantidad = existing['cantidad'] + cantidad
+            self.cursor.execute('''
+                UPDATE pedidos_detalle 
+                SET cantidad = ?, fecha_agregado = ?
+                WHERE id = ?
+            ''', (nueva_cantidad, fecha, existing['id']))
+        else:
+            # Insertar nuevo
+            self.cursor.execute('''
+                INSERT INTO pedidos_detalle (pedido_id, producto_id, nombre_producto, cantidad, fecha_agregado)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (pedido_id, producto_id, producto['nombre'], cantidad, fecha))
+        
+        self.conn.commit()
+    
+    def get_pedido_activo(self, mesa: str) -> Optional[Dict]:
+        """Obtiene el pedido activo (en_carrito) de una mesa"""
+        self.cursor.execute('''
+            SELECT * FROM pedidos 
+            WHERE mesa = ? AND estado = 'en_carrito'
+            ORDER BY fecha_creacion DESC
+            LIMIT 1
+        ''', (mesa,))
+        
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+    
+    def get_pedido_by_id(self, pedido_id: int) -> Optional[Dict]:
+        """Obtiene un pedido por ID"""
+        self.cursor.execute('SELECT * FROM pedidos WHERE id = ?', (pedido_id,))
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+    
+    def get_productos_pedido(self, pedido_id: int) -> List[Dict]:
+        """Obtiene los productos de un pedido"""
+        self.cursor.execute('''
+            SELECT * FROM pedidos_detalle 
+            WHERE pedido_id = ?
+            ORDER BY fecha_agregado
+        ''', (pedido_id,))
+        
+        return [dict(row) for row in self.cursor.fetchall()]
+    
+    def eliminar_producto_pedido(self, detalle_id: int):
+        """Elimina un producto del pedido"""
+        self.cursor.execute('DELETE FROM pedidos_detalle WHERE id = ?', (detalle_id,))
+        self.conn.commit()
+    
+    def enviar_pedido_a_pos(self, pedido_id: int):
+        """Marca el pedido como 'enviado_pos' y cambia estado de mesa"""
+        # Obtener información del pedido
+        pedido = self.get_pedido_by_id(pedido_id)
+        if not pedido:
+            raise ValueError("Pedido no encontrado")
+        
+        # Marcar pedido como enviado
+        self.cursor.execute('''
+            UPDATE pedidos SET estado = 'enviado_pos' WHERE id = ?
+        ''', (pedido_id,))
+        
+        # Cambiar estado de mesa a pedido_pendiente
+        self.set_estado_mesa(pedido['mesa'], 'pedido_pendiente')
+        
+        self.conn.commit()
+    
+    def marcar_pedido_impreso(self, pedido_id: int):
+        """Marca el pedido como impreso"""
+        self.cursor.execute('''
+            UPDATE pedidos SET impreso = 1 WHERE id = ?
+        ''', (pedido_id,))
+        self.conn.commit()
+    
+    def limpiar_pedido(self, pedido_id: int):
+        """Elimina un pedido en estado 'en_carrito'"""
+        self.cursor.execute('DELETE FROM pedidos WHERE id = ? AND estado = "en_carrito"', (pedido_id,))
+        self.conn.commit()
+    
+    def get_productos_enviados_mesa(self, mesa: str) -> List[Dict]:
+        """Obtiene productos ya enviados al POS de una mesa (pero no cobrados)"""
+        # Obtener pedidos enviados de la mesa
+        self.cursor.execute('''
+            SELECT id FROM pedidos 
+            WHERE mesa = ? AND estado = 'enviado_pos'
+        ''', (mesa,))
+        
+        pedidos_ids = [row['id'] for row in self.cursor.fetchall()]
+        
+        if not pedidos_ids:
+            return []
+        
+        # Obtener todos los productos de esos pedidos
+        placeholders = ','.join('?' for _ in pedidos_ids)
+        self.cursor.execute(f'''
+            SELECT nombre_producto as producto, SUM(cantidad) as cantidad
+            FROM pedidos_detalle
+            WHERE pedido_id IN ({placeholders})
+            GROUP BY nombre_producto
+        ''', pedidos_ids)
+        
+        return [dict(row) for row in self.cursor.fetchall()]
+    
+    def get_mesas_con_pedidos_activos(self) -> List[str]:
+        """Obtiene lista de mesas con pedidos activos (en_carrito o enviado_pos)"""
+        self.cursor.execute('''
+            SELECT DISTINCT mesa FROM pedidos 
+            WHERE estado IN ('en_carrito', 'enviado_pos')
+        ''')
+        return [row['mesa'] for row in self.cursor.fetchall()]
+    
+    def marcar_pedidos_como_cobrados(self, mesa: str):
+        """Marca todos los pedidos de una mesa como cobrados (cuando se cobra en el POS)"""
+        self.cursor.execute('''
+            UPDATE pedidos 
+            SET estado = 'cobrado'
+            WHERE mesa = ? AND estado = 'enviado_pos'
+        ''', (mesa,))
+        self.conn.commit()
+    
+    # ==================== BLOQUEO DE MESAS ====================
+    
+    def bloquear_mesa(self, mesa: str, usuario_id: int, username: str) -> bool:
+        """Intenta bloquear una mesa. Retorna False si ya está bloqueada"""
+        fecha = get_current_datetime()
+        
+        try:
+            self.cursor.execute('''
+                INSERT INTO mesas_en_uso (mesa, usuario_id, username, fecha_inicio)
+                VALUES (?, ?, ?, ?)
+            ''', (mesa, usuario_id, username, fecha))
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            # Ya está bloqueada
+            return False
+    
+    def desbloquear_mesa(self, mesa: str, usuario_id: int):
+        """Libera el bloqueo de una mesa (solo si el usuario es quien la bloqueó)"""
+        self.cursor.execute('''
+            DELETE FROM mesas_en_uso 
+            WHERE mesa = ? AND usuario_id = ?
+        ''', (mesa, usuario_id))
+        self.conn.commit()
+    
+    def get_usuario_bloqueando_mesa(self, mesa: str) -> Optional[Dict]:
+        """Retorna info del usuario bloqueando la mesa o None"""
+        self.cursor.execute('''
+            SELECT usuario_id, username, fecha_inicio 
+            FROM mesas_en_uso 
+            WHERE mesa = ?
+        ''', (mesa,))
+        
+        result = self.cursor.fetchone()
+        return dict(result) if result else None
+    
+    def get_mesas_bloqueadas(self) -> Dict[str, Dict]:
+        """Retorna diccionario de mesas bloqueadas {mesa: {username, fecha}}"""
+        self.cursor.execute('SELECT * FROM mesas_en_uso')
+        
+        bloqueadas = {}
+        for row in self.cursor.fetchall():
+            bloqueadas[row['mesa']] = {
+                'usuario_id': row['usuario_id'],
+                'username': row['username'],
+                'fecha_inicio': row['fecha_inicio']
+            }
+        
+        return bloqueadas
+    
+    def limpiar_bloqueos_antiguos(self, minutos: int = 15):
+        """Limpia bloqueos de mesas con más de X minutos de inactividad"""
+        from datetime import datetime, timedelta
+        
+        # Obtener todos los bloqueos
+        self.cursor.execute('SELECT mesa, fecha_inicio FROM mesas_en_uso')
+        bloqueos = self.cursor.fetchall()
+        
+        mesas_a_liberar = []
+        now = datetime.now()
+        
+        for bloqueo in bloqueos:
+            try:
+                fecha_inicio = datetime.strptime(bloqueo['fecha_inicio'], '%d/%m/%Y %H:%M:%S')
+                tiempo_transcurrido = now - fecha_inicio
+                
+                if tiempo_transcurrido > timedelta(minutes=minutos):
+                    mesas_a_liberar.append(bloqueo['mesa'])
+            except:
+                # Si hay error al parsear fecha, liberar por seguridad
+                mesas_a_liberar.append(bloqueo['mesa'])
+        
+        # Liberar mesas antiguas
+        for mesa in mesas_a_liberar:
+            self.cursor.execute('DELETE FROM mesas_en_uso WHERE mesa = ?', (mesa,))
+        
+        if mesas_a_liberar:
+            self.conn.commit()
+    
+    # ==================== UTILIDADES PARA PRODUCTOS ====================
+    
+    def contar_productos_por_clasificacion(self, clasificacion_id: int) -> int:
+        """Cuenta productos activos de una clasificación"""
+        self.cursor.execute('''
+            SELECT COUNT(*) as count FROM productos 
+            WHERE clasificacion_id = ? AND activo = 1
+        ''', (clasificacion_id,))
+        
+        result = self.cursor.fetchone()
+        return result['count'] if result else 0
+    
+    def contar_productos_sin_clasificacion(self) -> int:
+        """Cuenta productos activos sin clasificación"""
+        self.cursor.execute('''
+            SELECT COUNT(*) as count FROM productos 
+            WHERE clasificacion_id IS NULL AND activo = 1
+        ''')
+        
+        result = self.cursor.fetchone()
+        return result['count'] if result else 0
+    
 # Instancia global de la base de datos
 db = Database()

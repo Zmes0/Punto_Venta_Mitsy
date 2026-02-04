@@ -446,6 +446,7 @@ class VentaMesaWindow:
         self.window.configure(bg=COLORS['bg_primary'])
         self.window.transient(parent)
         self.window.grab_set()
+        self.window.focus_set()
         self.window.minsize(800, 600)
         
         # Forzar al frente
@@ -460,6 +461,8 @@ class VentaMesaWindow:
 
         # Atajo de teclado para cobrar
         self.window.bind('<F2>', lambda event: self.cobrar_venta())
+        self.window.bind('<Control-p>', lambda event: self.agregar_productos())
+        
         # Atajo de teclado para minimizar
         self.window.bind('<Escape>', lambda event: self.minimizar_ventana())
         
@@ -734,6 +737,9 @@ class VentaMesaWindow:
     
     def on_venta_cobrada(self):
         """Callback cuando se cobra la venta exitosamente"""
+        # Marcar pedidos de la mesa como cobrados
+        db.marcar_pedidos_como_cobrados(self.mesa)
+        
         # Limpiar venta
         self.productos_venta = []
         self.update_table()

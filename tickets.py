@@ -334,6 +334,111 @@ class TicketGenerator:
         print("ℹ El PDF se ha generado como respaldo, no se imprime")
         return True
     
+    def print_kitchen_ticket(self, mesa: str, productos: list[dict], mesero: str = None) -> bool:
+        """
+        Imprime ticket de cocina (SIN precios) en impresora térmica.
+        
+        Args:
+            mesa: Nombre de la mesa
+            productos: Lista de {'nombre': str, 'cantidad': float}
+            mesero: Nombre del mesero (opcional)
+        
+        Returns:
+            bool: True si se imprimió correctamente
+        """
+        if not ESCPOS_AVAILABLE:
+            print("❌ Error: python-escpos no está instalado")
+            return False
+        
+        try:
+            # Conectar a la impresora térmica
+            p = Win32Raw(self.thermal_printer_name, profile='POS-5890')
+            
+            # Inicializar impresora
+            p.hw('INIT')
+            
+            # Obtener información del negocio
+            business_info = self._get_business_info()
+            
+            # ========== ENCABEZADO ==========
+            p.set(align='center', bold=True, width=2, height=2)
+            p.text("PEDIDO COCINA\n")
+            p.set(align='center', bold=False, width=1, height=1)
+            p.text('\n')
+            
+            # ========== INFORMACIÓN DEL PEDIDO ==========
+            p.set(align='center', bold=True, width=1, height=1)
+            p.text(f"** {mesa.upper()} **\n")
+            p.set(align='center', bold=False)
+            
+            from datetime import datetime
+            fecha_actual = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            p.text(f"{fecha_actual}\n")
+            
+            if mesero:
+                p.text(f"Mesero: {mesero}\n")
+            
+            p.text('\n')
+            
+            # ========== LÍNEA SEPARADORA ==========
+            p.set(align='center')
+            p.text('================================\n')
+            p.text('\n')
+            
+            # ========== PRODUCTOS ==========
+            p.set(align='left', bold=True, width=1, height=1)
+            
+            for producto in productos:
+                # Cantidad (más grande)
+                p.set(bold=True, width=2, height=2)
+                cant = str(int(producto['cantidad'])) if producto['cantidad'] == int(producto['cantidad']) else str(producto['cantidad'])
+                p.text(f"{cant}x\n")
+                
+                # Nombre del producto (normal)
+                p.set(bold=False, width=1, height=1)
+                nombre = producto['nombre']
+                
+                # Dividir nombre en líneas si es muy largo (máximo 32 caracteres)
+                palabras = nombre.split()
+                linea_actual = ""
+                
+                for palabra in palabras:
+                    if len(linea_actual + palabra) <= 32:
+                        linea_actual += palabra + " "
+                    else:
+                        p.text(f"   {linea_actual.strip()}\n")
+                        linea_actual = palabra + " "
+                
+                if linea_actual:
+                    p.text(f"   {linea_actual.strip()}\n")
+                
+                p.text('\n')
+            
+            # ========== LÍNEA SEPARADORA ==========
+            p.set(align='center', bold=False, width=1, height=1)
+            p.text('================================\n')
+            p.text('\n')
+            
+            # ========== FOOTER ==========
+            p.set(align='center', bold=True)
+            p.text("¡BUEN PROVECHO!\n")
+            p.text('\n')
+            
+            # Cortar papel
+            p.cut()
+            
+            # Cerrar conexión
+            p.close()
+            
+            print("✓ Ticket de cocina impreso correctamente")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error al imprimir ticket de cocina: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def print_bill_thermal(self, mesa: str, productos_venta: list):
         """
         Imprime una cuenta/pre-cuenta con formato de ticket completo pero sin datos de pago.
