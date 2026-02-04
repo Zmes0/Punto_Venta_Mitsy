@@ -27,7 +27,7 @@ class Database:
     
     def connect(self):
         """Establece conexión con la base de datos"""
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
     
@@ -2062,31 +2062,38 @@ class Database:
     def limpiar_bloqueos_antiguos(self, minutos: int = 15):
         """Limpia bloqueos de mesas con más de X minutos de inactividad"""
         from datetime import datetime, timedelta
+    
+        # Crear cursor local para evitar conflictos
+        cursor_local = self.conn.cursor()
+    
+        try:
+            # Obtener todos los bloqueos
+            cursor_local.execute('SELECT mesa, fecha_inicio FROM mesas_en_uso')
+            bloqueos = cursor_local.fetchall()
         
-        # Obtener todos los bloqueos
-        self.cursor.execute('SELECT mesa, fecha_inicio FROM mesas_en_uso')
-        bloqueos = self.cursor.fetchall()
+            mesas_a_liberar = []
+            now = datetime.now()
         
-        mesas_a_liberar = []
-        now = datetime.now()
-        
-        for bloqueo in bloqueos:
-            try:
-                fecha_inicio = datetime.strptime(bloqueo['fecha_inicio'], '%d/%m/%Y %H:%M:%S')
-                tiempo_transcurrido = now - fecha_inicio
+            for bloqueo in bloqueos:
+                try:
+                    fecha_inicio = datetime.strptime(bloqueo['fecha_inicio'], '%d/%m/%Y %H:%M:%S')
+                    tiempo_transcurrido = now - fecha_inicio
                 
-                if tiempo_transcurrido > timedelta(minutes=minutos):
+                    if tiempo_transcurrido > timedelta(minutes=minutos):
+                        mesas_a_liberar.append(bloqueo['mesa'])
+                except:
+                    # Si hay error al parsear fecha, liberar por seguridad
                     mesas_a_liberar.append(bloqueo['mesa'])
-            except:
-                # Si hay error al parsear fecha, liberar por seguridad
-                mesas_a_liberar.append(bloqueo['mesa'])
         
-        # Liberar mesas antiguas
-        for mesa in mesas_a_liberar:
-            self.cursor.execute('DELETE FROM mesas_en_uso WHERE mesa = ?', (mesa,))
+            # Liberar mesas antiguas
+            for mesa in mesas_a_liberar:
+                cursor_local.execute('DELETE FROM mesas_en_uso WHERE mesa = ?', (mesa,))
         
-        if mesas_a_liberar:
-            self.conn.commit()
+            if mesas_a_liberar:
+                self.conn.commit()
+    
+        finally:
+            cursor_local.close()
     
     # ==================== UTILIDADES PARA PRODUCTOS ====================
     
