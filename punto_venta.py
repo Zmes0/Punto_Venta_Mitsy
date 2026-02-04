@@ -469,13 +469,14 @@ class VentaMesaWindow:
         # Centrar ventana
         self.center_window()
         
+        self.setup_ui()
+        
         # Cargar venta pendiente si existe
         self.load_venta_pendiente()
 
         # NUEVO: Cargar pedidos de la web
         self.load_web_orders()
         
-        self.setup_ui()
         self.update_table()
     
     def center_window(self):
@@ -494,17 +495,16 @@ class VentaMesaWindow:
             self.productos_venta = venta_pendiente['productos']
 
     def load_web_orders(self):
-        """Carga productos de pedidos enviados desde la web."""
+        """Carga productos de pedidos enviados desde la web y los fusiona."""
         try:
             productos_web = db.get_and_process_web_orders(self.mesa)
             
             if not productos_web:
                 return
 
+            productos_agregados = len(productos_web) > 0
+
             for prod_data in productos_web:
-                # Usar una versión modificada de add_producto_to_venta para evitar
-                # cambiar el estado de la mesa innecesariamente si ya hay items.
-                
                 # Verificar si el producto ya está en la venta
                 producto_existente = None
                 for prod in self.productos_venta:
@@ -527,15 +527,17 @@ class VentaMesaWindow:
                         'total': total
                     })
             
-            # Cambiar estado de la mesa a 'pedido_pendiente' si se agregaron productos
-            if self.productos_venta:
-                db.set_estado_mesa(self.mesa, 'pedido_pendiente')
-
-            self.update_table()
-            messagebox.showinfo("Pedidos Web", f"Se han agregado {len(productos_web)} producto(s) desde un pedido web.")
+            if productos_agregados:
+                # Cambiar estado de la mesa a 'pedido_pendiente' si se agregaron productos
+                if self.productos_venta:
+                    db.set_estado_mesa(self.mesa, 'pedido_pendiente')
+                
+                # Usar 'after' para mostrar el mensaje después de que la ventana principal esté estable
+                self.window.after(100, lambda: messagebox.showinfo("Pedidos Web", f"Se han agregado {len(productos_web)} producto(s) desde un pedido web."))
 
         except Exception as e:
-            messagebox.showerror("Error Web", f"No se pudieron cargar los pedidos web: {e}")
+            # Usar 'after' para mostrar el error sin bloquear la UI
+            self.window.after(100, lambda: messagebox.showerror("Error Web", f"No se pudieron cargar los pedidos web: {e}"))
     
     def setup_ui(self):
         """Configura la interfaz de usuario"""
