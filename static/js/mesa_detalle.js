@@ -6,7 +6,6 @@ let clasificacionActual = 'all';
 let clasificaciones = [];
 let productos = [];
 let carrito = [];
-let productosAnteriores = [];
 
 // Inicializar cuando cargue la página
 document.addEventListener('DOMContentLoaded', () => {
@@ -168,10 +167,8 @@ async function cargarPedidoMesa() {
         
         pedidoActual = data.pedido_id;
         carrito = data.carrito || [];
-        productosAnteriores = data.productos_anteriores || [];
         
         renderizarCarrito();
-        renderizarProductosAnteriores();
         
         // Verificar si otro usuario bloqueó la mesa
         if (data.bloqueada && data.bloqueada_por !== USERNAME) {
@@ -297,32 +294,6 @@ function renderizarCarrito() {
                     Eliminar
                 </button>
             </div>
-        `;
-        
-        lista.appendChild(div);
-    });
-}
-
-// Renderizar productos anteriores
-function renderizarProductosAnteriores() {
-    const container = document.getElementById('productosAnteriores');
-    const lista = document.getElementById('listaAnteriores');
-    
-    if (productosAnteriores.length === 0) {
-        container.style.display = 'none';
-        return;
-    }
-    
-    container.style.display = 'block';
-    lista.innerHTML = '';
-    
-    productosAnteriores.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'producto-anterior-item';
-        
-        div.innerHTML = `
-            <span>${item.nombre}</span>
-            <span><strong>x${item.cantidad}</strong></span>
         `;
         
         lista.appendChild(div);
@@ -456,18 +427,12 @@ async function actualizarPedido() {
         
         // Actualizar datos
         const carritoAnterior = JSON.stringify(carrito);
-        const anteriorAnterior = JSON.stringify(productosAnteriores);
         
         carrito = data.carrito || [];
-        productosAnteriores = data.productos_anteriores || [];
         
         // Re-renderizar solo si cambió
         if (JSON.stringify(carrito) !== carritoAnterior) {
             renderizarCarrito();
-        }
-        
-        if (JSON.stringify(productosAnteriores) !== anteriorAnterior) {
-            renderizarProductosAnteriores();
         }
         
         // Verificar bloqueo

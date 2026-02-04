@@ -193,21 +193,12 @@ def get_pedido_mesa(mesa):
                 'cantidad': p['cantidad']
             } for p in productos_carrito]
         
-        # Obtener productos ya enviados al POS (pero no cobrados)
-        productos_anteriores = db.get_productos_enviados_mesa(mesa)
-        
-        anteriores = [{
-            'nombre': p['producto'],
-            'cantidad': p['cantidad']
-        } for p in productos_anteriores]
-        
         # Verificar si la mesa está bloqueada
         bloqueada_info = db.get_usuario_bloqueando_mesa(mesa)
         
         return jsonify({
             'pedido_id': pedido_carrito['id'] if pedido_carrito else None,
             'carrito': carrito,
-            'productos_anteriores': anteriores,
             'bloqueada': bloqueada_info is not None,
             'bloqueada_por': bloqueada_info['username'] if bloqueada_info else None
         })
