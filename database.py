@@ -2155,6 +2155,51 @@ class Database:
         
         result = self.cursor.fetchone()
         return result['count'] if result else 0
+
+    def get_and_process_web_orders(self, mesa: str) -> List[Dict]:
+        """
+        Obtiene los productos de pedidos enviados desde la web y los marca como procesados.
+        """
+        # 1. Encontrar pedidos con estado 'enviado_pos' para la mesa
+        self.cursor.execute('''
+            SELECT id FROM pedidos
+            WHERE mesa = ? AND estado = 'enviado_pos'
+        ''', (mesa,))
+        
+        pedidos_ids_rows = self.cursor.fetchall()
+        if not pedidos_ids_rows:
+            return []
+            
+        pedidos_ids = [row['id'] for row in pedidos_ids_rows]
+        placeholders = ','.join('?' for _ in pedidos_ids)
+
+        # 2. Obtener los detalles de los productos de esos pedidos
+        self.cursor.execute(f'''
+            SELECT pd.producto_id, pd.cantidad, p.nombre, p.precio_unitario
+            FROM pedidos_detalle pd
+            JOIN productos p ON pd.producto_id = p.id
+            WHERE pd.pedido_id IN ({placeholders})
+        ''', pedidos_ids)
+        
+        productos_a_agregar = []
+        for row in self.cursor.fetchall():
+            productos_a_agregar.append({
+                'id': row['producto_id'],
+                'nombre': row['nombre'],
+                'precio': row['precio_unitario'],
+                'cantidad': row['cantidad']
+            })
+
+        # 3. Marcar los pedidos como 'procesado_en_pos' para no volver a agregarlos
+        self.cursor.execute(f'''
+            UPDATE pedidos
+            SET estado = 'procesado_en_pos'
+            WHERE id IN ({placeholders})
+        ''', pedidos_ids)
+        
+        self.conn.commit()
+        
+        return productos_a_agregar
     
 # Instancia global de la base de datos
 db = Database()
