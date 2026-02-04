@@ -1,4 +1,4 @@
-// mesa_detalle.js - Gestión de pedidos en mesa individual
+// mesa_detalle.js - Gestión de pedidos en mesa individual - CORREGIDO
 
 let pollingInterval = null;
 let pedidoActual = null;
@@ -138,6 +138,7 @@ function renderizarProductos() {
         
         let imagenHTML = '';
         if (producto.imagen) {
+            // CORREGIDO: Mostrar imagen como Data URI
             imagenHTML = `<img src="data:image/png;base64,${producto.imagen}" alt="${producto.nombre}">`;
         } else {
             imagenHTML = '<div class="producto-sin-imagen">📦</div>';
@@ -219,6 +220,31 @@ async function agregarProductoAlCarrito(producto) {
     }
 }
 
+// NUEVO: Modificar cantidad de producto
+async function modificarCantidad(detalleId, nuevaCantidad) {
+    if (nuevaCantidad < 1) {
+        return; // No permitir cantidades menores a 1
+    }
+    
+    try {
+        const response = await fetch(`/api/pedidos/${pedidoActual}/productos/${detalleId}/cantidad`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cantidad: nuevaCantidad })
+        });
+        
+        if (response.ok) {
+            await cargarPedidoMesa();
+        } else {
+            const data = await response.json();
+            alert(`Error: ${data.error}`);
+        }
+    } catch (error) {
+        console.error('Error modificando cantidad:', error);
+        alert('Error al modificar cantidad');
+    }
+}
+
 // Eliminar producto del carrito
 async function eliminarProductoCarrito(detalleId) {
     if (!confirm('¿Eliminar este producto del carrito?')) {
@@ -242,7 +268,7 @@ async function eliminarProductoCarrito(detalleId) {
     }
 }
 
-// Renderizar carrito
+// Renderizar carrito - CORREGIDO CON CONTROLES DE CANTIDAD
 function renderizarCarrito() {
     const lista = document.getElementById('carritoLista');
     
@@ -260,11 +286,17 @@ function renderizarCarrito() {
         div.innerHTML = `
             <div class="carrito-item-info">
                 <div class="carrito-item-nombre">${item.nombre}</div>
-                <div class="carrito-item-cantidad">Cantidad: ${item.cantidad}</div>
             </div>
-            <button class="carrito-item-eliminar" onclick="eliminarProductoCarrito(${item.id})">
-                Eliminar
-            </button>
+            <div class="carrito-item-controles">
+                <div class="cantidad-controles">
+                    <button class="btn-cantidad" onclick="modificarCantidad(${item.id}, ${item.cantidad - 1})">−</button>
+                    <span class="cantidad-display">${item.cantidad}</span>
+                    <button class="btn-cantidad" onclick="modificarCantidad(${item.id}, ${item.cantidad + 1})">+</button>
+                </div>
+                <button class="carrito-item-eliminar" onclick="eliminarProductoCarrito(${item.id})">
+                    Eliminar
+                </button>
+            </div>
         `;
         
         lista.appendChild(div);
@@ -368,7 +400,7 @@ async function limpiarVenta() {
     }
 }
 
-// Cambiar estado de mesa
+// Cambiar estado de mesa - CORREGIDO
 async function cambiarEstado(nuevoEstado) {
     const mensajes = {
         'libre': '¿Marcar mesa como libre?',

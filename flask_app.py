@@ -150,11 +150,11 @@ def cambiar_estado_mesa(mesa):
         # Obtener estado actual
         estado_actual = db.get_estado_mesa(mesa)
         
-        # Validar transiciones permitidas
+        # Validar transiciones permitidas - CORREGIDO
         transiciones_validas = {
             'libre': ['ocupada_sin_pedido'],
             'ocupada_sin_pedido': ['libre', 'pedido_pendiente'],
-            'pedido_pendiente': ['pedido_terminado'],
+            'pedido_pendiente': ['pedido_terminado', 'ocupada_sin_pedido'],  # Permitir volver a ocupada_sin_pedido
             'pedido_terminado': ['pedido_pendiente', 'libre']
         }
         
@@ -281,6 +281,30 @@ def eliminar_producto_pedido(pedido_id, detalle_id):
         
         # Eliminar producto
         db.eliminar_producto_pedido(detalle_id)
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/pedidos/<int:pedido_id>/productos/<int:detalle_id>/cantidad', methods=['PUT'])
+@login_required
+def modificar_cantidad_producto(pedido_id, detalle_id):
+    """Modifica la cantidad de un producto en el pedido"""
+    try:
+        data = request.get_json()
+        nueva_cantidad = data.get('cantidad')
+        
+        if nueva_cantidad is None or nueva_cantidad < 1:
+            return jsonify({'error': 'Cantidad inválida'}), 400
+        
+        # Verificar que el pedido está en_carrito
+        pedido = db.get_pedido_by_id(pedido_id)
+        if not pedido or pedido['estado'] != 'en_carrito':
+            return jsonify({'error': 'Pedido no válido'}), 400
+        
+        # Modificar cantidad
+        db.modificar_cantidad_producto_pedido(detalle_id, nueva_cantidad)
         
         return jsonify({'success': True})
         

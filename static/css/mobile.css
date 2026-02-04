@@ -1,4 +1,4 @@
-/* mobile.css - Estilos para aplicación móvil de Mitsy's POS */
+/* mobile.css - Estilos para aplicación móvil de Mitsy's POS - CORREGIDO */
 
 /* ==================== RESET Y BASE ==================== */
 * {
@@ -231,7 +231,7 @@ body {
     font-size: 12px;
 }
 
-/* ==================== MESA DETALLE PAGE ==================== */
+/* ==================== MESA DETALLE PAGE - CORREGIDO ==================== */
 .mesa-detalle-page {
     display: flex;
     flex-direction: column;
@@ -245,6 +245,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     background: #F5F5F5;
+    max-height: 50vh; /* MITAD SUPERIOR FIJA */
 }
 
 .carrito-section {
@@ -253,6 +254,8 @@ body {
     flex-direction: column;
     background: white;
     border-top: 3px solid #E0E0E0;
+    max-height: 50vh; /* MITAD INFERIOR FIJA */
+    overflow: hidden; /* Evitar que se expanda */
 }
 
 /* ==================== CLASIFICACIONES ==================== */
@@ -260,6 +263,7 @@ body {
     background: white;
     padding: 10px;
     border-bottom: 2px solid #E0E0E0;
+    flex-shrink: 0; /* No se comprime */
 }
 
 .clasificaciones-scroll {
@@ -353,38 +357,42 @@ body {
     color: #D0D0D0;
 }
 
-/* ==================== CARRITO Y PRODUCTOS ANTERIORES ==================== */
+/* ==================== CARRITO Y PRODUCTOS ANTERIORES - CORREGIDO ==================== */
 .productos-anteriores {
     border-bottom: 2px solid #E0E0E0;
-    padding: 15px;
+    padding: 10px 15px;
     background: #FFF9C4;
+    max-height: 150px; /* Limitar altura */
+    overflow-y: auto; /* Scroll si hay muchos */
+    flex-shrink: 0;
 }
 
 .productos-anteriores h3 {
-    font-size: 16px;
-    margin-bottom: 10px;
+    font-size: 14px;
+    margin-bottom: 8px;
     color: #F57C00;
 }
 
 .lista-productos-anteriores {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 .producto-anterior-item {
     background: white;
-    padding: 10px;
+    padding: 8px;
     border-radius: 6px;
     display: flex;
     justify-content: space-between;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .carrito {
     flex: 1;
     padding: 15px;
-    overflow-y: auto;
+    overflow-y: auto; /* SCROLL SOLO EN CARRITO */
+    min-height: 0; /* Permite que se encoja */
 }
 
 .carrito h3 {
@@ -401,7 +409,7 @@ body {
 .carrito-vacio {
     text-align: center;
     color: #999;
-    padding: 40px 20px;
+    padding: 20px;
     font-style: italic;
 }
 
@@ -412,20 +420,60 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
 }
 
 .carrito-item-info {
     flex: 1;
+    min-width: 0; /* Permite que se encoja */
 }
 
 .carrito-item-nombre {
     font-weight: 600;
     margin-bottom: 4px;
+    font-size: 14px;
 }
 
-.carrito-item-cantidad {
-    font-size: 14px;
-    color: #666;
+.carrito-item-controles {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cantidad-controles {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.btn-cantidad {
+    background: #4A90E2;
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.btn-cantidad:active {
+    transform: scale(0.95);
+}
+
+.cantidad-display {
+    min-width: 30px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 16px;
 }
 
 .carrito-item-eliminar {
@@ -435,21 +483,32 @@ body {
     padding: 8px 12px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
-/* ==================== BOTONES DE ACCIÓN ==================== */
+/* ==================== BOTONES DE ACCIÓN - OPTIMIZADO ==================== */
 .botones-accion {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 15px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 12px;
     background: white;
     border-top: 2px solid #E0E0E0;
+    flex-shrink: 0; /* No se comprime */
+}
+
+.botones-accion .btn {
+    padding: 10px 8px;
+    font-size: 13px;
+    white-space: nowrap;
 }
 
 .botones-accion .btn-large {
     grid-column: 1 / -1;
+    padding: 14px 20px;
+    font-size: 16px;
 }
 
 /* ==================== MODAL ==================== */
@@ -531,11 +590,11 @@ body {
     }
     
     .botones-accion {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
     }
     
     .botones-accion .btn-large {
-        grid-column: 1;
+        grid-column: 1 / -1;
     }
 }
 

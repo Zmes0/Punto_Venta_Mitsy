@@ -26,10 +26,36 @@ class Database:
         return datetime.now().strftime('%d/%m/%Y %H:%M:%S')    
     
     def connect(self):
-        """Establece conexión con la base de datos"""
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        """Establece conexión con la base de datos con timeout"""
+        self.conn = sqlite3.connect(
+            self.db_path, 
+            check_same_thread=False,
+            timeout=30.0  # ← NUEVO: Timeout de 30 segundos
+        )
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
+    
+        # Habilitar WAL mode para mejor concurrencia
+        self.conn.execute('PRAGMA journal_mode=WAL')
+        self.conn.commit()
+        
+    def safe_commit(self, max_retries=3, delay=0.1):
+        """Realiza commit con reintentos en caso de bloqueo"""
+        import time
+    
+        for intento in range(max_retries):
+            try:
+                self.conn.commit()
+                return True
+            except sqlite3.OperationalError as e:
+                if 'database is locked' in str(e) and intento < max_retries - 1:
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise
+        return False
+
+
     
     def close(self):
         """Cierra la conexión"""
@@ -1938,6 +1964,19 @@ class Database:
         """Elimina un producto del pedido"""
         self.cursor.execute('DELETE FROM pedidos_detalle WHERE id = ?', (detalle_id,))
         self.conn.commit()
+        
+    def modificar_cantidad_producto_pedido(self, detalle_id: int, nueva_cantidad: float):
+        """Modifica la cantidad de un producto en el pedido"""
+        fecha = get_current_datetime()
+    
+        self.cursor.execute('''
+            UPDATE pedidos_detalle 
+            SET cantidad = ?, fecha_agregado = ?
+            WHERE id = ?
+        ''', (nueva_cantidad, fecha, detalle_id))
+    
+        self.conn.commit()
+
     
     def enviar_pedido_a_pos(self, pedido_id: int):
         """Marca el pedido como 'enviado_pos' y cambia estado de mesa"""
