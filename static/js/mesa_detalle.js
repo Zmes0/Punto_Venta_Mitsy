@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     verificarSesion();
     bloquearMesa();
     cargarClasificaciones();
+    cargarProductos(); // Cargar productos al inicio
     cargarPedidoMesa();
     iniciarPolling();
 });
@@ -64,7 +65,6 @@ async function cargarClasificaciones() {
         clasificaciones = await response.json();
         
         renderizarClasificaciones();
-        cargarProductos();
     } catch (error) {
         console.error('Error cargando clasificaciones:', error);
     }
@@ -274,30 +274,62 @@ function renderizarCarrito() {
         return;
     }
     
-    lista.innerHTML = '';
+    // Create a map of existing items by their data-id
+    const existingItemsMap = new Map();
+    Array.from(lista.children).forEach(child => {
+        if (child.classList.contains('carrito-item')) {
+            const itemId = parseInt(child.dataset.id);
+            existingItemsMap.set(itemId, child);
+        }
+    });
+
+    const fragment = document.createDocumentFragment();
     
     carrito.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'carrito-item';
+        let itemDiv;
         
-        div.innerHTML = `
-            <div class="carrito-item-info">
-                <div class="carrito-item-nombre">${item.nombre}</div>
-            </div>
-            <div class="carrito-item-controles">
-                <div class="cantidad-controles">
-                    <button class="btn-cantidad" onclick="modificarCantidad(${item.id}, ${item.cantidad - 1})">−</button>
-                    <span class="cantidad-display">${item.cantidad}</span>
-                    <button class="btn-cantidad" onclick="modificarCantidad(${item.id}, ${item.cantidad + 1})">+</button>
+        if (existingItemsMap.has(item.id)) {
+            // Item already exists, update its content
+            itemDiv = existingItemsMap.get(item.id);
+            itemDiv.querySelector('.cantidad-display').textContent = item.cantidad;
+            // Update onclick handlers to ensure they reflect current item.id and item.cantidad
+            itemDiv.querySelector('.btn-cantidad:first-child').setAttribute('onclick', `modificarCantidad(${item.id}, ${item.cantidad - 1})`);
+            itemDiv.querySelector('.btn-cantidad:last-child').setAttribute('onclick', `modificarCantidad(${item.id}, ${item.cantidad + 1})`);
+            itemDiv.querySelector('.carrito-item-eliminar').setAttribute('onclick', `eliminarProductoCarrito(${item.id})`);
+            existingItemsMap.delete(item.id); // Mark as processed
+        } else {
+            // New item, create a new div
+            itemDiv = document.createElement('div');
+            itemDiv.className = 'carrito-item';
+            itemDiv.dataset.id = item.id; // Store the item ID
+            
+            itemDiv.innerHTML = `
+                <div class="carrito-item-info">
+                    <div class="carrito-item-nombre">${item.nombre}</div>
                 </div>
-                <button class="carrito-item-eliminar" onclick="eliminarProductoCarrito(${item.id})">
-                    Eliminar
-                </button>
-            </div>
-        `;
-        
-        lista.appendChild(div);
+                <div class="carrito-item-controles">
+                    <div class="cantidad-controles">
+                        <button class="btn-cantidad" onclick="modificarCantidad(${item.id}, ${item.cantidad - 1})">−</button>
+                        <span class="cantidad-display">${item.cantidad}</span>
+                        <button class="btn-cantidad" onclick="modificarCantidad(${item.id}, ${item.cantidad + 1})">+</button>
+                    </div>
+                    <button class="carrito-item-eliminar" onclick="eliminarProductoCarrito(${item.id})">
+                        Eliminar
+                    </button>
+                </div>
+            `;
+        }
+        fragment.appendChild(itemDiv);
     });
+
+    // Remove items that are no longer in the cart
+    existingItemsMap.forEach(itemDiv => {
+        itemDiv.remove();
+    });
+
+    // Clear the list and append the new fragment
+    lista.innerHTML = '';
+    lista.appendChild(fragment);
 }
 
 // Enviar pedido al POS
