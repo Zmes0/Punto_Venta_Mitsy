@@ -1,4 +1,4 @@
-// mesa_detalle.js - Gestión de pedidos en mesa individual - CORREGIDO
+// mesa_detalle.js - OPTIMIZADO: Mantiene orden del carrito + Lazy loading de imágenes
 
 let pollingInterval = null;
 let pedidoActual = null;
@@ -6,13 +6,14 @@ let clasificacionActual = 'all';
 let clasificaciones = [];
 let productos = [];
 let carrito = [];
+let carritoOrdenOriginal = []; // NUEVO: Mantener orden original
 
 // Inicializar cuando cargue la página
 document.addEventListener('DOMContentLoaded', () => {
     verificarSesion();
     bloquearMesa();
     cargarClasificaciones();
-    cargarProductos(); // Cargar productos al inicio
+    cargarProductos();
     cargarPedidoMesa();
     iniciarPolling();
 });
@@ -75,14 +76,12 @@ function renderizarClasificaciones() {
     const container = document.getElementById('clasificacionesScroll');
     container.innerHTML = '';
     
-    // Botón "Todos"
     const btnTodos = document.createElement('button');
     btnTodos.className = 'clasificacion-btn active';
     btnTodos.textContent = 'Todos';
     btnTodos.onclick = () => seleccionarClasificacion('all', btnTodos);
     container.appendChild(btnTodos);
     
-    // Botones de clasificaciones
     clasificaciones.forEach(c => {
         const btn = document.createElement('button');
         btn.className = 'clasificacion-btn';
@@ -96,7 +95,6 @@ function renderizarClasificaciones() {
 function seleccionarClasificacion(id, btnElement) {
     clasificacionActual = id;
     
-    // Actualizar botón activo
     document.querySelectorAll('.clasificacion-btn').forEach(btn => {
         btn.classList.remove('active');
     });
@@ -105,7 +103,7 @@ function seleccionarClasificacion(id, btnElement) {
     cargarProductos();
 }
 
-// Cargar productos
+// Cargar productos - OPTIMIZADO
 async function cargarProductos() {
     try {
         const url = clasificacionActual === 'all' 
@@ -121,7 +119,7 @@ async function cargarProductos() {
     }
 }
 
-// Renderizar productos
+// Renderizar productos - OPTIMIZADO con lazy loading
 function renderizarProductos() {
     const grid = document.getElementById('productosGrid');
     grid.innerHTML = '';
@@ -136,9 +134,10 @@ function renderizarProductos() {
         card.className = 'producto-card';
         
         let imagenHTML = '';
-        if (producto.imagen) {
-            // CORREGIDO: Mostrar imagen como Data URI
-            imagenHTML = `<img src="data:image/png;base64,${producto.imagen}" alt="${producto.nombre}">`;
+        if (producto.imagen_url) {
+            // OPTIMIZADO: Usar lazy loading y URL en lugar de Base64
+            imagenHTML = `<img src="${producto.imagen_url}" alt="${producto.nombre}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                         <div class="producto-sin-imagen" style="display:none;">📦</div>`;
         } else {
             imagenHTML = '<div class="producto-sin-imagen">📦</div>';
         }
@@ -166,11 +165,23 @@ async function cargarPedidoMesa() {
         const data = await response.json();
         
         pedidoActual = data.pedido_id;
-        carrito = data.carrito || [];
+        
+        // NUEVO: Mantener orden original del carrito
+        const nuevoCarrito = data.carrito || [];
+        
+        // Si es la primera carga, guardar orden
+        if (carritoOrdenOriginal.length === 0 && nuevoCarrito.length > 0) {
+            carritoOrdenOriginal = nuevoCarrito.map(item => ({
+                id: item.id,
+                producto_id: item.producto_id
+            }));
+        }
+        
+        // Reordenar carrito según orden original
+        carrito = reordenarCarritoSegunOrden(nuevoCarrito);
         
         renderizarCarrito();
         
-        // Verificar si otro usuario bloqueó la mesa
         if (data.bloqueada && data.bloqueada_por !== USERNAME) {
             mostrarAdvertenciaBloqueada(data.bloqueada_por);
         }
@@ -179,10 +190,45 @@ async function cargarPedidoMesa() {
     }
 }
 
+// NUEVO: Función para mantener el orden del carrito
+function reordenarCarritoSegunOrden(nuevoCarrito) {
+    if (carritoOrdenOriginal.length === 0) {
+        return nuevoCarrito;
+    }
+    
+    const ordenado = [];
+    const nuevosProductos = [];
+    
+    // Primero, agregar productos en el orden original
+    carritoOrdenOriginal.forEach(itemOrden => {
+        const producto = nuevoCarrito.find(p => p.id === itemOrden.id);
+        if (producto) {
+            ordenado.push(producto);
+        }
+    });
+    
+    // Agregar productos nuevos al final
+    nuevoCarrito.forEach(producto => {
+        if (!carritoOrdenOriginal.find(o => o.id === producto.id)) {
+            nuevosProductos.push(producto);
+            carritoOrdenOriginal.push({
+                id: producto.id,
+                producto_id: producto.producto_id
+            });
+        }
+    });
+    
+    // Actualizar orden original para reflejar eliminaciones
+    carritoOrdenOriginal = carritoOrdenOriginal.filter(itemOrden => 
+        nuevoCarrito.find(p => p.id === itemOrden.id)
+    );
+    
+    return [...ordenado, ...nuevosProductos];
+}
+
 // Agregar producto al carrito
 async function agregarProductoAlCarrito(producto) {
     try {
-        // Si no hay pedido activo, crear uno
         if (!pedidoActual) {
             const response = await fetch('/api/pedidos', {
                 method: 'POST',
@@ -194,7 +240,6 @@ async function agregarProductoAlCarrito(producto) {
             pedidoActual = data.pedido_id;
         }
         
-        // Agregar producto al pedido
         const response = await fetch(`/api/pedidos/${pedidoActual}/productos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -205,7 +250,6 @@ async function agregarProductoAlCarrito(producto) {
         });
         
         if (response.ok) {
-            // Recargar pedido
             await cargarPedidoMesa();
         } else {
             const data = await response.json();
@@ -217,10 +261,10 @@ async function agregarProductoAlCarrito(producto) {
     }
 }
 
-// NUEVO: Modificar cantidad de producto
+// Modificar cantidad de producto
 async function modificarCantidad(detalleId, nuevaCantidad) {
     if (nuevaCantidad < 1) {
-        return; // No permitir cantidades menores a 1
+        return;
     }
     
     try {
@@ -265,7 +309,7 @@ async function eliminarProductoCarrito(detalleId) {
     }
 }
 
-// Renderizar carrito - CORREGIDO CON CONTROLES DE CANTIDAD
+// Renderizar carrito - OPTIMIZADO: Actualización incremental
 function renderizarCarrito() {
     const lista = document.getElementById('carritoLista');
     
@@ -274,7 +318,7 @@ function renderizarCarrito() {
         return;
     }
     
-    // Create a map of existing items by their data-id
+    // Mapa de elementos existentes
     const existingItemsMap = new Map();
     Array.from(lista.children).forEach(child => {
         if (child.classList.contains('carrito-item')) {
@@ -289,19 +333,17 @@ function renderizarCarrito() {
         let itemDiv;
         
         if (existingItemsMap.has(item.id)) {
-            // Item already exists, update its content
+            // Item existe, solo actualizar cantidad
             itemDiv = existingItemsMap.get(item.id);
             itemDiv.querySelector('.cantidad-display').textContent = item.cantidad;
-            // Update onclick handlers to ensure they reflect current item.id and item.cantidad
             itemDiv.querySelector('.btn-cantidad:first-child').setAttribute('onclick', `modificarCantidad(${item.id}, ${item.cantidad - 1})`);
             itemDiv.querySelector('.btn-cantidad:last-child').setAttribute('onclick', `modificarCantidad(${item.id}, ${item.cantidad + 1})`);
-            itemDiv.querySelector('.carrito-item-eliminar').setAttribute('onclick', `eliminarProductoCarrito(${item.id})`);
-            existingItemsMap.delete(item.id); // Mark as processed
+            existingItemsMap.delete(item.id);
         } else {
-            // New item, create a new div
+            // Nuevo item
             itemDiv = document.createElement('div');
             itemDiv.className = 'carrito-item';
-            itemDiv.dataset.id = item.id; // Store the item ID
+            itemDiv.dataset.id = item.id;
             
             itemDiv.innerHTML = `
                 <div class="carrito-item-info">
@@ -322,12 +364,11 @@ function renderizarCarrito() {
         fragment.appendChild(itemDiv);
     });
 
-    // Remove items that are no longer in the cart
+    // Eliminar items que ya no están
     existingItemsMap.forEach(itemDiv => {
         itemDiv.remove();
     });
 
-    // Clear the list and append the new fragment
     lista.innerHTML = '';
     lista.appendChild(fragment);
 }
@@ -361,8 +402,8 @@ async function enviarAPOS() {
                 alert('✓ Pedido enviado (advertencia: no se pudo imprimir)');
             }
             
-            // Recargar pedido
             pedidoActual = null;
+            carritoOrdenOriginal = []; // Resetear orden
             await cargarPedidoMesa();
         } else {
             alert(`Error: ${data.error}`);
@@ -392,6 +433,7 @@ async function limpiarVenta() {
         
         if (response.ok) {
             pedidoActual = null;
+            carritoOrdenOriginal = []; // Resetear orden
             await cargarPedidoMesa();
         } else {
             const data = await response.json();
@@ -403,7 +445,7 @@ async function limpiarVenta() {
     }
 }
 
-// Cambiar estado de mesa - CORREGIDO
+// Cambiar estado de mesa
 async function cambiarEstado(nuevoEstado) {
     const mensajes = {
         'libre': '¿Marcar mesa como libre?',
@@ -452,22 +494,20 @@ async function actualizarPedido() {
         }
         
         if (!response.ok) {
-            return; // Intentar nuevamente en el próximo ciclo
+            return;
         }
         
         const data = await response.json();
         
-        // Actualizar datos
         const carritoAnterior = JSON.stringify(carrito);
         
-        carrito = data.carrito || [];
+        const nuevoCarrito = data.carrito || [];
+        carrito = reordenarCarritoSegunOrden(nuevoCarrito);
         
-        // Re-renderizar solo si cambió
         if (JSON.stringify(carrito) !== carritoAnterior) {
             renderizarCarrito();
         }
         
-        // Verificar bloqueo
         if (data.bloqueada && data.bloqueada_por !== USERNAME) {
             mostrarAdvertenciaBloqueada(data.bloqueada_por);
         }

@@ -1,4 +1,4 @@
-/* mobile.css - Estilos para aplicación móvil de Mitsy's POS - CORREGIDO */
+/* mobile.css - OPTIMIZADO: Botones siempre visibles + Lazy loading */
 
 /* ==================== RESET Y BASE ==================== */
 * {
@@ -231,7 +231,7 @@ body {
     font-size: 12px;
 }
 
-/* ==================== MESA DETALLE PAGE - CORREGIDO ==================== */
+/* ==================== MESA DETALLE PAGE - OPTIMIZADO ==================== */
 .mesa-detalle-page {
     display: flex;
     flex-direction: column;
@@ -245,7 +245,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     background: #F5F5F5;
-    max-height: 50vh; /* MITAD SUPERIOR FIJA */
+    max-height: 45vh; /* REDUCIDO para dar espacio a botones */
 }
 
 .carrito-section {
@@ -254,8 +254,8 @@ body {
     flex-direction: column;
     background: white;
     border-top: 3px solid #E0E0E0;
-    max-height: 50vh; /* MITAD INFERIOR FIJA */
-    overflow: hidden; /* Evitar que se expanda */
+    max-height: 55vh; /* AUMENTADO */
+    overflow: hidden;
 }
 
 /* ==================== CLASIFICACIONES ==================== */
@@ -263,7 +263,7 @@ body {
     background: white;
     padding: 10px;
     border-bottom: 2px solid #E0E0E0;
-    flex-shrink: 0; /* No se comprime */
+    flex-shrink: 0;
 }
 
 .clasificaciones-scroll {
@@ -301,7 +301,7 @@ body {
     border-color: #4A90E2;
 }
 
-/* ==================== PRODUCTOS GRID ==================== */
+/* ==================== PRODUCTOS GRID - OPTIMIZADO ==================== */
 .productos-grid {
     flex: 1;
     overflow-y: auto;
@@ -326,12 +326,23 @@ body {
     transform: scale(0.95);
 }
 
+/* OPTIMIZADO: Lazy loading de imágenes */
 .producto-card img {
     width: 80px;
     height: 80px;
     object-fit: cover;
     border-radius: 8px;
     margin-bottom: 8px;
+    background: #F5F5F5; /* Placeholder mientras carga */
+}
+
+.producto-card img[loading="lazy"] {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.producto-card img[loading="lazy"]:not([src=""]) {
+    opacity: 1;
 }
 
 .producto-card .nombre {
@@ -357,13 +368,13 @@ body {
     color: #D0D0D0;
 }
 
-/* ==================== CARRITO Y PRODUCTOS ANTERIORES - CORREGIDO ==================== */
+/* ==================== CARRITO - OPTIMIZADO ==================== */
 .productos-anteriores {
     border-bottom: 2px solid #E0E0E0;
     padding: 10px 15px;
     background: #FFF9C4;
-    max-height: 150px; /* Limitar altura */
-    overflow-y: auto; /* Scroll si hay muchos */
+    max-height: 120px;
+    overflow-y: auto;
     flex-shrink: 0;
 }
 
@@ -391,8 +402,8 @@ body {
 .carrito {
     flex: 1;
     padding: 15px;
-    overflow-y: auto; /* SCROLL SOLO EN CARRITO */
-    min-height: 0; /* Permite que se encoja */
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .carrito h3 {
@@ -425,7 +436,7 @@ body {
 
 .carrito-item-info {
     flex: 1;
-    min-width: 0; /* Permite que se encoja */
+    min-width: 0;
 }
 
 .carrito-item-nombre {
@@ -493,10 +504,14 @@ body {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
-    padding: 12px;
+    padding: 12px 12px 80px 12px; /* NUEVO: Padding inferior aumentado */
     background: white;
     border-top: 2px solid #E0E0E0;
-    flex-shrink: 0; /* No se comprime */
+    flex-shrink: 0;
+    
+    /* NUEVO: Prevenir que se oculte detrás de la barra del navegador */
+    position: relative;
+    z-index: 10;
 }
 
 .botones-accion .btn {
@@ -591,6 +606,7 @@ body {
     
     .botones-accion {
         grid-template-columns: repeat(2, 1fr);
+        padding-bottom: 100px; /* Aún más espacio en móviles */
     }
     
     .botones-accion .btn-large {
@@ -601,5 +617,16 @@ body {
 @media (min-width: 768px) {
     .productos-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+    
+    .botones-accion {
+        padding-bottom: 60px; /* Menos espacio en tablets */
+    }
+}
+
+/* NUEVO: Asegurar que el viewport sea correcto en iOS */
+@supports (-webkit-touch-callout: none) {
+    .botones-accion {
+        padding-bottom: calc(80px + env(safe-area-inset-bottom));
     }
 }
