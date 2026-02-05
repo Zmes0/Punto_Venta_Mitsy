@@ -3,6 +3,9 @@ Aplicación principal de Mitsy's POS - CORREGIDO
 """
 import tkinter as tk
 from tkinter import messagebox
+import subprocess
+import sys
+import os
 from config import COLORS, FONTS, WINDOW_CONFIG, DENOMINACIONES
 from database import db
 from utils import get_current_date, get_resource_path
@@ -11,6 +14,7 @@ from auth import session
 
 class MitsysPOS:
     def __init__(self):
+        self.server_process = None
         self.root = tk.Tk()
         self.root.title("Mitsy's POS")
         self.root.iconbitmap(get_resource_path('icono.ico'))
@@ -22,6 +26,12 @@ class MitsysPOS:
         
         # Mostrar splash screen
         self.show_splash()
+        
+        # Iniciar servidor Flask
+        self.start_server()
+        
+        # Protocolo de cierre para asegurar que se mate el servidor
+        self.root.protocol("WM_DELETE_WINDOW", self.salir)
     
     def center_window(self, window, width, height):
         """Centra una ventana en la pantalla"""
@@ -254,9 +264,49 @@ class MitsysPOS:
         """Callback cuando se cierra un módulo"""
         self.show_main_menu()
     
+    def start_server(self):
+        """Inicia el servidor Flask en un proceso separado"""
+        try:
+            # Determinar ruta de flask_app.py
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            script_path = os.path.join(base_dir, 'flask_app.py')
+            
+            if not os.path.exists(script_path):
+                print(f"No se encontró el servidor en: {script_path}")
+                return
+
+            # Ocultar consola en Windows
+            startupinfo = None
+            if sys.platform == 'win32':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            self.server_process = subprocess.Popen(
+                [sys.executable, script_path],
+                cwd=base_dir,
+                startupinfo=startupinfo
+            )
+            print(f"Servidor iniciado con PID: {self.server_process.pid}")
+            
+        except Exception as e:
+            print(f"Error al iniciar servidor: {e}")
+
     def salir(self):
         """Cierra el programa"""
         if messagebox.askyesno("Salir", "¿Estás seguro de que deseas salir del sistema?"):
+            if self.server_process:
+                try:
+                    if sys.platform == 'win32':
+                        # Matar árbol de procesos en Windows (necesario por el reloader de Flask)
+                        subprocess.call(['taskkill', '/F', '/T', '/PID', str(self.server_process.pid)])
+                    else:
+                        self.server_process.terminate()
+                except Exception as e:
+                    print(f"Error al detener servidor: {e}")
             self.root.quit()
             self.root.destroy()
     
