@@ -12,20 +12,6 @@ import os
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# ==================== SERVIR IMÁGENES COMO ARCHIVOS ESTÁTICOS ====================
-
-@app.route('/images/<path:filename>')
-def serve_image(filename):
-    """Sirve imágenes de productos desde el directorio images/"""
-    try:
-        # Obtener directorio base del proyecto
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        images_dir = os.path.join(base_dir, 'images')
-        return send_from_directory(images_dir, filename)
-    except Exception as e:
-        # Si no se encuentra la imagen, retornar un placeholder
-        return '', 404
-
 # ==================== DECORADOR DE AUTENTICACIÓN ====================
 
 def login_required(f):
@@ -392,20 +378,11 @@ def get_productos():
         # OPTIMIZADO: Enviar solo la ruta de la imagen, no Base64
         productos_data = []
         for p in productos:
-            imagen_url = None
-            if p['imagen']:
-                # Convertir ruta absoluta a URL relativa
-                # Ejemplo: images/productos/taco.png -> /images/productos/taco.png
-                imagen_path = p['imagen'].replace('\\', '/')
-                if 'images/' in imagen_path:
-                    imagen_url = '/' + imagen_path.split('images/')[-1]
-                    imagen_url = '/images/' + imagen_url.split('/')[-1]
-            
             productos_data.append({
                 'id': p['id'],
                 'nombre': p['nombre'],
                 'precio': p['precio_unitario'],
-                'imagen_url': imagen_url  # URL en lugar de Base64
+                'imagen_url': None  # Imágenes desactivadas para usar placeholders
             })
         
         return jsonify(productos_data)
@@ -486,4 +463,6 @@ if __name__ == '__main__':
     print("   http://TU_IP:5000")
     print("=" * 50)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # CORRECCIÓN: debug=False evita cierres inesperados.
+    # threaded=False evita que las consultas a la BD se mezclen (soluciona productos faltantes).
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=False)
