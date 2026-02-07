@@ -1,4 +1,4 @@
-/* mobile.css - OPTIMIZADO: Botones siempre visibles + Lazy loading */
+/* mobile.css - COMPACTO: Information-dense POS layout */
 
 /* ==================== RESET Y BASE ==================== */
 * {
@@ -84,7 +84,7 @@ body {
 /* ==================== TOP BAR ==================== */
 .top-bar {
     background: #FFFFFF;
-    padding: 15px 20px;
+    padding: 8px 12px; /* Reduced padding */
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     display: flex;
     align-items: center;
@@ -95,7 +95,7 @@ body {
 }
 
 .top-bar h1 {
-    font-size: 24px;
+    font-size: 18px; /* Reduced font size */
     color: #2C2C2C;
 }
 
@@ -103,16 +103,16 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 14px;
+    font-size: 13px;
     color: #666;
 }
 
 /* ==================== BUTTONS ==================== */
 .btn {
-    padding: 12px 24px;
+    padding: 8px 16px; /* Compact buttons */
     border: none;
-    border-radius: 8px;
-    font-size: 16px;
+    border-radius: 6px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -155,37 +155,37 @@ body {
 }
 
 .btn-small {
-    padding: 8px 16px;
-    font-size: 14px;
+    padding: 6px 12px;
+    font-size: 12px;
 }
 
 .btn-large {
-    padding: 16px 32px;
-    font-size: 18px;
+    padding: 10px 20px;
+    font-size: 15px;
 }
 
 /* ==================== MESAS GRID ==================== */
 .mesas-container {
-    padding: 20px;
+    padding: 10px;
 }
 
 .mesas-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); /* Smaller cards */
+    gap: 8px;
 }
 
 .mesa-card {
     background: white;
-    padding: 30px 20px;
-    border-radius: 12px;
+    padding: 15px 5px;
+    border-radius: 8px;
     text-align: center;
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     border: 3px solid transparent;
-    min-height: 120px;
+    min-height: 80px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -262,20 +262,20 @@ body {
 /* ==================== CLASIFICACIONES ==================== */
 .clasificaciones-container {
     background: white;
-    padding: 10px;
+    padding: 6px;
     border-bottom: 2px solid #E0E0E0;
     flex-shrink: 0;
 }
 
 .clasificaciones-scroll {
     display: flex;
-    gap: 10px;
+    gap: 6px;
     overflow-x: auto;
-    padding-bottom: 5px;
+    padding-bottom: 2px;
 }
 
 .clasificaciones-scroll::-webkit-scrollbar {
-    height: 6px;
+    height: 4px;
 }
 
 .clasificaciones-scroll::-webkit-scrollbar-thumb {
@@ -285,11 +285,11 @@ body {
 
 .clasificacion-btn {
     flex-shrink: 0;
-    padding: 10px 20px;
+    padding: 6px 12px;
     background: #FFFFFF;
     border: 2px solid #D0D0D0;
-    border-radius: 20px;
-    font-size: 14px;
+    border-radius: 15px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -306,17 +306,17 @@ body {
 .productos-grid {
     flex: 1;
     overflow-y: auto;
-    padding: 15px;
+    padding: 8px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); /* More dense */
+    gap: 6px;
     align-content: start;
 }
 
 .producto-card {
     background: white;
-    border-radius: 10px;
-    padding: 12px;
+    border-radius: 6px;
+    padding: 6px;
     text-align: center;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -329,11 +329,11 @@ body {
 
 /* OPTIMIZADO: Lazy loading de imágenes */
 .producto-card img {
-    width: 80px;
-    height: 80px;
+    width: 50px;
+    height: 50px;
     object-fit: cover;
-    border-radius: 8px;
-    margin-bottom: 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
     background: #F5F5F5; /* Placeholder mientras carga */
 }
 
@@ -347,92 +347,94 @@ body {
 }
 
 .producto-card .nombre {
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
-    margin-bottom: 4px;
-    min-height: 32px;
+    margin-bottom: 2px;
+    min-height: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
+    line-height: 1.1;
 }
 
 .producto-sin-imagen {
-    width: 80px;
-    height: 80px;
+    width: 50px;
+    height: 50px;
     background: #F5F5F5;
-    border-radius: 8px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 8px;
-    font-size: 40px;
+    margin: 0 auto 4px;
+    font-size: 20px;
     color: #D0D0D0;
 }
 
 /* ==================== CARRITO - OPTIMIZADO ==================== */
 .productos-anteriores {
     border-bottom: 2px solid #E0E0E0;
-    padding: 10px 15px;
+    padding: 5px 10px;
     background: #FFF9C4;
-    max-height: 120px;
+    max-height: 100px;
     overflow-y: auto;
     flex-shrink: 0;
 }
 
 .productos-anteriores h3 {
-    font-size: 14px;
-    margin-bottom: 8px;
+    font-size: 12px;
+    margin-bottom: 4px;
     color: #F57C00;
 }
 
 .lista-productos-anteriores {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .producto-anterior-item {
     background: white;
-    padding: 8px;
-    border-radius: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
     display: flex;
     justify-content: space-between;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .carrito {
     flex: 1;
-    padding: 15px;
+    padding: 8px;
     overflow-y: auto;
     min-height: 0;
 }
 
 .carrito h3 {
-    font-size: 18px;
-    margin-bottom: 12px;
+    font-size: 15px;
+    margin-bottom: 8px;
 }
 
 .carrito-lista {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
 
 .carrito-vacio {
     text-align: center;
     color: #999;
-    padding: 20px;
+    padding: 15px;
     font-style: italic;
+    font-size: 14px;
 }
 
 .carrito-item {
     background: #F5F5F5;
-    padding: 12px;
-    border-radius: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .carrito-item-info {
@@ -442,34 +444,34 @@ body {
 
 .carrito-item-nombre {
     font-weight: 600;
-    margin-bottom: 4px;
-    font-size: 14px;
+    margin-bottom: 2px;
+    font-size: 13px;
 }
 
 .carrito-item-controles {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
 }
 
 .cantidad-controles {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     background: white;
-    padding: 4px 8px;
-    border-radius: 6px;
+    padding: 2px 4px;
+    border-radius: 4px;
 }
 
 .btn-cantidad {
     background: #4A90E2;
     color: white;
     border: none;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
     display: flex;
     align-items: center;
@@ -482,20 +484,20 @@ body {
 }
 
 .cantidad-display {
-    min-width: 30px;
+    min-width: 24px;
     text-align: center;
     font-weight: 600;
-    font-size: 16px;
+    font-size: 14px;
 }
 
 .carrito-item-eliminar {
     background: #F44336;
     color: white;
     border: none;
-    padding: 8px 12px;
-    border-radius: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     white-space: nowrap;
     flex-shrink: 0;
 }
@@ -504,8 +506,8 @@ body {
 .botones-accion {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    padding: 12px 12px 80px 12px; /* NUEVO: Padding inferior aumentado */
+    gap: 4px;
+    padding: 6px 6px 80px 6px; /* Compact padding */
     background: white;
     border-top: 2px solid #E0E0E0;
     flex-shrink: 0;
@@ -516,15 +518,15 @@ body {
 }
 
 .botones-accion .btn {
-    padding: 10px 8px;
-    font-size: 13px;
+    padding: 8px 4px;
+    font-size: 12px;
     white-space: nowrap;
 }
 
 .botones-accion .btn-large {
     grid-column: 1 / -1;
-    padding: 14px 20px;
-    font-size: 16px;
+    padding: 10px 16px;
+    font-size: 14px;
 }
 
 /* ==================== MODAL ==================== */
@@ -598,11 +600,11 @@ body {
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
     .mesas-grid {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     }
     
     .productos-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
     }
     
     .botones-accion {
@@ -617,7 +619,7 @@ body {
 
 @media (min-width: 768px) {
     .productos-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     }
     
     .botones-accion {
