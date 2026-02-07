@@ -236,6 +236,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
 }
 
@@ -245,7 +246,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     background: #F5F5F5;
-    max-height: 45vh; /* REDUCIDO para dar espacio a botones */
+    max-height: 40vh; /* REDUCIDO para dar espacio a botones */
 }
 
 .carrito-section {
@@ -254,7 +255,7 @@ body {
     flex-direction: column;
     background: white;
     border-top: 3px solid #E0E0E0;
-    max-height: 55vh; /* AUMENTADO */
+    max-height: 60vh; /* AUMENTADO */
     overflow: hidden;
 }
 
@@ -627,6 +628,6 @@ body {
 /* NUEVO: Asegurar que el viewport sea correcto en iOS */
 @supports (-webkit-touch-callout: none) {
     .botones-accion {
-        padding-bottom: calc(80px + env(safe-area-inset-bottom));
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
     }
 }
