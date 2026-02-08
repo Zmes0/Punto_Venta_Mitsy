@@ -350,8 +350,11 @@ class DineroCajaWindow:
         self.window.lift()
         self.window.attributes('-topmost', True)
         self.window.after(100, lambda: self.window.attributes('-topmost', False))
-        
-        self.window.iconbitmap(get_resource_path('icono.ico'))
+        try:
+            self.window.iconbitmap(get_resource_path('icono.ico'))
+        except Exception:
+            # Si falla cargar el icono, continuamos sin él para no romper la app
+            pass
         
         self.setup_ui()
         self.window.update_idletasks()

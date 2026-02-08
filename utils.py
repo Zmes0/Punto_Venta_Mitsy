@@ -49,7 +49,7 @@ def get_output_dir(dir_name: str) -> str:
         base_path = os.path.dirname(sys.executable)
     else:
         # En desarrollo, la base es el directorio raíz del proyecto
-        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        base_path = os.path.abspath(os.path.dirname(__file__))
     
     output_dir = os.path.join(base_path, dir_name)
     os.makedirs(output_dir, exist_ok=True)
@@ -238,7 +238,11 @@ def get_checkpoints_dir() -> str:
     """
     Retorna la ruta al directorio de checkpoints, creándolo si no existe.
     """
-    base_path = get_base_path()
+    if getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.abspath(os.path.dirname(__file__))
+        
     checkpoints_dir = os.path.join(base_path, 'data', 'checkpoints')
     os.makedirs(checkpoints_dir, exist_ok=True)
     return checkpoints_dir

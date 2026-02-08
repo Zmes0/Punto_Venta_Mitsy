@@ -1,31 +1,50 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
+
+# Archivos y carpetas a incluir
+datas = [
+    ('images', 'images'),
+    ('templates', 'templates'),
+    ('static', 'static'),
+    ('icono.ico', '.'),
+]
+
+binaries = []
+
+# Librerías que a veces PyInstaller no detecta automáticamente
+hiddenimports = [
+    'babel.numbers',
+    'waitress',
+    'pandas',
+    'openpyxl',
+    'reportlab',
+    'PIL',
+    'escpos',
+    'escpos.printer',
+    'engineio.async_drivers.threading',
+]
+
+# Recolectar datos necesarios para tkcalendar y babel
+tmp_ret = collect_all('tkcalendar')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+tmp_ret = collect_all('babel')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+tmp_ret = collect_all('escpos')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+tmp_ret = collect_all('setuptools')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
-    datas=[
-        ('images', 'images'),
-        ('templates', 'templates'),
-        ('static', 'static'),
-        ('icono.ico', '.')
-    ] + collect_data_files('escpos'),
-    hiddenimports=[
-        'babel.numbers',
-        'escpos.printer',
-        'reportlab',
-        'pandas',
-        'openpyxl',
-        'tkcalendar',
-        'PIL.ImageTk',
-        'flask',
-        'engineio.async_drivers.threading',
-        'jinja2.ext',
-        'waitress'
-    ],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -40,29 +59,22 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='MitsysPOS',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,  # Cambiar a True si quieres ver la consola para depurar errores
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements=None,
-    icon='icono.ico'
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='MitsysPOS',
+    icon='icono.ico',
 )
