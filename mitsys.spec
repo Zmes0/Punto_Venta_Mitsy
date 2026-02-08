@@ -24,6 +24,9 @@ hiddenimports = [
     'escpos',
     'escpos.printer',
     'engineio.async_drivers.threading',
+    'numpy',
+    'jaraco',
+    'jaraco.text',
 ]
 
 # Recolectar datos necesarios para tkcalendar y babel
@@ -34,9 +37,6 @@ tmp_ret = collect_all('babel')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 tmp_ret = collect_all('escpos')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-
-tmp_ret = collect_all('setuptools')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 a = Analysis(
