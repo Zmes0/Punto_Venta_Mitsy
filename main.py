@@ -262,7 +262,15 @@ class MitsysPOS:
         """Abre el módulo de configuración"""
         self.root.withdraw()
         from configuracion import ConfiguracionWindow
-        ConfiguracionWindow(self.root, on_close=self.on_module_close)
+        
+        # Controlador del servidor para la ventana de configuración
+        server_controller = {
+            'start': self.start_server,
+            'stop': self.cleanup_server,
+            'is_running': lambda: self.server_process is not None and self.server_process.poll() is None
+        }
+        
+        ConfiguracionWindow(self.root, on_close=self.on_module_close, server_controller=server_controller)
     
     def on_module_close(self):
         """Callback cuando se cierra un módulo"""

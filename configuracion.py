@@ -9,8 +9,9 @@ from database import db
 from auth import session, AdminAuthDialog
 
 class ConfiguracionWindow:
-    def __init__(self, parent, on_close=None):
+    def __init__(self, parent, on_close=None, server_controller=None):
         self.on_close_callback = on_close
+        self.server_controller = server_controller
         
         # La verificación de permisos de administrador se realiza en main.py (check_access)
         # antes de que esta ventana sea instanciada. Por lo tanto, no es necesario
@@ -183,7 +184,42 @@ class ConfiguracionWindow:
         url_entry.config(state='readonly')
         url_entry.pack(anchor='e')
         
+        # Botón de control del servidor (A la izquierda de la IP)
+        if self.server_controller:
+            self.server_btn_text = tk.StringVar()
+            self.server_btn = tk.Button(button_frame, textvariable=self.server_btn_text, 
+                                      command=self.toggle_server,
+                                      font=FONTS['button'], relief=tk.RAISED, 
+                                      borderwidth=2, padx=15, pady=5)
+            # Al empaquetar a la DERECHA después del info_frame, queda a su IZQUIERDA visualmente
+            self.server_btn.pack(side=tk.RIGHT, padx=10)
+            self.update_server_ui()
+        
         self.load_usuarios()
+    
+    def toggle_server(self):
+        """Alterna el estado del servidor web"""
+        if not self.server_controller: return
+        
+        if self.server_controller['is_running']():
+            if messagebox.askyesno("Detener Servidor", "¿Deseas detener el servidor web móvil?", parent=self.window):
+                self.server_controller['stop']()
+                self.update_server_ui()
+        else:
+            self.server_controller['start']()
+            self.update_server_ui()
+            messagebox.showinfo("Servidor Iniciado", "El servidor web se ha iniciado.", parent=self.window)
+
+    def update_server_ui(self):
+        """Actualiza la interfaz del botón del servidor"""
+        if not self.server_controller: return
+        
+        if self.server_controller['is_running']():
+            self.server_btn_text.set("⏹ Detener Servidor")
+            self.server_btn.config(bg=COLORS['danger'], fg='white')
+        else:
+            self.server_btn_text.set("▶ Iniciar Servidor")
+            self.server_btn.config(bg=COLORS['success'], fg='white')
     
     def setup_negocio_tab(self):
         """Configura la pestaña de información del negocio - ACTUALIZADO"""
