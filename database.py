@@ -1734,13 +1734,23 @@ class Database:
         return [dict(row) for row in self.cursor.fetchall()]
 
     def delete_database_file(self):
-        """Cierra la conexión y elimina el archivo de la base de datos."""
+        """Cierra la conexión y elimina el archivo de la base de datos y sus archivos auxiliares."""
         self.close()
         try:
             if os.path.exists(self.db_path):
                 os.remove(self.db_path)
-                print(f"Base de datos '{self.db_path}' eliminada correctamente.")
-                return True
+            
+            # Eliminar archivos WAL y SHM si existen
+            wal_path = self.db_path + '-wal'
+            shm_path = self.db_path + '-shm'
+            
+            if os.path.exists(wal_path):
+                os.remove(wal_path)
+            if os.path.exists(shm_path):
+                os.remove(shm_path)
+                
+            print(f"Base de datos '{self.db_path}' eliminada correctamente.")
+            return True
         except Exception as e:
             print(f"Error al eliminar la base de datos: {e}")
             return False
@@ -1752,11 +1762,22 @@ class Database:
             self.create_tables()
             self.init_config()
             print("Base de datos recreada exitosamente.")
+            
+    def backup_database_file(self, backup_path: str):
+        """Realiza una copia de seguridad segura de la base de datos (compatible con WAL)."""
+        try:
+            # Usar la API de backup de SQLite que maneja WAL correctamente sin cerrar conexión
+            backup_conn = sqlite3.connect(backup_path)
+            self.conn.backup(backup_conn)
+            backup_conn.close()
+            return True
+        except Exception as e:
+            print(f"Error en backup: {e}")
+            raise e
 
     def create_checkpoint(self, corte_numero: int):
         """Crea un checkpoint de la base de datos."""
-        self.close() # Cerrar conexión antes de copiar
-        
+        # No cerramos la conexión, usamos backup API que es segura
         from utils import get_checkpoints_dir
         checkpoint_dir = get_checkpoints_dir()
         
@@ -1765,27 +1786,24 @@ class Database:
         checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
         
         try:
-            import shutil
-            shutil.copy2(self.db_path, checkpoint_path)
+            self.backup_database_file(checkpoint_path)
             print(f"Checkpoint creado: {checkpoint_path}")
         except Exception as e:
             print(f"Error al crear checkpoint: {e}")
-        finally:
-            self.connect() # Reabrir conexión
     
     def restore_checkpoint(self, checkpoint_path: str):
         """Restaura la base de datos desde un checkpoint."""
-        self.close() # Cerrar conexión antes de reemplazar
+        # No cerramos la conexión, usamos la API de backup para restaurar
+        # Esto evita el error de "archivo en uso" por el servidor Flask/WAL
         
         try:
-            import shutil
-            shutil.copy2(checkpoint_path, self.db_path)
+            source_conn = sqlite3.connect(checkpoint_path)
+            source_conn.backup(self.conn)
+            source_conn.close()
             print(f"Base de datos restaurada desde: {checkpoint_path}")
         except Exception as e:
             print(f"Error al restaurar checkpoint: {e}")
             raise # Re-lanzar la excepción para que sea manejada por el llamador
-        finally:
-            self.connect() # Reabrir conexión
     
     def get_checkpoints(self) -> List[Dict]:
         """Obtiene una lista de checkpoints disponibles."""

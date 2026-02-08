@@ -407,7 +407,6 @@ class ConfiguracionWindow:
     
     def backup_database(self):
         """Crea una copia de seguridad de la base de datos en una ubicación seleccionada por el usuario."""
-        import shutil
         from datetime import datetime
         from tkinter import filedialog
 
@@ -429,14 +428,8 @@ class ConfiguracionWindow:
                 # El usuario canceló el diálogo
                 return
 
-            # Cerrar la conexión a la BD para evitar bloqueos del archivo
-            db.close()
-
-            # Copiar el archivo de la base de datos
-            shutil.copy2(db.db_path, backup_path)
-
-            # Reabrir la conexión a la BD
-            db.connect()
+            # Usar el método seguro de la clase Database
+            db.backup_database_file(backup_path)
 
             messagebox.showinfo("Copia de Seguridad Exitosa",
                                 f"La copia de seguridad se ha guardado correctamente en:\n{backup_path}",
@@ -451,9 +444,6 @@ class ConfiguracionWindow:
             messagebox.showerror("Error en Copia de Seguridad",
                                  f"Ocurrió un error al crear la copia de seguridad:\n{e}",
                                  parent=self.window)
-            # Asegurarse de que la conexión se reabra incluso si hay un error
-            if not db.conn:
-                db.connect()
 
     def confirm_replace_database(self):
         """Pide autorización de admin para reemplazar la base de datos."""
@@ -462,6 +452,7 @@ class ConfiguracionWindow:
 
     def perform_replace_database(self):
         """Abre el explorador para seleccionar una BD y la reemplaza."""
+        import os
         import shutil
         from tkinter import filedialog
         from utils import restart_application
@@ -489,6 +480,16 @@ class ConfiguracionWindow:
 
             # Cerrar la conexión a la BD
             db.close()
+
+            # Eliminar archivos WAL y SHM si existen para evitar corrupción
+            wal_path = db.db_path + '-wal'
+            shm_path = db.db_path + '-shm'
+            if os.path.exists(wal_path):
+                try: os.remove(wal_path)
+                except: pass
+            if os.path.exists(shm_path):
+                try: os.remove(shm_path)
+                except: pass
 
             # Reemplazar el archivo de la base de datos
             shutil.copy2(new_db_path, db.db_path)
