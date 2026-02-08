@@ -1800,6 +1800,11 @@ class Database:
             source_conn = sqlite3.connect(checkpoint_path)
             source_conn.backup(self.conn)
             source_conn.close()
+            
+            # IMPORTANTE: Forzar limpieza del archivo WAL
+            # Esto elimina cualquier transacción "futura" o fantasma que haya quedado en el log
+            self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            
             print(f"Base de datos restaurada desde: {checkpoint_path}")
         except Exception as e:
             print(f"Error al restaurar checkpoint: {e}")

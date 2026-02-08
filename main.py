@@ -32,6 +32,10 @@ class MitsysPOS:
         
         # Protocolo de cierre para asegurar que se mate el servidor
         self.root.protocol("WM_DELETE_WINDOW", self.salir)
+        
+        # Registrar limpieza para asegurar que el servidor muera al reiniciar
+        import atexit
+        atexit.register(self.cleanup_server)
     
     def center_window(self, window, width, height):
         """Centra una ventana en la pantalla"""
@@ -295,18 +299,23 @@ class MitsysPOS:
         except Exception as e:
             print(f"Error al iniciar servidor: {e}")
 
+    def cleanup_server(self):
+        """Detiene el servidor Flask de forma segura"""
+        if self.server_process:
+            try:
+                if sys.platform == 'win32':
+                    # Matar árbol de procesos en Windows
+                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(self.server_process.pid)])
+                else:
+                    self.server_process.terminate()
+                self.server_process = None # Evitar doble limpieza
+            except Exception as e:
+                print(f"Error al detener servidor: {e}")
+
     def salir(self):
         """Cierra el programa"""
         if messagebox.askyesno("Salir", "¿Estás seguro de que deseas salir del sistema?"):
-            if self.server_process:
-                try:
-                    if sys.platform == 'win32':
-                        # Matar árbol de procesos en Windows (necesario por el reloader de Flask)
-                        subprocess.call(['taskkill', '/F', '/T', '/PID', str(self.server_process.pid)])
-                    else:
-                        self.server_process.terminate()
-                except Exception as e:
-                    print(f"Error al detener servidor: {e}")
+            # La limpieza se ejecutará automáticamente por atexit, o podemos llamarla aquí
             self.root.quit()
             self.root.destroy()
     
