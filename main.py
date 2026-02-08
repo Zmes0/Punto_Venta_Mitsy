@@ -173,6 +173,11 @@ class MitsysPOS:
     def check_access(self, command, required_level):
         """Verifica el acceso antes de ejecutar un comando - CORREGIDO"""
         from auth import session, AdminAuthDialog
+        
+        if getattr(self, '_processing_access', False):
+            return
+        self._processing_access = True
+        self.root.after(1000, lambda: setattr(self, '_processing_access', False))
 
         if session.is_logged_in():
             session.update_activity()

@@ -1042,6 +1042,9 @@ class ProductoDialog:
     
     def save_producto(self):
         """Guarda el producto"""
+        if getattr(self, '_processing', False):
+            return
+        self._processing = True
         # Validar ID
         try:
             new_id = int(self.id_var.get())
@@ -1049,12 +1052,14 @@ class ProductoDialog:
                 raise ValueError()
         except ValueError:
             messagebox.showerror("Error", "El ID debe ser un número entero positivo")
+            self._processing = False
             return
         
         # Validaciones
         nombre = self.nombre_var.get().strip()
         if not nombre:
             messagebox.showerror("Error", "El nombre es obligatorio")
+            self._processing = False
             return
         
         try:
@@ -1063,6 +1068,7 @@ class ProductoDialog:
             stock = float(self.stock_var.get()) if self.stock_var.get() else 0
         except ValueError:
             messagebox.showerror("Error", "Precio, costo y stock deben ser números válidos")
+            self._processing = False
             return
         
         gestion = self.gestion_var.get()
@@ -1116,8 +1122,10 @@ class ProductoDialog:
             
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+            self._processing = False
         except Exception as e:
             messagebox.showerror("Error", f"Error al guardar producto: {str(e)}")
+            self._processing = False
             
     def browse_image(self):
         """Abre diálogo para seleccionar imagen"""

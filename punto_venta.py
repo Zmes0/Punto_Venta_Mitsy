@@ -326,7 +326,11 @@ class PuntoVentaWindow:
     
     def open_mesa(self, mesa):
         """Abre la ventana de venta para una mesa"""
+        if getattr(self, '_processing_mesa', False):
+            return
+        self._processing_mesa = True
         VentaMesaWindow(self.window, mesa, callback=self.refresh_mesas)
+        self.window.after(1000, lambda: setattr(self, '_processing_mesa', False))
     
     def refresh_mesas(self):
         """Refresca la ventana para actualizar indicadores de mesas pendientes"""
@@ -741,7 +745,11 @@ class VentaMesaWindow:
     
     def agregar_productos(self):
         """Abre ventana para agregar productos"""
+        if getattr(self, '_processing_add', False):
+            return
+        self._processing_add = True
         AgregarProductosWindow(self.window, callback=self.add_producto_to_venta)
+        self.window.after(1000, lambda: setattr(self, '_processing_add', False))
     
     def add_producto_to_venta(self, producto_data):
         """Añade un producto a la venta"""
@@ -849,14 +857,19 @@ class VentaMesaWindow:
     
     def cobrar_venta(self):
         """Abre ventana para cobrar la venta"""
+        if getattr(self, '_processing_cobrar', False):
+            return
+        self._processing_cobrar = True
         if not self.productos_venta:
             messagebox.showwarning("Advertencia", "No hay productos en la venta")
+            self._processing_cobrar = False
             return
         
         total = sum(p['total'] for p in self.productos_venta)
         
         CobrarVentaWindow(self.window, self.productos_venta, total, 
                          self.mesa, callback=self.on_venta_cobrada)
+        self.window.after(1000, lambda: setattr(self, '_processing_cobrar', False))
     
     def on_venta_cobrada(self):
         """Callback cuando se cobra la venta exitosamente"""
@@ -1725,10 +1738,10 @@ class CobrarVentaWindow:
         
         
         self.recibido_var = tk.StringVar(value="0")
-        self.recibido_var.trace('w', lambda *args: self.calculate_cambio())
         self.recibido_entry = tk.Entry(recibido_frame, textvariable=self.recibido_var, 
                                        font=FONTS['normal'], width=15, justify='right')
         self.recibido_entry.pack(side=tk.RIGHT)
+        self.recibido_var.trace('w', self.on_recibido_change)
         
         # Seleccionar todo y dar foco
         self.recibido_entry.focus()
@@ -1836,6 +1849,46 @@ class CobrarVentaWindow:
             else:
                 self.propina_var.set(current + digit)
     
+    def on_recibido_change(self, *args):
+        """Formatea el campo de recibido con comas y calcula cambio"""
+        if getattr(self, '_updating_recibido', False):
+            return
+
+        value = self.recibido_var.get()
+        if not value:
+            self.calculate_cambio()
+            return
+
+        clean_value = value.replace(',', '')
+        
+        try:
+            # Evitar formatear si hay múltiples puntos
+            if clean_value.count('.') > 1:
+                self.calculate_cambio()
+                return
+                
+            # Separar parte entera y decimal
+            if '.' in clean_value:
+                parts = clean_value.split('.')
+                integer_part = parts[0]
+                decimal_part = parts[1]
+                
+                formatted_integer = "{:,}".format(int(integer_part)) if integer_part else "0"
+                new_value = f"{formatted_integer}.{decimal_part}"
+            else:
+                new_value = "{:,}".format(int(clean_value)) if clean_value else ""
+            
+            if new_value != value:
+                self._updating_recibido = True
+                self.recibido_var.set(new_value)
+                if hasattr(self, 'recibido_entry'):
+                    self.recibido_entry.icursor(tk.END)
+                self._updating_recibido = False
+        except ValueError:
+            pass
+            
+        self.calculate_cambio()
+
     def numpad_backspace(self):
         """Borra el último dígito"""
         focused = self.dialog.focus_get()
@@ -1868,7 +1921,8 @@ class CobrarVentaWindow:
         try:
             propina = float(self.propina_var.get()) if self.propina_var.get() else 0
             total = self.subtotal + propina
-            recibido = float(self.recibido_var.get()) if self.recibido_var.get() else 0
+            recibido_str = self.recibido_var.get().replace(',', '')
+            recibido = float(recibido_str) if recibido_str else 0
             cambio = recibido - total
             
             if cambio < 0:
@@ -1880,15 +1934,21 @@ class CobrarVentaWindow:
     
     def finalizar_venta(self):
         """Finaliza la venta (MODIFICADO para guardar recibido y cambio)"""
+        if getattr(self, '_processing', False):
+            return
+        self._processing = True
         try:
             propina = float(self.propina_var.get()) if self.propina_var.get() else 0
             total = self.subtotal + propina
-            recibido = float(self.recibido_var.get()) if self.recibido_var.get() else 0
+            recibido_str = self.recibido_var.get().replace(',', '')
+            recibido = float(recibido_str) if recibido_str else 0
         
             # Validar que el dinero recibido sea suficiente
             if recibido < total:
                 messagebox.showerror("Error", 
-                                f"El dinero recibido ({format_currency(recibido)}) es menor al total ({format_currency(total)})")
+                                f"El dinero recibido ({format_currency(recibido)}) es menor al total ({format_currency(total)})",
+                                parent=self.dialog)
+                self._processing = False
                 return
     
             cambio = recibido - total
@@ -1901,7 +1961,8 @@ class CobrarVentaWindow:
                                                 self.mesa, propina, recibido, cambio)
             except ValueError as stock_error:
                 # Error de stock insuficiente
-                messagebox.showerror("Stock Insuficiente", str(stock_error))
+                messagebox.showerror("Stock Insuficiente", str(stock_error), parent=self.dialog)
+                self._processing = False
                 return
     
             # Abrir caja si el pago es en efectivo
@@ -1935,14 +1996,15 @@ class CobrarVentaWindow:
                     ticket_generator.print_thermal_ticket(venta_data)
         
             except Exception as e:
-                messagebox.showerror("Error", f"Error al generar/imprimir ticket: {str(e)}")
+                messagebox.showerror("Error", f"Error al generar/imprimir ticket: {str(e)}", parent=self.dialog)
     
             # Mostrar resumen
             messagebox.showinfo("Venta Completada", 
                             f"Venta #{numero_venta} completada exitosamente\n\n"
                             f"Total: {format_currency(total)}\n"
                             f"Recibido: {format_currency(recibido)}\n"
-                            f"Cambio: {format_currency(cambio)}")
+                            f"Cambio: {format_currency(cambio)}",
+                            parent=self.dialog)
     
             self.dialog.destroy()
     
@@ -1950,9 +2012,11 @@ class CobrarVentaWindow:
                 self.callback()
     
         except ValueError:
-            messagebox.showerror("Error", "Valores inválidos. Verifica propina y dinero recibido.")
+            messagebox.showerror("Error", "Valores inválidos. Verifica propina y dinero recibido.", parent=self.dialog)
+            self._processing = False
         except Exception as e:
-            messagebox.showerror("Error", f"Error al finalizar venta: {str(e)}")
+            messagebox.showerror("Error", f"Error al finalizar venta: {str(e)}", parent=self.dialog)
+            self._processing = False
 
             
 class FinalizarDiaWindow:
@@ -2153,6 +2217,9 @@ class FinalizarDiaWindow:
     
     def finalizar_dia(self):
         """Finaliza el día y realiza el corte - MODIFICADO con nuevo resumen"""
+        if getattr(self, '_processing', False):
+            return
+        self._processing = True
         try:
             # Calcular corte final desde denominaciones
             denominacion_total = 0
@@ -2163,9 +2230,11 @@ class FinalizarDiaWindow:
                         denominacion_total += cantidad * data['denominacion']
                     else:
                         messagebox.showerror("Error", "Las cantidades no pueden ser negativas")
+                        self._processing = False
                         return
                 except ValueError:
                     messagebox.showerror("Error", "Todas las cantidades deben ser números enteros")
+                    self._processing = False
                     return
 
             # Verificar si se usó la entrada manual
@@ -2185,6 +2254,7 @@ class FinalizarDiaWindow:
             
             if not corte_id:
                 messagebox.showerror("Error", "No se pudo cerrar el corte. No hay corte activo.")
+                self._processing = False
                 return
             
             # NUEVO: Obtener información completa del corte recién cerrado
@@ -2240,6 +2310,7 @@ Ganancias Netas:         {format_currency(corte['ganancias'])}
             
         except Exception as e:
             messagebox.showerror("Error", f"Error al finalizar día: {str(e)}")
+            self._processing = False
     
     def get_estado_emoji(self, estado):
         """Retorna emoji según el estado del corte"""
