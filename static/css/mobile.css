@@ -507,7 +507,7 @@ body {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 4px;
-    padding: 6px 6px 80px 6px; /* Compact padding */
+    padding: 6px 6px 15px 6px; /* Compact padding - Ajustado para Android */
     background: white;
     border-top: 2px solid #E0E0E0;
     flex-shrink: 0;
@@ -609,7 +609,7 @@ body {
     
     .botones-accion {
         grid-template-columns: repeat(2, 1fr);
-        padding-bottom: 100px; /* Aún más espacio en móviles */
+        padding-bottom: 15px; /* Ajustado para Android (iOS usa @supports abajo) */
     }
     
     .botones-accion .btn-large {
