@@ -17,7 +17,10 @@ class MitsysPOS:
         self.server_process = None
         self.root = tk.Tk()
         self.root.title("Mitsy's POS")
-        self.root.iconbitmap(get_resource_path('icono.ico'))
+        try:
+            self.root.iconbitmap(get_resource_path('icono.ico'))
+        except Exception:
+            pass
         self.root.geometry("600x700")
         self.root.configure(bg=COLORS['bg_primary'])
         
