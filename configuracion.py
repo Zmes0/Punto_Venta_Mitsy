@@ -158,6 +158,31 @@ class ConfiguracionWindow:
                  font=FONTS['button'], bg=COLORS['danger'], fg='white',
                  relief=tk.RAISED, borderwidth=2, padx=20, pady=10).pack(side=tk.LEFT, padx=5)
         
+        # Mostrar URL de acceso web
+        try:
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            local_ip = "127.0.0.1"
+        
+        url_web = f"http://{local_ip}:5000"
+        
+        info_frame = tk.Frame(button_frame, bg=COLORS['bg_primary'])
+        info_frame.pack(side=tk.RIGHT, padx=10)
+        
+        tk.Label(info_frame, text="Acceso Web Móvil/Tablet:", font=FONTS['small'], 
+                bg=COLORS['bg_primary'], fg=COLORS['text_secondary']).pack(anchor='e')
+        
+        url_entry = tk.Entry(info_frame, font=('Segoe UI', 10, 'bold'), 
+                            width=22, justify='center', bg=COLORS['bg_secondary'], 
+                            relief=tk.FLAT, fg=COLORS['accent'])
+        url_entry.insert(0, url_web)
+        url_entry.config(state='readonly')
+        url_entry.pack(anchor='e')
+        
         self.load_usuarios()
     
     def setup_negocio_tab(self):

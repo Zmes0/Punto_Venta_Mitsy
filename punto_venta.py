@@ -38,7 +38,13 @@ class PuntoVentaWindow:
         # MODIFICACIÓN: Cargar mesas desde la base de datos
         self.load_mesas()
         
+        # ID para el proceso de actualización automática
+        self.polling_id = None
+        
         self.setup_ui()
+        
+        # Iniciar actualización automática
+        self.start_polling()
     
     def load_mesas(self):
         """Carga la configuración de mesas desde la base de datos."""
@@ -185,6 +191,56 @@ class PuntoVentaWindow:
                           relief=tk.RAISED, borderwidth=2, padx=30, pady=10)
             btn.pack(side=tk.LEFT, padx=10)
     
+    def start_polling(self):
+        """Inicia el ciclo de actualización automática de mesas."""
+        self.poll_updates()
+
+    def poll_updates(self):
+        """Consulta el estado de las mesas y actualiza la interfaz periódicamente."""
+        if not self.window.winfo_exists():
+            return
+
+        try:
+            # Obtener estados actualizados desde la base de datos
+            estados_mesas = db.get_mesas_por_estado()
+            mesas_pendientes = db.get_mesas_con_ventas_pendientes()
+            
+            # Actualizar colores de los botones de mesas
+            for mesa, btn in self.mesa_buttons.items():
+                estado = estados_mesas.get(mesa, 'libre')
+                
+                # Determinar colores según estado (lógica idéntica a setup_ui)
+                if estado == 'libre':
+                    bg_color = COLORS['mesa_libre']
+                    fg_color = COLORS['text_primary']
+                elif estado == 'ocupada_sin_pedido':
+                    bg_color = COLORS['mesa_ocupada']
+                    fg_color = COLORS['text_primary']
+                elif estado == 'pedido_pendiente':
+                    bg_color = COLORS['mesa_pedido_pendiente']
+                    fg_color = 'white'
+                elif estado == 'pedido_terminado':
+                    bg_color = COLORS['mesa_pedido_terminado']
+                    fg_color = 'white'
+                else:
+                    bg_color = COLORS['button_bg']
+                    fg_color = COLORS['text_primary']
+                
+                # Prioridad a ventas pendientes locales si no es pedido terminado
+                if mesa in mesas_pendientes and estado != 'pedido_terminado':
+                    bg_color = COLORS['warning']
+                    fg_color = 'white'
+                
+                # Aplicar cambios solo si es necesario para evitar parpadeo
+                if btn.cget('bg') != bg_color or btn.cget('fg') != fg_color:
+                    btn.config(bg=bg_color, fg=fg_color)
+                    
+        except Exception as e:
+            print(f"Error en actualización automática: {e}")
+        
+        # Programar siguiente actualización en 3 segundos
+        self.polling_id = self.window.after(3000, self.poll_updates)
+
     def toggle_auto_print(self, *args):
         """Activa/desactiva la impresión automática"""
         activo = self.auto_print_var.get()
@@ -301,6 +357,8 @@ class PuntoVentaWindow:
     
     def close_window(self):
         """Cierra la ventana y vuelve al menú"""
+        if self.polling_id:
+            self.window.after_cancel(self.polling_id)
         self.window.destroy()
         if self.on_close_callback:
             self.on_close_callback()
@@ -475,6 +533,31 @@ class VentaMesaWindow:
         
         self.update_table()
 
+    def show_temporary_info(self, title, message, duration=3500):
+        """Muestra un mensaje temporal que se cierra automáticamente"""
+        popup = tk.Toplevel(self.window)
+        popup.title(title)
+        popup.configure(bg=COLORS['bg_primary'])
+        popup.transient(self.window)
+        
+        # Contenido
+        frame = tk.Frame(popup, bg=COLORS['bg_primary'], padx=30, pady=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        tk.Label(frame, text=message, font=FONTS['normal'], 
+                bg=COLORS['bg_primary'], fg=COLORS['text_primary']).pack()
+        
+        # Centrar
+        popup.update_idletasks()
+        width = popup.winfo_reqwidth()
+        height = popup.winfo_reqheight()
+        x = self.window.winfo_rootx() + (self.window.winfo_width() // 2) - (width // 2)
+        y = self.window.winfo_rooty() + (self.window.winfo_height() // 2) - (height // 2)
+        popup.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Cerrar automáticamente
+        popup.after(duration, popup.destroy)
+
     def load_and_merge_products(self):
         """Carga productos de ventas pendientes y de la web, y los fusiona."""
         import copy
@@ -516,8 +599,6 @@ class VentaMesaWindow:
                 if productos_finales:
                     db.set_estado_mesa(self.mesa, 'pedido_pendiente')
                 
-                self.window.after(100, lambda: messagebox.showinfo("Pedidos Web", f"Se han agregado {len(productos_web)} producto(s) desde un pedido web."))
-
         except Exception as e:
             self.window.after(100, lambda: messagebox.showerror("Error Web", f"No se pudieron cargar los pedidos web: {e}"))
         
