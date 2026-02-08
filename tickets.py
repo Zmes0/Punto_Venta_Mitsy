@@ -152,14 +152,14 @@ class TicketGenerator:
             return False
         
         try:
+            # Obtener información del negocio (y actualizar configuración de impresora)
+            business_info = self._get_business_info()
+            
             # Conectar a la impresora térmica con perfil configurado
             p = Win32Raw(self.thermal_printer_name, profile='POS-5890')
             
             # Inicializar impresora
             p.hw('INIT')
-            
-            # Obtener información del negocio
-            business_info = self._get_business_info()
             
             # ========== LOGO ==========
             if business_info['mostrar_logo']:
@@ -392,14 +392,14 @@ class TicketGenerator:
             return False
         
         try:
+            # Obtener información del negocio (y actualizar configuración de impresora)
+            business_info = self._get_business_info()
+            
             # Conectar a la impresora térmica
             p = Win32Raw(self.thermal_printer_name, profile='POS-5890')
             
             # Inicializar impresora
             p.hw('INIT')
-            
-            # Obtener información del negocio
-            business_info = self._get_business_info()
             
             # ========== ENCABEZADO ==========
             p.set(align='center', bold=True, width=2, height=2)
@@ -485,12 +485,12 @@ class TicketGenerator:
             return False
 
         try:
+            # Obtener información del negocio (y actualizar configuración de impresora)
+            business_info = self._get_business_info()
+            
             # Conectar a la impresora térmica
             p = Win32Raw(self.thermal_printer_name, profile='POS-5890')
             p.hw('INIT')
-
-            # Obtener información del negocio
-            business_info = self._get_business_info()
 
             # ========== LOGO ==========
             if business_info['mostrar_logo']:

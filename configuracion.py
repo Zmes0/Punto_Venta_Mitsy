@@ -54,7 +54,7 @@ class ConfiguracionWindow:
         self.setup_usuarios_tab()
         
         self.negocio_frame = tk.Frame(self.notebook, bg=COLORS['bg_primary'])
-        self.notebook.add(self.negocio_frame, text="  Información del Negocio  ")
+        self.notebook.add(self.negocio_frame, text="  Configuración Tickets  ")
         self.setup_negocio_tab()
         
         self.audit_frame = tk.Frame(self.notebook, bg=COLORS['bg_primary'])
