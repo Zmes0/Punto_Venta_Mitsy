@@ -382,7 +382,7 @@ def get_productos():
                 'id': p['id'],
                 'nombre': p['nombre'],
                 'precio': p['precio_unitario'],
-                'imagen_url': None  # Imágenes desactivadas para usar placeholders
+                'imagen_url': None  # Forzar placeholder para optimizar carga en móviles
             })
         
         return jsonify(productos_data)

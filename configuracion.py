@@ -253,8 +253,12 @@ class ConfiguracionWindow:
     
         # Habilitar scroll con rueda del mouse
         def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            try:
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            except tk.TclError:
+                pass
+        canvas.bind('<Enter>', lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind('<Leave>', lambda e: canvas.unbind_all("<MouseWheel>"))
 
         # Frame principal con 2 columnas dentro del scroll
         content_frame = tk.Frame(content_scroll_frame, bg=COLORS['bg_primary'])
@@ -991,6 +995,10 @@ class ConfiguracionWindow:
 
     def close_window(self):
         """Cierra la ventana"""
+        try:
+            self.window.unbind_all("<MouseWheel>")
+        except:
+            pass
         self.window.destroy()
         if self.on_close_callback:
             self.on_close_callback()
