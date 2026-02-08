@@ -279,17 +279,15 @@ class MitsysPOS:
     def start_server(self):
         """Inicia el servidor Flask en un proceso separado"""
         try:
-            # Determinar ruta de flask_app.py
             if getattr(sys, 'frozen', False):
+                # En modo ejecutable, nos llamamos a nosotros mismos con el argumento --server
                 base_dir = os.path.dirname(sys.executable)
+                cmd = [sys.executable, '--server']
             else:
+                # En modo desarrollo, llamamos al script de python
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-            
-            script_path = os.path.join(base_dir, 'flask_app.py')
-            
-            if not os.path.exists(script_path):
-                print(f"No se encontró el servidor en: {script_path}")
-                return
+                script_path = os.path.join(base_dir, 'flask_app.py')
+                cmd = [sys.executable, script_path]
 
             # Ocultar consola en Windows
             startupinfo = None
@@ -298,7 +296,7 @@ class MitsysPOS:
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             
             self.server_process = subprocess.Popen(
-                [sys.executable, script_path],
+                cmd,
                 cwd=base_dir,
                 startupinfo=startupinfo
             )
@@ -573,5 +571,17 @@ class DineroCajaWindow:
 
 
 if __name__ == "__main__":
-    app = MitsysPOS()
-    app.run()
+    # Verificar si debemos ejecutar como servidor o como GUI
+    if len(sys.argv) > 1 and sys.argv[1] == '--server':
+        try:
+            from flask_app import app, db
+            # Configuración necesaria antes de correr
+            db.limpiar_bloqueos_antiguos(minutos=0)
+            print("Iniciando servidor de producción (Waitress)...")
+            from waitress import serve
+            serve(app, host='0.0.0.0', port=5000, threads=1)
+        except Exception as e:
+            print(f"Error fatal en servidor: {e}")
+    else:
+        app = MitsysPOS()
+        app.run()

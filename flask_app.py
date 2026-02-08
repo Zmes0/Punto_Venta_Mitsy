@@ -6,10 +6,13 @@ from flask import Flask, request, jsonify, render_template, session, redirect, s
 from functools import wraps
 from database import db
 from tickets import ticket_generator
+from utils import get_resource_path
 from datetime import datetime
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, 
+            template_folder=get_resource_path('templates'),
+            static_folder=get_resource_path('static'))
 app.secret_key = os.urandom(24)
 
 # ==================== DECORADOR DE AUTENTICACIÓN ====================
@@ -463,6 +466,6 @@ if __name__ == '__main__':
     print("   http://TU_IP:5000")
     print("=" * 50)
     
-    # CORRECCIÓN: debug=False evita cierres inesperados.
-    # threaded=False evita que las consultas a la BD se mezclen (soluciona productos faltantes).
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=False)
+    from waitress import serve
+    # Usamos threads=1 para mantener la compatibilidad con la base de datos SQLite (single connection)
+    serve(app, host='0.0.0.0', port=5000, threads=1)

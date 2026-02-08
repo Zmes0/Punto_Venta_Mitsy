@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ mesa }} - Mitsy's POS</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+</head>
+<body class="mesa-detalle-page">
+    <div class="top-bar">
+        <button onclick="volverAMesas()" class="btn btn-small">← Volver</button>
+        <h1>{{ mesa }}</h1>
+        <span class="user-info">{{ username }}</span>
+    </div>
+    
+    <!-- MITAD SUPERIOR: Clasificaciones y Productos -->
+    <div class="productos-section">
+        <!-- Clasificaciones -->
+        <div class="clasificaciones-container">
+            <div id="clasificacionesScroll" class="clasificaciones-scroll">
+                <!-- Se cargan dinámicamente -->
+            </div>
+        </div>
+        
+        <!-- Productos de la clasificación seleccionada -->
+        <div class="productos-grid" id="productosGrid">
+            <!-- Se cargan dinámicamente -->
+        </div>
+    </div>
+    
+    <!-- MITAD INFERIOR: Carrito y Botones -->
+    <div class="carrito-section">
+        <!-- Carrito actual (editable) -->
+        <div class="carrito">
+            <h3>Carrito</h3>
+            <div id="carritoLista" class="carrito-lista">
+                <p class="carrito-vacio">El carrito está vacío</p>
+            </div>
+        </div>
+        
+        <!-- Botones de acción -->
+        <div class="botones-accion">
+            <button id="btnMarcarLibre" onclick="cambiarEstado('libre')" class="btn btn-secondary">
+                Marcar Libre
+            </button>
+            <button id="btnMarcarOcupada" onclick="cambiarEstado('ocupada_sin_pedido')" class="btn btn-warning">
+                Marcar Ocupada
+            </button>
+            <button id="btnMarcarTerminado" onclick="cambiarEstado('pedido_terminado')" class="btn btn-success">
+                Marcar Terminado
+            </button>
+            <button onclick="limpiarVenta()" class="btn btn-danger">
+                Limpiar Venta
+            </button>
+            <button onclick="enviarAPOS()" class="btn btn-primary btn-large">
+                Enviar a POS
+            </button>
+        </div>
+    </div>
+    
+    <!-- Modal de advertencia de mesa bloqueada -->
+    <div id="modalBloqueada" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>⚠️ Mesa en Uso</h3>
+            <p id="mensajeBloqueada"></p>
+            <button onclick="cerrarModalBloqueada()" class="btn btn-primary">Entendido</button>
+        </div>
+    </div>
+    
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="spinner"></div>
+        <p id="loadingMessage">Procesando...</p>
+    </div>
+    
+    <script>
+        const MESA = "{{ mesa }}";
+        const USERNAME = "{{ username }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/mesa_detalle.js') }}"></script>
+</body>
+</html>
