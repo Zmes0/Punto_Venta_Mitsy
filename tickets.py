@@ -34,12 +34,38 @@ class TicketGenerator:
         
         # Configuración de impresora térmica
         self.thermal_printer_name = "POS-58"
+        self.printer_width_mm = 58
+        self.chars_per_line = 32
+        
+        # Tamaños de fuente para PDF (dinámicos)
+        self.font_size_title = 12
+        self.font_size_normal = 8
+        self.font_size_small = 7
     
     def _get_business_info(self):
         """Obtiene información del negocio desde la base de datos"""
         negocio = db.get_negocio_info()
         
         if negocio:
+            # Actualizar configuración de impresora y dimensiones
+            self.thermal_printer_name = negocio.get('nombre_impresora', 'POS-58')
+            self.printer_width_mm = negocio.get('ancho_impresora', 58)
+            
+            self.width = self.printer_width_mm * mm
+            
+            if self.printer_width_mm >= 80:
+                self.margin = 5 * mm
+                self.chars_per_line = 48  # Estándar para 80mm (Fuente A)
+                self.font_size_title = 14
+                self.font_size_normal = 10
+                self.font_size_small = 8
+            else:
+                self.margin = 2 * mm
+                self.chars_per_line = 32  # Estándar para 58mm
+                self.font_size_title = 12
+                self.font_size_normal = 8
+                self.font_size_small = 7
+            
             return {
                 'name': negocio.get('name', ''),
                 'subtitle': negocio.get('subtitle', ''),
@@ -146,8 +172,8 @@ class TicketGenerator:
                         # Convertir a blanco y negro
                         img = img.convert('1')
                         
-                        # Redimensionar para 58mm (300 píxeles recomendado para centrado)
-                        max_width = 300
+                        # Redimensionar según ancho (300px para 58mm, 500px para 80mm)
+                        max_width = 500 if self.printer_width_mm >= 80 else 300
                         if img.width > max_width:
                             ratio = max_width / img.width
                             new_height = int(img.height * ratio)
@@ -210,7 +236,14 @@ class TicketGenerator:
             
             # ========== PRODUCTOS ==========
             p.set(align='left', bold=True)
-            p.text(f"{'Cant.':<6}{'Descripción':<18}{'Total':>8}\n")
+            
+            # Calcular anchos de columnas dinámicamente
+            col_cant = 6
+            col_total = 10
+            col_desc = self.chars_per_line - col_cant - col_total
+            fmt = f"{{:<{col_cant}}}{{:<{col_desc}}}{{:>{col_total}}}\n"
+            
+            p.text(fmt.format('Cant.', 'Descripción', 'Total'))
             p.set(align='left', bold=False)
             
             for producto in venta_data['productos']:
@@ -218,13 +251,13 @@ class TicketGenerator:
                 nombre = producto['nombre']
                 
                 # Truncar nombre si es muy largo
-                if len(nombre) > 18:
-                    nombre = nombre[:15] + "..."
+                if len(nombre) > col_desc:
+                    nombre = nombre[:col_desc-3] + "..."
                 
                 total = format_currency(producto['total'])
                 
                 # Línea del producto
-                p.text(f"{cant:<6}{nombre:<18}{total:>8}\n")
+                p.text(fmt.format(cant, nombre, total))
                 
                 # Precio unitario (más pequeño)
                 precio_unit = format_currency(producto['precio'])
@@ -244,18 +277,18 @@ class TicketGenerator:
             if venta_data.get('propina', 0) > 0:
                 subtotal_str = format_currency(venta_data['subtotal'])
                 label = "Subtotal:"
-                p.text(f"{label:<{32-len(subtotal_str)}}{subtotal_str}\n")
+                p.text(f"{label:<{self.chars_per_line-len(subtotal_str)}}{subtotal_str}\n")
                 
                 propina_str = format_currency(venta_data['propina'])
                 label = "Propina:"
-                p.text(f"{label:<{32-len(propina_str)}}{propina_str}\n")
+                p.text(f"{label:<{self.chars_per_line-len(propina_str)}}{propina_str}\n")
                 p.text('\n')
             
             # Total (sin doble tamaño, solo negrita)
             p.set(bold=True)
             total_str = format_currency(venta_data['total'])
             label = "TOTAL:"
-            p.text(f"{label:<{32-len(total_str)}}{total_str}\n")
+            p.text(f"{label:<{self.chars_per_line-len(total_str)}}{total_str}\n")
             
             p.set(bold=False)
             p.text('\n')
@@ -263,12 +296,12 @@ class TicketGenerator:
             # Recibido
             recibido_str = format_currency(venta_data['recibido'])
             label = "Recibido:"
-            p.text(f"{label:<{32-len(recibido_str)}}{recibido_str}\n")
+            p.text(f"{label:<{self.chars_per_line-len(recibido_str)}}{recibido_str}\n")
             
             # Cambio
             cambio_str = format_currency(venta_data['cambio'])
             label = "Cambio:"
-            p.text(f"{label:<{32-len(cambio_str)}}{cambio_str}\n")
+            p.text(f"{label:<{self.chars_per_line-len(cambio_str)}}{cambio_str}\n")
             
             p.text('\n')
             
@@ -284,12 +317,12 @@ class TicketGenerator:
                     total_letras = numero_a_letras(venta_data['total'])
                     p.set(align='center', bold=False)
                     
-                    # Dividir en líneas si es muy largo (máximo 32 caracteres por línea)
+                    # Dividir en líneas si es muy largo
                     palabras = total_letras.split()
                     linea_actual = ""
                     
                     for palabra in palabras:
-                        if len(linea_actual + palabra) <= 32:
+                        if len(linea_actual + palabra) <= self.chars_per_line:
                             linea_actual += palabra + " "
                         else:
                             p.text(f"{linea_actual.strip()}\n")
@@ -406,12 +439,12 @@ class TicketGenerator:
                 p.set(bold=False, width=1, height=1)
                 nombre = producto['nombre']
                 
-                # Dividir nombre en líneas si es muy largo (máximo 32 caracteres)
+                # Dividir nombre en líneas si es muy largo
                 palabras = nombre.split()
                 linea_actual = ""
                 
                 for palabra in palabras:
-                    if len(linea_actual + palabra) <= 32:
+                    if len(linea_actual + palabra) <= self.chars_per_line:
                         linea_actual += palabra + " "
                     else:
                         p.text(f"   {linea_actual.strip()}\n")
@@ -466,7 +499,7 @@ class TicketGenerator:
                     try:
                         img = Image.open(logo_path)
                         img = img.convert('1')
-                        max_width = 300
+                        max_width = 500 if self.printer_width_mm >= 80 else 300
                         if img.width > max_width:
                             ratio = max_width / img.width
                             new_height = int(img.height * ratio)
@@ -518,17 +551,23 @@ class TicketGenerator:
 
             # ========== PRODUCTOS ==========
             p.set(align='left', bold=True)
-            p.text(f"{ 'Cant.':<6}{'Descripción':<18}{'Total':>8}\n")
+            
+            col_cant = 6
+            col_total = 10
+            col_desc = self.chars_per_line - col_cant - col_total
+            fmt = f"{{:<{col_cant}}}{{:<{col_desc}}}{{:>{col_total}}}\n"
+            
+            p.text(fmt.format('Cant.', 'Descripción', 'Total'))
             p.set(align='left', bold=False)
 
             subtotal = 0
             for producto in productos_venta:
                 cant = str(int(producto['cantidad']))
                 nombre = producto['nombre']
-                if len(nombre) > 18:
-                    nombre = nombre[:15] + "..."
+                if len(nombre) > col_desc:
+                    nombre = nombre[:col_desc-3] + "..."
                 total_prod = format_currency(producto['total'])
-                p.text(f"{cant:<6}{nombre:<18}{total_prod:>8}\n")
+                p.text(fmt.format(cant, nombre, total_prod))
                 
                 precio_unit = format_currency(producto['precio'])
                 p.text(f"      {precio_unit} c/u\n")
@@ -545,7 +584,7 @@ class TicketGenerator:
             p.set(align='left', bold=True)
             total_formatted = format_currency(subtotal)
             label = "TOTAL:"
-            p.text(f"{label:<{32-len(total_formatted)}}{total_formatted}\n")
+            p.text(f"{label:<{self.chars_per_line-len(total_formatted)}}{total_formatted}\n")
             p.set(bold=False)
             p.text('\n')
 
@@ -557,7 +596,7 @@ class TicketGenerator:
                     palabras = total_letras.split()
                     linea_actual = ""
                     for palabra in palabras:
-                        if len(linea_actual + palabra) <= 32:
+                        if len(linea_actual + palabra) <= self.chars_per_line:
                             linea_actual += palabra + " "
                         else:
                             p.text(f"{linea_actual.strip()}\n")
@@ -605,10 +644,12 @@ class TicketGenerator:
     
     def _estimate_height(self, venta_data):
         """Estima la altura necesaria para el ticket"""
-        height = 30 * mm  # Header
-        height += len(venta_data['productos']) * 6 * mm  # Productos
-        height += 30 * mm  # Totales
-        height += 55 * mm  # Footer
+        # Ajustar factor según ancho
+        factor = 1.0 if self.printer_width_mm < 80 else 1.2
+        height = 30 * mm * factor  # Header
+        height += len(venta_data['productos']) * 6 * mm * factor  # Productos
+        height += 30 * mm * factor  # Totales
+        height += 55 * mm * factor  # Footer
         return height
     
     def _draw_header(self, c, venta_data, business_info=None):
@@ -635,38 +676,38 @@ class TicketGenerator:
                     self.current_y -= (logo_height + 2 * mm)
                 except:
                     # Si falla, mostrar texto
-                    self._draw_centered_text(c, business_info['name'], 12, bold=True)
-                    self._draw_centered_text(c, business_info['subtitle'], 9)
+                    self._draw_centered_text(c, business_info['name'], self.font_size_title, bold=True)
+                    self._draw_centered_text(c, business_info['subtitle'], self.font_size_normal)
             else:
                 # Sin logo, mostrar texto
-                self._draw_centered_text(c, business_info['name'], 12, bold=True)
-                self._draw_centered_text(c, business_info['subtitle'], 9)
+                self._draw_centered_text(c, business_info['name'], self.font_size_title, bold=True)
+                self._draw_centered_text(c, business_info['subtitle'], self.font_size_normal)
         else:
             # Logo desactivado, solo mostrar nombre
-            self._draw_centered_text(c, business_info['name'], 12, bold=True)
-            self._draw_centered_text(c, business_info['subtitle'], 9)
+            self._draw_centered_text(c, business_info['name'], self.font_size_title, bold=True)
+            self._draw_centered_text(c, business_info['subtitle'], self.font_size_normal)
         
         # Información del negocio
         if business_info['address']:
-            self._draw_centered_text(c, business_info['address'], 7)
+            self._draw_centered_text(c, business_info['address'], self.font_size_small)
         if business_info['city']:
-            self._draw_centered_text(c, business_info['city'], 7)
+            self._draw_centered_text(c, business_info['city'], self.font_size_small)
         if business_info['phone']:
-            self._draw_centered_text(c, f"Tel: {business_info['phone']}", 7)
+            self._draw_centered_text(c, f"Tel: {business_info['phone']}", self.font_size_small)
         
         # Líneas extra del header
         for linea in business_info['header_extra']:
             if linea.strip():
-                self._draw_centered_text(c, linea, 7)
+                self._draw_centered_text(c, linea, self.font_size_small)
         
         self.current_y -= 2 * mm
         
         # Información del ticket
-        self._draw_centered_text(c, f"Ticket #: {venta_data['numero_venta']}", 9, bold=True)
-        self._draw_centered_text(c, f"Fecha: {venta_data['fecha']}", 7)
+        self._draw_centered_text(c, f"Ticket #: {venta_data['numero_venta']}", self.font_size_normal, bold=True)
+        self._draw_centered_text(c, f"Fecha: {venta_data['fecha']}", self.font_size_small)
         
         if venta_data.get('mesa'):
-            self._draw_centered_text(c, f"{venta_data['mesa']}", 8)
+            self._draw_centered_text(c, f"{venta_data['mesa']}", self.font_size_normal)
         
         self.current_y -= 2 * mm
     
@@ -685,22 +726,23 @@ class TicketGenerator:
         self.current_y -= 1 * mm
         
         # Encabezado
-        c.setFont("Helvetica-Bold", 8)
+        c.setFont("Helvetica-Bold", self.font_size_normal)
         c.drawString(self.margin, self.current_y, "Cant.")
         c.drawString(self.margin + 10 * mm, self.current_y, "Descripción")
         c.drawRightString(self.width - self.margin, self.current_y, "Total")
         self.current_y -= 3 * mm
         
         # Productos
-        c.setFont("Helvetica", 8)
+        c.setFont("Helvetica", self.font_size_normal)
         for producto in venta_data['productos']:
             # Cantidad
             c.drawString(self.margin, self.current_y, str(int(producto['cantidad'])))
             
             # Nombre del producto
             nombre = producto['nombre']
-            if len(nombre) > 18:
-                nombre = nombre[:18] + "..."
+            max_len = 25 if self.printer_width_mm >= 80 else 18
+            if len(nombre) > max_len:
+                nombre = nombre[:max_len] + "..."
             c.drawString(self.margin + 10 * mm, self.current_y, nombre)
             
             # Total
@@ -710,10 +752,10 @@ class TicketGenerator:
             self.current_y -= 3 * mm
             
             # Precio unitario (línea adicional más pequeña)
-            c.setFont("Helvetica", 6)
+            c.setFont("Helvetica", self.font_size_small)
             c.drawString(self.margin + 10 * mm, self.current_y, 
                         f"  {format_currency(producto['precio'])} c/u")
-            c.setFont("Helvetica", 8)
+            c.setFont("Helvetica", self.font_size_normal)
             self.current_y -= 3 * mm
         
         self.current_y -= 3 * mm
@@ -727,7 +769,7 @@ class TicketGenerator:
         
         # Subtotal (si hay propina)
         if venta_data.get('propina', 0) > 0:
-            c.setFont("Helvetica", 9)
+            c.setFont("Helvetica", self.font_size_normal)
             c.drawString(self.margin, self.current_y, "Subtotal:")
             c.drawRightString(self.width - self.margin, self.current_y, 
                             format_currency(venta_data['subtotal']))
@@ -740,14 +782,14 @@ class TicketGenerator:
             self.current_y -= 4 * mm
         
         # Total
-        c.setFont("Helvetica-Bold", 11)
+        c.setFont("Helvetica-Bold", self.font_size_title)
         c.drawString(self.margin, self.current_y, "TOTAL:")
         c.drawRightString(self.width - self.margin, self.current_y, 
                         format_currency(venta_data['total']))
         self.current_y -= 5 * mm
         
         # Recibido
-        c.setFont("Helvetica", 9)
+        c.setFont("Helvetica", self.font_size_normal)
         c.drawString(self.margin, self.current_y, "Recibido:")
         c.drawRightString(self.width - self.margin, self.current_y, 
                         format_currency(venta_data['recibido']))
@@ -760,17 +802,17 @@ class TicketGenerator:
         self.current_y -= 4 * mm
         
         # Método de pago
-        c.setFont("Helvetica", 7)
+        c.setFont("Helvetica", self.font_size_small)
         self._draw_centered_text_at(c, f"Método de pago: {venta_data['metodo_pago']}", 
-                                    self.current_y, 7)
+                                    self.current_y, self.font_size_small)
         self.current_y -= 3 * mm
         
         # Total en letras
         if business_info['mostrar_total_letras']:
             try:
                 total_letras = numero_a_letras(venta_data['total'])
-                c.setFont("Helvetica", 6)
-                self._draw_centered_text_at(c, total_letras, self.current_y, 6)
+                c.setFont("Helvetica", self.font_size_small)
+                self._draw_centered_text_at(c, total_letras, self.current_y, self.font_size_small)
                 self.current_y -= 4 * mm
             except Exception as e:
                 print(f"⚠ Error al convertir total a letras: {e}")
@@ -785,22 +827,22 @@ class TicketGenerator:
         mensaje_lineas = business_info['mensaje_final'].split('\n')
         
         if mensaje_lineas:
-            c.setFont("Helvetica-Bold", 9)
-            self._draw_centered_text_at(c, mensaje_lineas[0], self.current_y, 9)
+            c.setFont("Helvetica-Bold", self.font_size_normal)
+            self._draw_centered_text_at(c, mensaje_lineas[0], self.current_y, self.font_size_normal)
             self.current_y -= 3 * mm
             
             if len(mensaje_lineas) > 1:
-                c.setFont("Helvetica", 8)
+                c.setFont("Helvetica", self.font_size_small)
                 for linea in mensaje_lineas[1:]:
                     if linea.strip():
-                        self._draw_centered_text_at(c, linea, self.current_y, 8)
+                        self._draw_centered_text_at(c, linea, self.current_y, self.font_size_small)
                         self.current_y -= 3 * mm
         
         # Líneas extra del footer
-        c.setFont("Helvetica", 7)
+        c.setFont("Helvetica", self.font_size_small)
         for linea in business_info['footer_extra']:
             if linea.strip():
-                self._draw_centered_text_at(c, linea, self.current_y, 7)
+                self._draw_centered_text_at(c, linea, self.current_y, self.font_size_small)
                 self.current_y -= 3 * mm
     
     def _draw_centered_text(self, c, text, size, bold=False):

@@ -481,7 +481,9 @@ class Database:
                 'footer_linea4': 'TEXT DEFAULT ""',
                 'footer_linea5': 'TEXT DEFAULT ""',
                 'mostrar_logo': 'INTEGER DEFAULT 1',
-                'mostrar_total_letras': 'INTEGER DEFAULT 1'
+                'mostrar_total_letras': 'INTEGER DEFAULT 1',
+                'nombre_impresora': 'TEXT DEFAULT "POS-58"',
+                'ancho_impresora': 'INTEGER DEFAULT 58'
             }
             
             for col_name, col_type in new_columns.items():

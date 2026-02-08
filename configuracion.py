@@ -378,6 +378,21 @@ class ConfiguracionWindow:
         tk.Checkbutton(opciones_frame, text="Mostrar total en letras en ticket", variable=self.mostrar_total_letras_var,
                        font=FONTS['normal'], bg=COLORS['bg_secondary'], selectcolor=COLORS['bg_primary']).pack(anchor='w')
 
+        # Configuración de Impresora
+        tk.Frame(opciones_frame, height=10, bg=COLORS['bg_secondary']).pack() # Espaciador
+        
+        tk.Label(opciones_frame, text="Nombre de Impresora Térmica:", font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', pady=(5, 2))
+        self.printer_name_var = tk.StringVar(value=negocio_info.get('nombre_impresora', 'POS-58') if negocio_info else 'POS-58')
+        tk.Entry(opciones_frame, textvariable=self.printer_name_var, font=FONTS['normal']).pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(opciones_frame, text="Tamaño Impresora:", font=FONTS['normal'], bg=COLORS['bg_secondary']).pack(anchor='w', pady=(5, 2))
+        self.printer_width_var = tk.IntVar(value=negocio_info.get('ancho_impresora', 58) if negocio_info else 58)
+        
+        printer_size_frame = tk.Frame(opciones_frame, bg=COLORS['bg_secondary'])
+        printer_size_frame.pack(anchor='w')
+        tk.Radiobutton(printer_size_frame, text="58mm", variable=self.printer_width_var, value=58, font=FONTS['normal'], bg=COLORS['bg_secondary'], selectcolor=COLORS['bg_primary']).pack(side=tk.LEFT, padx=(0, 15))
+        tk.Radiobutton(printer_size_frame, text="80mm", variable=self.printer_width_var, value=80, font=FONTS['normal'], bg=COLORS['bg_secondary'], selectcolor=COLORS['bg_primary']).pack(side=tk.LEFT)
+
         # Botón Guardar
         button_frame = tk.Frame(content_scroll_frame, bg=COLORS['bg_primary'])
         button_frame.pack(pady=(30, 10))
@@ -902,7 +917,9 @@ class ConfiguracionWindow:
                 'mensaje_final': mensaje_final,
                 'logo_path': self.logo_path_var.get().strip(),
                 'mostrar_logo': 1 if self.mostrar_logo_var.get() else 0,
-                'mostrar_total_letras': 1 if self.mostrar_total_letras_var.get() else 0
+                'mostrar_total_letras': 1 if self.mostrar_total_letras_var.get() else 0,
+                'nombre_impresora': self.printer_name_var.get().strip(),
+                'ancho_impresora': self.printer_width_var.get()
             }
 
             # Añadir líneas extra de header y footer
