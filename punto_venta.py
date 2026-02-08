@@ -1713,14 +1713,15 @@ class CobrarVentaWindow:
         total_frame = tk.Frame(left_frame, bg=COLORS['bg_secondary'],
                               relief=tk.RAISED, borderwidth=1)
         total_frame.pack(fill=tk.X, pady=15, padx=12)
+        total_frame.grid_columnconfigure(0, weight=1)
         
         tk.Label(total_frame, text="Total a pagar:", font=FONTS['subtitle'],
-                bg=COLORS['bg_secondary']).pack(side=tk.LEFT, padx=10, pady=15)
+                bg=COLORS['bg_secondary']).grid(row=0, column=0, sticky='w', padx=10, pady=15)
         
         self.total_var = tk.StringVar(value=format_currency(self.subtotal))
         tk.Label(total_frame, textvariable=self.total_var, 
                 font=('Segoe UI', 20, 'bold'), bg=COLORS['bg_secondary'],
-                fg=COLORS['accent']).pack(side=tk.RIGHT, padx=10, pady=12)
+                fg=COLORS['accent'], justify=tk.RIGHT).grid(row=0, column=1, sticky='e', padx=10, pady=12)
         
         
         self.recibido_var = tk.StringVar(value="0")
@@ -1747,14 +1748,15 @@ class CobrarVentaWindow:
         # Cambio
         cambio_frame = tk.Frame(left_frame, bg=COLORS['bg_primary'])
         cambio_frame.pack(fill=tk.X, pady=8)
+        cambio_frame.grid_columnconfigure(0, weight=1)
         
         tk.Label(cambio_frame, text="Cambio:", font=FONTS['subtitle'],
-                bg=COLORS['bg_primary']).pack(side=tk.LEFT)
+                bg=COLORS['bg_primary']).grid(row=0, column=0, sticky='w')
         
         self.cambio_var = tk.StringVar(value="$0.00")
         tk.Label(cambio_frame, textvariable=self.cambio_var, 
                 font=FONTS['subtitle'], bg=COLORS['bg_primary'],
-                fg=COLORS['success']).pack(side=tk.RIGHT)
+                fg=COLORS['success'], justify=tk.RIGHT).grid(row=0, column=1, sticky='e')
         
         # Separador
         tk.Frame(left_frame, bg=COLORS['border'], height=2).pack(fill=tk.X, pady=15)

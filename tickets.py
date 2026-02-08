@@ -87,6 +87,9 @@ class TicketGenerator:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = os.path.join(tickets_dir, f'ticket_{venta_data["numero_venta"]}_{timestamp}.pdf')
         
+        # Obtener información del negocio una sola vez (igual que en térmica)
+        business_info = self._get_business_info()
+        
         # Calcular altura necesaria
         estimated_height = self._estimate_height(venta_data)
         page_height = max(estimated_height, 100 * mm)
@@ -98,13 +101,13 @@ class TicketGenerator:
         self.current_y = page_height - (5 * mm)
         
         # Dibujar contenido
-        self._draw_header(c, venta_data)
+        self._draw_header(c, venta_data, business_info)
         self._draw_separator(c, dashed=False)
         self._draw_products(c, venta_data)
         self._draw_separator(c, dashed=True)
-        self._draw_totals(c, venta_data)
+        self._draw_totals(c, venta_data, business_info)
         self._draw_separator(c, dashed=False)
-        self._draw_footer(c)
+        self._draw_footer(c, business_info)
         
         # Guardar PDF
         c.save()
@@ -239,28 +242,33 @@ class TicketGenerator:
             
             # Subtotal (si hay propina)
             if venta_data.get('propina', 0) > 0:
-                subtotal = format_currency(venta_data['subtotal'])
-                p.text(f"{'Subtotal:':<24}{subtotal:>8}\n")
+                subtotal_str = format_currency(venta_data['subtotal'])
+                label = "Subtotal:"
+                p.text(f"{label:<{32-len(subtotal_str)}}{subtotal_str}\n")
                 
-                propina = format_currency(venta_data['propina'])
-                p.text(f"{'Propina:':<24}{propina:>8}\n")
+                propina_str = format_currency(venta_data['propina'])
+                label = "Propina:"
+                p.text(f"{label:<{32-len(propina_str)}}{propina_str}\n")
                 p.text('\n')
             
             # Total (sin doble tamaño, solo negrita)
             p.set(bold=True)
-            total = format_currency(venta_data['total'])
-            p.text(f"{'TOTAL:':<24}{total:>8}\n")
+            total_str = format_currency(venta_data['total'])
+            label = "TOTAL:"
+            p.text(f"{label:<{32-len(total_str)}}{total_str}\n")
             
             p.set(bold=False)
             p.text('\n')
             
             # Recibido
-            recibido = format_currency(venta_data['recibido'])
-            p.text(f"{'Recibido:':<24}{recibido:>8}\n")
+            recibido_str = format_currency(venta_data['recibido'])
+            label = "Recibido:"
+            p.text(f"{label:<{32-len(recibido_str)}}{recibido_str}\n")
             
             # Cambio
-            cambio = format_currency(venta_data['cambio'])
-            p.text(f"{'Cambio:':<24}{cambio:>8}\n")
+            cambio_str = format_currency(venta_data['cambio'])
+            label = "Cambio:"
+            p.text(f"{label:<{32-len(cambio_str)}}{cambio_str}\n")
             
             p.text('\n')
             
@@ -536,7 +544,8 @@ class TicketGenerator:
             # ========== TOTALES ==========
             p.set(align='left', bold=True)
             total_formatted = format_currency(subtotal)
-            p.text(f"{ 'TOTAL:':<24}{total_formatted:>8}\n")
+            label = "TOTAL:"
+            p.text(f"{label:<{32-len(total_formatted)}}{total_formatted}\n")
             p.set(bold=False)
             p.text('\n')
 
@@ -602,9 +611,10 @@ class TicketGenerator:
         height += 55 * mm  # Footer
         return height
     
-    def _draw_header(self, c, venta_data):
+    def _draw_header(self, c, venta_data, business_info=None):
         """Dibuja el encabezado del ticket"""
-        business_info = self._get_business_info()
+        if business_info is None:
+            business_info = self._get_business_info()
         
         # Mostrar logo solo si está activado
         if business_info['mostrar_logo']:
@@ -708,11 +718,12 @@ class TicketGenerator:
         
         self.current_y -= 3 * mm
     
-    def _draw_totals(self, c, venta_data):
+    def _draw_totals(self, c, venta_data, business_info=None):
         """Dibuja los totales"""
         self.current_y -= 3 * mm
         
-        business_info = self._get_business_info()
+        if business_info is None:
+            business_info = self._get_business_info()
         
         # Subtotal (si hay propina)
         if venta_data.get('propina', 0) > 0:
@@ -764,11 +775,13 @@ class TicketGenerator:
             except Exception as e:
                 print(f"⚠ Error al convertir total a letras: {e}")
     
-    def _draw_footer(self, c):
+    def _draw_footer(self, c, business_info=None):
         """Dibuja el pie del ticket"""
         self.current_y -= 2 * mm
         
-        business_info = self._get_business_info()
+        if business_info is None:
+            business_info = self._get_business_info()
+            
         mensaje_lineas = business_info['mensaje_final'].split('\n')
         
         if mensaje_lineas:
