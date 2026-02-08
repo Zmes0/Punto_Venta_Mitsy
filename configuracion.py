@@ -587,6 +587,10 @@ class ConfiguracionWindow:
     def perform_delete_database(self):
         """Ejecuta la eliminación y recreación de la base de datos y reinicia la aplicación."""
         try:
+            # Detener el servidor Flask para liberar el bloqueo del archivo .db
+            if self.server_controller and self.server_controller['is_running']():
+                self.server_controller['stop']()
+            
             db.recreate_database()
             messagebox.showinfo("Base de Datos Eliminada",
                                 "La base de datos ha sido eliminada y recreada exitosamente.\n\n"

@@ -229,7 +229,14 @@ def restart_application():
     """Reinicia la aplicación actual."""
     import subprocess
     try:
-        subprocess.Popen([sys.executable] + sys.argv)
+        # Asegurar que el directorio de trabajo sea donde está el ejecutable, 
+        # no la carpeta temporal (_MEI...) para evitar errores de importación (numpy)
+        if getattr(sys, 'frozen', False):
+            cwd = os.path.dirname(sys.executable)
+        else:
+            cwd = os.path.dirname(os.path.abspath(__file__))
+            
+        subprocess.Popen([sys.executable] + sys.argv, cwd=cwd)
         sys.exit()
     except Exception as e:
         print(f"Error al reiniciar la aplicación: {e}")
