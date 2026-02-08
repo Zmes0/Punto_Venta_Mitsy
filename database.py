@@ -1762,7 +1762,40 @@ class Database:
             self.create_tables()
             self.init_config()
             print("Base de datos recreada exitosamente.")
+        else:
+            # Si no se puede borrar el archivo (bloqueado por Flask/Windows),
+            # reconectamos y sobrescribimos con una base de datos vacía.
+            print("Archivo bloqueado. Intentando sobrescribir...")
+            self.connect()
             
+            try:
+                import tempfile
+                # Crear archivo temporal para DB vacía
+                fd, temp_path = tempfile.mkstemp(suffix='.db')
+                os.close(fd)
+                
+                # Abrir conexión a la temporal para inicializarla
+                temp_conn = sqlite3.connect(temp_path)
+                temp_conn.execute("PRAGMA user_version = 0")
+                temp_conn.commit()
+                
+                # Sobrescribir la base de datos actual con la vacía
+                temp_conn.backup(self.conn)
+                temp_conn.close()
+                
+                # Eliminar temporal
+                try: os.remove(temp_path)
+                except: pass
+                
+                # Limpiar WAL y recrear tablas
+                self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self.create_tables()
+                self.init_config()
+                print("Base de datos recreada exitosamente (sobrescrita).")
+            except Exception as e:
+                print(f"Error crítico al recrear base de datos: {e}")
+                raise e
+
     def backup_database_file(self, backup_path: str):
         """Realiza una copia de seguridad segura de la base de datos (compatible con WAL)."""
         try:

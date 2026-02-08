@@ -315,9 +315,10 @@ class MitsysPOS:
     def salir(self):
         """Cierra el programa"""
         if messagebox.askyesno("Salir", "¿Estás seguro de que deseas salir del sistema?"):
-            # La limpieza se ejecutará automáticamente por atexit, o podemos llamarla aquí
+            self.cleanup_server()
             self.root.quit()
             self.root.destroy()
+            sys.exit(0)
     
     def run(self):
         """Ejecuta la aplicación"""
