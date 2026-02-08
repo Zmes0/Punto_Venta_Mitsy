@@ -452,8 +452,6 @@ class ConfiguracionWindow:
 
     def perform_replace_database(self):
         """Abre el explorador para seleccionar una BD y la reemplaza."""
-        import os
-        import shutil
         from tkinter import filedialog
         from utils import restart_application
 
@@ -478,21 +476,10 @@ class ConfiguracionWindow:
             if not new_db_path:
                 return
 
-            # Cerrar la conexión a la BD
-            db.close()
-
-            # Eliminar archivos WAL y SHM si existen para evitar corrupción
-            wal_path = db.db_path + '-wal'
-            shm_path = db.db_path + '-shm'
-            if os.path.exists(wal_path):
-                try: os.remove(wal_path)
-                except: pass
-            if os.path.exists(shm_path):
-                try: os.remove(shm_path)
-                except: pass
-
-            # Reemplazar el archivo de la base de datos
-            shutil.copy2(new_db_path, db.db_path)
+            # USAR EL MÉTODO SEGURO DE RESTAURACIÓN (API SQLite)
+            # En lugar de cerrar y copiar (que falla por bloqueos de Flask),
+            # usamos la función restore_checkpoint que sobrescribe la BD de forma segura.
+            db.restore_checkpoint(new_db_path)
 
             messagebox.showinfo("Base de Datos Reemplazada",
                                 "La base de datos ha sido reemplazada exitosamente.\n\n"
@@ -505,9 +492,6 @@ class ConfiguracionWindow:
             messagebox.showerror("Error al Reemplazar",
                                  f"Ocurrió un error al reemplazar la base de datos:\n{e}",
                                  parent=self.window)
-            # Asegurarse de que la conexión se reabra si hay un error y no se reinicia
-            if not db.conn:
-                db.connect()
 
     def confirm_delete_database(self):
         """Pide confirmación y luego autorización de admin para borrar la base de datos."""
