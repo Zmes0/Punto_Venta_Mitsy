@@ -506,6 +506,10 @@ class DineroCajaWindow:
     
     def accept(self):
         """Acepta y guarda el dinero en caja"""
+        if getattr(self, '_processing', False):
+            return
+        self._processing = True
+
         total = 0
         
         denominacion_total = 0
@@ -517,10 +521,12 @@ class DineroCajaWindow:
                 else:
                     messagebox.showerror("Error", 
                                        "Las cantidades no pueden ser negativas")
+                    self._processing = False
                     return
             except ValueError:
                 messagebox.showerror("Error", 
                                    "Todas las cantidades deben ser números enteros válidos")
+                self._processing = False
                 return
 
         try:
@@ -536,6 +542,7 @@ class DineroCajaWindow:
         if total == 0:
             if not messagebox.askyesno("Confirmar", 
                                       "El total es $0.00. ¿Deseas continuar?"):
+                self._processing = False
                 return
         
         try:
@@ -588,6 +595,7 @@ class DineroCajaWindow:
             
         except Exception as e:
             messagebox.showerror("Error", f"Error al guardar: {e}")
+            self._processing = False
 
 
 if __name__ == "__main__":

@@ -486,6 +486,11 @@ class ConfiguracionWindow:
                  cursor='hand2').pack(pady=(0, 15))
     
     def backup_database(self):
+        """Pide autorización de admin para realizar una copia de seguridad."""
+        AdminAuthDialog(self.window, on_success=self.perform_backup_database,
+                        message="Se requiere autorización de administrador para realizar una copia de seguridad.")
+
+    def perform_backup_database(self):
         """Crea una copia de seguridad de la base de datos en una ubicación seleccionada por el usuario."""
         from datetime import datetime
         from tkinter import filedialog

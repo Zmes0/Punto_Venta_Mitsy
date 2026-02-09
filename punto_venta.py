@@ -11,7 +11,7 @@ from database import db
 from tickets import ticket_generator
 import utils
 from caja import open_cash_drawer
-from auth import AuthDialog
+from auth import AuthDialog, session
 
 class PuntoVentaWindow:
     def __init__(self, parent, on_close=None):
@@ -2264,8 +2264,14 @@ class FinalizarDiaWindow:
             # NUEVO: Crear checkpoint de la base de datos
             db.create_checkpoint(corte['numero_corte'])
             
-            # NUEVO: Resumen mejorado con separación de efectivo y transferencia
-            resumen = f"""
+            # Verificar permisos para mostrar resumen
+            mostrar_resumen = True
+            if db.is_auth_enabled() and not session.is_admin():
+                mostrar_resumen = False
+
+            if mostrar_resumen:
+                # NUEVO: Resumen mejorado con separación de efectivo y transferencia
+                resumen = f"""
 ╔══════════════════════════════════════╗
          CORTE DE CAJA #{corte['numero_corte']}
 ╚══════════════════════════════════════╝
@@ -2299,9 +2305,11 @@ RENTABILIDAD:
 Ganancias Netas:         {format_currency(corte['ganancias'])}
 
 ────────────────────────────────────────
-            """
-            
-            messagebox.showinfo("Corte de Caja Completado", resumen)
+                """
+                
+                messagebox.showinfo("Corte de Caja Completado", resumen)
+            else:
+                messagebox.showinfo("Corte de Caja Completado", "El corte de caja se ha realizado correctamente.")
             
             self.dialog.destroy()
             
