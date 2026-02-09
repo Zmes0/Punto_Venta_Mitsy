@@ -1,6 +1,6 @@
 ('C:\\Users\\sebas\\OneDrive\\Escritorio\\Mitsys POS '
  'V2\\build\\mitsys\\MitsysPOS.exe',
- True,
+ False,
  False,
  True,
  ['C:\\Users\\sebas\\OneDrive\\Escritorio\\Mitsys POS V2\\icono.ico'],
@@ -87,8 +87,8 @@
  [],
  False,
  False,
- 1770588849,
- [('run.exe',
-   'C:\\Users\\sebas\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\run.exe',
+ 1770594059,
+ [('runw.exe',
+   'C:\\Users\\sebas\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\runw.exe',
    'EXECUTABLE')],
  'C:\\Users\\sebas\\AppData\\Local\\Programs\\Python\\Python313\\python313.dll')

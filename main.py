@@ -306,7 +306,10 @@ class MitsysPOS:
             self.server_process = subprocess.Popen(
                 cmd,
                 cwd=base_dir,
-                startupinfo=startupinfo
+                startupinfo=startupinfo,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL
             )
             print(f"Servidor iniciado con PID: {self.server_process.pid}")
             
@@ -319,7 +322,13 @@ class MitsysPOS:
             try:
                 if sys.platform == 'win32':
                     # Matar árbol de procesos en Windows
-                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(self.server_process.pid)])
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(self.server_process.pid)],
+                                    startupinfo=startupinfo,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    stdin=subprocess.DEVNULL)
                 else:
                     self.server_process.terminate()
                 self.server_process = None # Evitar doble limpieza
