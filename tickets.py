@@ -362,11 +362,11 @@ class TicketGenerator:
             # Cerrar conexión
             p.close()
             
-            print("✓ Ticket impreso correctamente en impresora térmica")
+            print(">> Ticket impreso correctamente en impresora termica")
             return True
             
         except Exception as e:
-            print(f"❌ Error al imprimir en térmica: {e}")
+            print(f"!! Error al imprimir en termica: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -467,11 +467,11 @@ class TicketGenerator:
             # Cerrar conexión
             p.close()
             
-            print("✓ Ticket de cocina impreso correctamente")
+            print(">> Ticket de cocina impreso correctamente")
             return True
             
         except Exception as e:
-            print(f"❌ Error al imprimir ticket de cocina: {e}")
+            print(f"!! Error al imprimir ticket de cocina: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -631,11 +631,11 @@ class TicketGenerator:
             p.cut()
             p.close()
 
-            print("✓ Cuenta impresa correctamente en impresora térmica")
+            print(">> Cuenta impresa correctamente en impresora termica")
             return True
 
         except Exception as e:
-            print(f"❌ Error al imprimir cuenta en térmica: {e}")
+            print(f"!! Error al imprimir cuenta en termica: {e}")
             import traceback
             traceback.print_exc()
             return False
